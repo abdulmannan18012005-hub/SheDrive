@@ -1,0 +1,29 @@
+{
+"expo": {
+    "name": "SheDrive",
+    "slug": "shedrive",
+    "scheme": "shedrive",
+    "version": "1.0.0",
+    "jsEngine": "hermes",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#ffffff",
+      "resizeMode": "contain"
+    },
+    "ios": {
+    "supportsTablet": true
+    },
+    "android": {
+      "package": "com.lahore.pinkrides",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    }
+}
+}
