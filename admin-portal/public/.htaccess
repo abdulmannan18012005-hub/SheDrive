@@ -1,0 +1,26 @@
+# SheDrive Web Admin Portal - Production Apache .htaccess Configuration
+# For deployment in public_html/admin/ on InfinityFree / cPanel Apache web server
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /admin/
+
+    # Do not rewrite actual files or directories
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Rewrite all client-side routes to index.html for React SPA
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# Disable directory browsing
+Options -Indexes
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

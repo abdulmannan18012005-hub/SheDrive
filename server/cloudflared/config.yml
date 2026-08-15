@@ -1,0 +1,14 @@
+# SheDrive Backend - Cloudflare Named Tunnel Configuration
+# Tunnel Name: SheDrive Tunnel
+
+# Replace <YOUR_TUNNEL_UUID> with your actual Tunnel UUID from Cloudflare Dashboard
+tunnel: 847ba090-3055-42fe-a39c-facd720a5b9c
+credentials-file: C:\Users\abdul\.cloudflared\<YOUR_TUNNEL_UUID>.json
+
+ingress:
+  # Route traffic for your public domain to the local Express backend on port 3000
+  - hostname: api.Abdul_Mannan.com # Replace with your configured Cloudflare Public Hostname
+    service: http://localhost:3000
+  
+  # Catch-all rule (Required by Cloudflare)
+  - service: http_status:404

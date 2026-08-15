@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "984107313094",
+    "project_id": "lahore-pink-rides",
+    "storage_bucket": "lahore-pink-rides.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:984107313094:android:43b44bcf4952b593e4f4c7",
+        "android_client_info": {
+          "package_name": "com.lahore.pinkrides"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBt0e6oW6yvspEqN3gRt5TFy-qQELtf444"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

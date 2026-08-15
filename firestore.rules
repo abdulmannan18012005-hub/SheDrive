@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS
+    // =========================================================================
+
+    // Verify user is authenticated with Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    // Verify authenticated user owns the document ID
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Verify current user is a participant (passenger or assigned driver) of a ride
+    function isRideParticipant(rideData) {
+      return isAuthenticated() && (
+        request.auth.uid == rideData.passengerId ||
+        (rideData.driverId != null && request.auth.uid == rideData.driverId)
+      );
+    }
+
+    // Verify whether request is from a driver accepting or placing a counter offer
+    function isDriverUpdatingRide() {
+      return isAuthenticated() && (
+        // Driver assigning themselves upon ride acceptance
+        (request.resource.data.driverId == request.auth.uid) ||
+        // Existing assigned driver updating coordinates, state, or offers
+        (resource.data.driverId == request.auth.uid) ||
+        // Unassigned ride receiving counter offers from drivers
+        (resource.data.status in ['pending', 'negotiating'])
+      );
+    }
+
+    // =========================================================================
+    // 1. USERS COLLECTION: /users/{userId}
+    // Passenger & Driver shared profiles
+    // =========================================================================
+    match /users/{userId} {
+      // Authenticated users can read profiles (e.g. driver seeing passenger name, passenger seeing driver info)
+      allow read: if isAuthenticated();
+
+      // User can only create their own user document matching their Firebase Auth UID
+      allow create: if isOwner(userId)
+                    && request.resource.data.uid == userId;
+
+      // User can only update or delete their own profile
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // =========================================================================
+    // 2. DRIVERS COLLECTION: /drivers/{driverId}
+    // Driver-specific live telemetry, ratings, availability, and vehicle details
+    // =========================================================================
+    match /drivers/{driverId} {
+      // Authenticated users can read driver profiles and query online drivers
+      allow read: if isAuthenticated();
+
+      // Driver can only create their own driver record matching their Auth UID
+      allow create: if isOwner(driverId)
+                    && request.resource.data.uid == driverId;
+
+      // Allow driver to update their own telemetry / status,
+      // OR allow an authenticated passenger to submit a rating update upon trip completion
+      allow update: if isAuthenticated() && (
+        isOwner(driverId) ||
+        // Passenger rating update (only modifies rating and totalRides fields)
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'totalRides'])
+      );
+
+      // Driver can only delete their own record
+      allow delete: if isOwner(driverId);
+    }
+
+    // =========================================================================
+    // 3. RIDES COLLECTION: /rides/{rideId}
+    // Active trips, bidding negotiations, and ride state lifecycle
+    // =========================================================================
+    match /rides/{rideId} {
+      // Authenticated users can read rides:
+      // - Drivers need to query pending/negotiating rides
+      // - Passengers and assigned drivers need to track their rides
+      // - Both need to query historical rides
+      allow read: if isAuthenticated();
+
+      // Passenger creates a ride request (must be authenticated and set passengerId to their own UID)
+      allow create: if isAuthenticated()
+                    && request.resource.data.passengerId == request.auth.uid
+                    && request.resource.data.status == 'pending';
+
+      // Update ride document:
+      // 1. Passenger updating their own ride (bids, cancel, finish)
+      // 2. Driver accepting, advancing status (arrived/enroute/completed), updating driverCoords, or submitting counter-bids
+      allow update: if isAuthenticated() && (
+        (resource.data.passengerId == request.auth.uid) ||
+        isDriverUpdatingRide()
+      );
+
+      // Only the passenger who created the ride can delete it
+      allow delete: if isAuthenticated() && resource.data.passengerId == request.auth.uid;
+
+      // -----------------------------------------------------------------------
+      // RIDE CHAT SUBCOLLECTION: /rides/{rideId}/messages/{messageId}
+      // -----------------------------------------------------------------------
+      match /messages/{messageId} {
+        // Read messages if authenticated and part of the ride conversation
+        allow read: if isAuthenticated();
+
+        // Write message: senderId must match authenticated user's UID
+        allow create: if isAuthenticated()
+                      && request.resource.data.senderId == request.auth.uid;
+
+        // Messages are immutable once sent
+        allow update, delete: if false;
+      }
+    }
+
+    // =========================================================================
+    // 4. RATINGS COLLECTION: /ratings/{ratingId}
+    // Post-ride review feedback from passengers and drivers
+    // =========================================================================
+    match /ratings/{ratingId} {
+      // Authenticated users can view ratings
+      allow read: if isAuthenticated();
+
+      // Authenticated user can submit a rating where fromUserId matches their UID
+      allow create: if isAuthenticated()
+                    && request.resource.data.fromUserId == request.auth.uid;
+
+      // Ratings are permanent audit records and cannot be altered or removed
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // 5. EMERGENCY ALERTS COLLECTION: /emergency_alerts/{alertId}
+    // High-priority emergency SOS security dispatch logs
+    // =========================================================================
+    match /emergency_alerts/{alertId} {
+      // Authenticated users and admin personnel can read emergency alerts
+      allow read: if isAuthenticated();
+
+      // Authenticated user can trigger emergency SOS matching their UID
+      allow create: if isAuthenticated()
+                    && request.resource.data.userId == request.auth.uid;
+
+      // Emergency alerts cannot be deleted or forged after triggering
+      allow update, delete: if false;
+    }
+  }
+}

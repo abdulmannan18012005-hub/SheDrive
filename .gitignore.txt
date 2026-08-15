@@ -1,0 +1,39 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Expo
+.expo/
+.expo-shared/
+
+# Android Build
+android/.gradle/
+android/build/
+android/app/build/
+
+# iOS
+ios/build/
+
+# Environment
+.env
+.env.*
+server/.env
+server/.env.*
+
+# APK/AAB
+*.apk
+*.aab
+*.zip
+
+# Logs
+*.log
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# VS Code
+.vscode/
+
+# Temp
+dist/

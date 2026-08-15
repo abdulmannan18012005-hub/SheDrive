@@ -1,0 +1,514 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
+import { PassengerStackParamList, NominatimResult, LocationPoint } from '../../types';
+import Colors from '../../constants/Colors';
+import { searchAddress, reverseGeocode } from '../../services/nominatim';
+import { useDebounce } from '../../hooks/useDebounce';
+import { useLocation } from '../../hooks/useLocation';
+import { getRoute } from '../../services/osrm';
+import { SkeletonLoader } from '../../components/SkeletonLoader';
+import { useApp } from '../../contexts/AppContext';
+import { getApiBaseUrl } from '../../config/apiConfig';
+
+type SearchScreenNavigationProp = StackNavigationProp<PassengerStackParamList, 'Search'>;
+type SearchScreenRouteProp = RouteProp<PassengerStackParamList, 'Search'>;
+
+interface Props {
+  navigation: SearchScreenNavigationProp;
+  route: SearchScreenRouteProp;
+}
+
+export default function SearchScreen({ navigation, route }: Props): React.JSX.Element {
+  const { location: gpsCoords } = useLocation();
+  const { state } = useApp();
+
+  const [pickupText, setPickupText] = useState('');
+  const [destText, setDestText] = useState('');
+  const [activeField, setActiveField] = useState<'pickup' | 'dest'>('dest');
+
+  const [pickupPoint, setPickupPoint] = useState<LocationPoint | null>(null);
+  const [destPoint, setDestPoint] = useState<LocationPoint | null>(null);
+
+  const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
+
+  // Debounced inputs for geocoder query (300ms fast response)
+  const debouncedPickup = useDebounce(pickupText, 300);
+  const debouncedDest = useDebounce(destText, 300);
+
+  // Fetch saved places from backend
+  useEffect(() => {
+    const fetchSavedPlaces = async () => {
+      try {
+        setIsLoadingPlaces(true);
+        const res = await fetch(`${getApiBaseUrl()}/user/saved-places`, {
+          headers: {
+            Authorization: `Bearer ${state.token}`,
+          },
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setSavedPlaces(data.places || []);
+        } else {
+          setSavedPlaces([]);
+        }
+      } catch (err) {
+        console.error('Fetch saved places error:', err);
+        setSavedPlaces([]);
+      } finally {
+        setIsLoadingPlaces(false);
+      }
+    };
+
+    fetchSavedPlaces();
+  }, [state.token]);
+
+  // Auto-reverse geocode current position for Pickup
+  useEffect(() => {
+    const initPickup = async () => {
+      if (gpsCoords) {
+        setPickupText('My Location');
+        const readableAddress = await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude);
+        const labelName = readableAddress || 'Current Location';
+        setPickupPoint({
+          latitude: gpsCoords.latitude,
+          longitude: gpsCoords.longitude,
+          label: labelName,
+        });
+      }
+    };
+    initPickup();
+  }, [gpsCoords]);
+
+  // Execute address search query when debounced text updates
+  useEffect(() => {
+    const runSearch = async () => {
+      const activeQuery = activeField === 'pickup' ? debouncedPickup : debouncedDest;
+      if (!activeQuery || activeQuery.trim().length < 1 || activeQuery === 'My Location') {
+        setSearchResults([]);
+        return;
+      }
+
+      try {
+        setIsSearching(true);
+        const places = await searchAddress(activeQuery);
+        setSearchResults(places);
+      } catch (err) {
+        console.error('Search failed:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    runSearch();
+  }, [debouncedPickup, debouncedDest, activeField]);
+
+  const handleSelectItem = async (item: NominatimResult) => {
+    const lat = parseFloat(item.lat);
+    const lon = parseFloat(item.lon);
+    const shortLabel = item.display_name.split(',')[0];
+
+    const selectedPoint: LocationPoint = {
+      latitude: lat,
+      longitude: lon,
+      label: shortLabel,
+    };
+
+    if (activeField === 'pickup') {
+      setPickupPoint(selectedPoint);
+      setPickupText(shortLabel);
+      setSearchResults([]);
+      setActiveField('dest');
+    } else {
+      setDestPoint(selectedPoint);
+      setDestText(shortLabel);
+      setSearchResults([]);
+
+      // Auto-navigate to booking screen if pickup exists
+      const pPoint = pickupPoint || (gpsCoords ? { latitude: gpsCoords.latitude, longitude: gpsCoords.longitude, label: 'Current Location' } : null);
+      if (pPoint) {
+        try {
+          setIsCalculatingRoute(true);
+          const osrmRoute = await getRoute(pPoint.latitude, pPoint.longitude, lat, lon);
+          if (osrmRoute) {
+            navigation.navigate('FareBid', {
+              pickup: pPoint,
+              destination: selectedPoint,
+              route: osrmRoute,
+            });
+          }
+        } catch (e) {
+          console.warn('Auto route calculation error:', e);
+        } finally {
+          setIsCalculatingRoute(false);
+        }
+      }
+    }
+  };
+
+  const handleConfirmRoute = async () => {
+    if (!pickupPoint || !destPoint) {
+      Alert.alert('Validation Error', 'Please select both pickup and destination locations.');
+      return;
+    }
+
+    try {
+      setIsCalculatingRoute(true);
+      // Calculate routing details using OSRM
+      const osrmRoute = await getRoute(
+        pickupPoint.latitude,
+        pickupPoint.longitude,
+        destPoint.latitude,
+        destPoint.longitude
+      );
+
+      if (!osrmRoute) {
+        throw new Error('Could not calculate a viable driving route.');
+      }
+
+      // Navigate to Bidding screen (FareBid)
+      navigation.navigate('FareBid', {
+        pickup: pickupPoint,
+        destination: destPoint,
+        route: osrmRoute,
+      });
+    } catch (error) {
+      Alert.alert('Route Error', 'Unable to calculate route. Please try again.');
+    } finally {
+      setIsCalculatingRoute(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardContainer}
+      >
+        {/* Input Panel Card */}
+        <View style={styles.inputCard}>
+          <View style={styles.routeGraphicContainer}>
+            <View style={styles.greenDot} />
+            <View style={styles.connectingLine} />
+            <View style={styles.pinkDot} />
+          </View>
+
+          <View style={styles.inputsColumn}>
+            <View style={styles.fieldRow}>
+              <TextInput
+                style={[styles.textInput, activeField === 'pickup' && styles.textInputFocused]}
+                placeholder="Enter pickup point"
+                placeholderTextColor={Colors.light.textTertiary}
+                value={pickupText}
+                onChangeText={(text) => {
+                  setPickupText(text);
+                  if (pickupPoint) setPickupPoint(null);
+                }}
+                onFocus={() => setActiveField('pickup')}
+              />
+              {pickupText.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearBtn}
+                  onPress={() => {
+                    setPickupText('');
+                    setPickupPoint(null);
+                  }}
+                >
+                  <Text style={styles.clearBtnText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.fieldRow}>
+              <TextInput
+                style={[styles.textInput, activeField === 'dest' && styles.textInputFocused]}
+                placeholder="Where to?"
+                placeholderTextColor={Colors.light.textTertiary}
+                value={destText}
+                onChangeText={(text) => {
+                  setDestText(text);
+                  if (destPoint) setDestPoint(null);
+                }}
+                onFocus={() => setActiveField('dest')}
+              />
+              {destText.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearBtn}
+                  onPress={() => {
+                    setDestText('');
+                    setDestPoint(null);
+                  }}
+                >
+                  <Text style={styles.clearBtnText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Suggestion List / Activity indicators */}
+        <View style={styles.listContainer}>
+          {isSearching ? (
+            <View style={{ padding: 20, gap: 16 }}>
+              <SkeletonLoader height={48} borderRadius={12} />
+              <SkeletonLoader height={48} borderRadius={12} />
+              <SkeletonLoader height={48} borderRadius={12} />
+              <SkeletonLoader height={48} borderRadius={12} />
+            </View>
+          ) : searchResults.length > 0 ? (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.place_id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.resultItem}
+                  onPress={() => handleSelectItem(item)}
+                >
+                  <Text style={styles.resultIcon}>📍</Text>
+                  <View style={styles.resultTextContainer}>
+                    <Text style={styles.resultTitle}>{item.display_name.split(',')[0]}</Text>
+                    <Text style={styles.resultSubtitle} numberOfLines={2}>
+                      {item.display_name}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              keyboardShouldPersistTaps="handled"
+            />
+          ) : (
+            <ScrollView style={{ flex: 1, padding: 20 }}>
+              {/* Saved Places Section */}
+              <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Saved Places</Text>
+              {isLoadingPlaces ? (
+                <View style={{ padding: 20 }}>
+                  <ActivityIndicator color={Colors.light.primary} />
+                </View>
+              ) : savedPlaces.length === 0 ? (
+                <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text, marginBottom: 4 }}>No Saved Places</Text>
+                  <Text style={{ fontSize: 13, color: Colors.light.textSecondary, textAlign: 'center' }}>Save your favorite locations for quick access</Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 12, marginBottom: 24, gap: 8, borderWidth: 1, borderColor: Colors.light.border }}>
+                  {savedPlaces.map((place) => {
+                    const icon = place.label === 'home' ? '🏠' : place.label === 'work' ? '💼' : '📍';
+                    const placePoint: LocationPoint = { 
+                      latitude: place.latitude, 
+                      longitude: place.longitude, 
+                      label: place.name 
+                    };
+                    return (
+                      <TouchableOpacity
+                        key={place.id}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8 }}
+                        onPress={() => {
+                          if (activeField === 'pickup') { 
+                            setPickupPoint(placePoint); 
+                            setPickupText(place.name); 
+                            setActiveField('dest'); 
+                          } else { 
+                            setDestPoint(placePoint); 
+                            setDestText(place.name); 
+                          }
+                        }}
+                      >
+                        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light.primaryGhost, justifyContent: 'center', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 18 }}>{icon}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text }}>{place.name}</Text>
+                          <Text style={{ fontSize: 13, color: Colors.light.textSecondary }} numberOfLines={1}>
+                            {place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Continue confirmation button */}
+        {pickupPoint && destPoint && (
+          <View style={styles.actionPanel}>
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleConfirmRoute}
+              disabled={isCalculatingRoute}
+              activeOpacity={0.8}
+            >
+              {isCalculatingRoute ? (
+                <ActivityIndicator color={Colors.light.textOnPrimary} />
+              ) : (
+                <Text style={styles.confirmButtonText}>Calculate Fare & Route</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.background,
+  },
+  keyboardContainer: {
+    flex: 1,
+  },
+  inputCard: {
+    backgroundColor: Colors.light.surface,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: Colors.light.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  routeGraphicContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    height: 90,
+  },
+  greenDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.light.success,
+  },
+  connectingLine: {
+    width: 2,
+    height: 38,
+    backgroundColor: Colors.light.border,
+    marginVertical: 4,
+  },
+  pinkDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.light.primary,
+  },
+  inputsColumn: {
+    flex: 1,
+    gap: 12,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: Colors.light.background,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.light.text,
+    fontWeight: '500',
+  },
+  textInputFocused: {
+    borderColor: Colors.light.primary,
+    backgroundColor: Colors.light.surface,
+  },
+  clearBtn: {
+    position: 'absolute',
+    right: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.light.divider,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clearBtnText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontWeight: '700',
+  },
+  listContainer: {
+    flex: 1,
+  },
+  spinner: {
+    marginTop: 40,
+  },
+  resultItem: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.divider,
+    alignItems: 'center',
+    backgroundColor: Colors.light.surface,
+    gap: 16,
+  },
+  resultIcon: {
+    fontSize: 20,
+  },
+  resultTextContainer: {
+    flex: 1,
+  },
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  resultSubtitle: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+  actionPanel: {
+    padding: 20,
+    backgroundColor: Colors.light.surface,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  confirmButton: {
+    backgroundColor: Colors.light.primary,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: Colors.light.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  confirmButtonText: {
+    color: Colors.light.textOnPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+});

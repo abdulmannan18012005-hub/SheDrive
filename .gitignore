@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+server/node_modules/
+admin-portal/node_modules/
+
+# Build outputs
+server/dist/
+admin-portal/dist/
+
+# Environment files
+.env
+.env.local
+.env.production
+server/.env
+admin-portal/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Expo / React Native
+.expo/
+*.jks
+*.keystore
+
+# Android build artifacts
+android/app/build/
+android/.gradle/
+android/build/
+
+# iOS build artifacts
+ios/Pods/
+ios/build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.swp
