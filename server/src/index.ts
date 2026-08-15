@@ -42,7 +42,8 @@ app.use('/api', (_req: any, res: any, next: any) => {
 });
 app.use(requestLogger);
 
-// API v1 Version Prefix Routing
+// Global Root Health Checks & API v1 Version Prefix Routing
+app.use('/health', healthRoutes);
 app.use('/api/v1', healthRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/rides', rideRoutes);
