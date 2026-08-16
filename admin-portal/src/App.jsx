@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:3000/api/v1' : 'https://shedrive.onrender.com/api/v1');
+// If running on localhost/127.0.0.1 and custom VITE_API_BASE_URL is provided, use it. Otherwise, default to live Render backend.
+const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const API_BASE_URL = isLocalhost
+  ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1')
+  : 'https://shedrive.onrender.com/api/v1';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('shedrive_admin_token') || '');
