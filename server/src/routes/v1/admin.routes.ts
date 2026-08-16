@@ -101,7 +101,7 @@ router.get('/stats', authenticateToken, requireAdmin, async (_req: Request, res:
     ] = await Promise.all([
       query('SELECT COUNT(*) FROM drivers WHERE is_online = true'),
       query("SELECT COUNT(*), COALESCE(SUM(final_fare), 0) as revenue FROM rides WHERE status = 'completed'"),
-      query('SELECT COUNT(*) FROM users u JOIN drivers d ON u.id = d.driver_id WHERE u.is_verified = false OR d.is_active = false'),
+      query("SELECT COUNT(*) FROM users u JOIN drivers d ON u.id = d.driver_id WHERE u.verification_status = 'pending'"),
       query("SELECT COUNT(*) FROM users WHERE role = 'passenger'"),
       query("SELECT COUNT(*) FROM rides WHERE status IN ('requested', 'negotiating', 'accepted', 'arrived', 'in_progress')"),
     ]);
