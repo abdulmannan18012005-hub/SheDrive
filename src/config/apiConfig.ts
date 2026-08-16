@@ -13,7 +13,7 @@ const IS_LOCAL_DEV = false;
 const LOCAL_LAPTOP_IP = '192.168.100.9';
 
 // 🌐 Production Render Backend Base URL
-const PRODUCTION_API_URL = 'https://shedrive-backend.onrender.com/api/v1';
+const PRODUCTION_API_URL = 'https://shedrive.onrender.com/api/v1';
 
 export const API_BASE_URL = IS_LOCAL_DEV
   ? `http://${LOCAL_LAPTOP_IP}:3000/api/v1`
