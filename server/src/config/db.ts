@@ -35,7 +35,7 @@ export const pool = new Pool({
   connectionTimeoutMillis: 500,
 });
 
-pool.on('error', (err) => {
+pool.on('error', (err: Error) => {
   if (process.env.NODE_ENV === 'development') {
     console.warn('[PostgreSQL Pool Notice]', err?.message || err);
   }

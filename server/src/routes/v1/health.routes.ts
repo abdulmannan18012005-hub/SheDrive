@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 
 const router = Router();
 
-router.get('/health', (req: Request, res: Response) => {
+const handleHealth = (req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
     service: 'SheDrive Backend API',
@@ -10,6 +10,9 @@ router.get('/health', (req: Request, res: Response) => {
     timestamp: Date.now(),
     uptimeSeconds: process.uptime(),
   });
-});
+};
+
+router.get('/', handleHealth);
+router.get('/health', handleHealth);
 
 export default router;
