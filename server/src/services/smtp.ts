@@ -1,3 +1,4 @@
+import net from 'net';
 import tls from 'tls';
 
 export interface SendEmailOptions {
@@ -9,7 +10,7 @@ export interface SendEmailOptions {
 
 /**
  * Native Node.js TLS SMTP Email Sender (Zero External Dependencies)
- * Sends emails directly via Gmail SMTP (smtp.gmail.com:465) using Node.js built-in tls module.
+ * Connects over IPv4 to smtp.gmail.com:465 using Node.js net + tls socket upgrade.
  * Fully RFC 5321 compliant with robust line buffering and multi-line response parsing.
  */
 export function sendEmail(options: SendEmailOptions): Promise<boolean> {
@@ -21,8 +22,15 @@ export function sendEmail(options: SendEmailOptions): Promise<boolean> {
     const pass = rawPass.replace(/\s+/g, '');
     const senderName = options.fromName || 'SheDrive Support';
 
-    const client = tls.connect(port, host, { rejectUnauthorized: true }, () => {
-      // TLS Connection established
+    // Establish TCP connection explicitly over IPv4 (family: 4) to prevent cloud provider IPv6 DNS AggregateError
+    const rawSocket = net.connect({ host, port, family: 4 }, () => {
+      // TCP Socket connected, upgraded below
+    });
+
+    const client = tls.connect({
+      socket: rawSocket,
+      servername: host,
+      rejectUnauthorized: true,
     });
 
     let step = 0;
