@@ -89,11 +89,11 @@ router.post('/send-registration-otp', async (req: Request, res: Response) => {
       message: 'Verification code has been sent to your email address.',
     });
   } catch (error: any) {
-    console.error('[Gmail SMTP] Registration OTP error:', error.message || error);
-    const detail = error.message || 'Unknown SMTP error';
+    const errorStr = error instanceof Error ? error.message : (typeof error === 'object' ? JSON.stringify(error) : String(error));
+    console.error('[Gmail SMTP] Registration OTP error:', errorStr);
     res.status(500).json({
       error: 'Failed to send verification code. Please check your email address and try again.',
-      details: detail
+      details: errorStr || 'Unknown error'
     });
   }
 });
