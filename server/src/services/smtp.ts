@@ -8,15 +8,9 @@ export interface SendEmailOptions {
   fromName?: string;
 }
 
-// ─── Configuration ───────────────────────────────────────────────
 const gmailUser = (process.env.GMAIL_USER || 'SheDrive.Support@gmail.com').trim();
 const gmailPass = (process.env.GMAIL_APP_PASSWORD || 'pofs asgp bruk yomi').replace(/\s+/g, '');
-const resendApiKey = process.env.RESEND_API_KEY || '';
 
-// ─── Resend HTTP Transport (works on Render free tier) ──────────
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-
-// ─── Nodemailer SMTP Transport (works locally / paid hosting) ───
 const smtpTransporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
@@ -43,19 +37,20 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       });
 
       if (error) {
-        console.error('[Resend API] Error from provider:', error);
-        throw new Error(error.message || 'Resend delivery failed');
+        console.error('[Resend API] Provider Error:', JSON.stringify(error));
+        const errMsg = typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error);
+        throw new Error(`Resend Error: ${errMsg}`);
       }
 
       console.log(`[Resend API] Email delivered successfully: ${data?.id} to ${options.to}`);
       return true;
     } catch (resendErr: any) {
-      console.warn(`[Resend API] Warning (${resendErr.message}), falling back to Gmail SMTP...`);
-      // Fall through to SMTP below
+      console.error(`[Resend API] Failed:`, resendErr.message || resendErr);
+      throw new Error(`Resend failed: ${resendErr.message || resendErr}`);
     }
   }
 
-  // ── Fallback: Gmail SMTP via Nodemailer ──────────────────────
+  // ── Fallback: Gmail SMTP via Nodemailer (only when RESEND_API_KEY is NOT set) ──
   try {
     const info = await smtpTransporter.sendMail({
       from: `"${senderName}" <${gmailUser}>`,
