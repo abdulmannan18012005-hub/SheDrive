@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { Resend } from 'resend';
+import { google } from 'googleapis';
 
 export interface SendEmailOptions {
   to: string;
@@ -11,6 +11,9 @@ export interface SendEmailOptions {
 const gmailUser = (process.env.GMAIL_USER || 'SheDrive.Support@gmail.com').trim();
 const gmailPass = (process.env.GMAIL_APP_PASSWORD || 'pofs asgp bruk yomi').replace(/\s+/g, '');
 
+/**
+ * Standard Gmail SMTP Transporter (Fallback for local dev or when Render is upgraded)
+ */
 const smtpTransporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
@@ -21,36 +24,62 @@ const smtpTransporter = nodemailer.createTransport({
   socketTimeout: 15000,
 });
 
+/**
+ * Helper to encode an email payload into standard RFC 2822 base64url for the Gmail API
+ */
+function createRawEmail(options: SendEmailOptions, senderName: string): string {
+  const utf8Subject = `=?utf-8?B?${Buffer.from(options.subject, 'utf-8').toString('base64')}?=`;
+  const messageParts = [
+    `From: "${senderName}" <${gmailUser}>`,
+    `To: <${options.to}>`,
+    `Subject: ${utf8Subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    options.html,
+  ];
+  const message = messageParts.join('\r\n');
+  return Buffer.from(message, 'utf-8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/**
+ * Send email via best available transport:
+ * 1. Gmail REST API (HTTPS Port 443 — when OAuth2 credentials exist on Render)
+ * 2. Gmail SMTP via Nodemailer (Port 465 SSL — fallback for local dev / paid server)
+ */
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const senderName = options.fromName || 'SheDrive Support';
-  const apiKey = (process.env.RESEND_API_KEY || '').trim();
+  const clientId = (process.env.GMAIL_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
+  const refreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
 
-  // ── Primary: Resend HTTP API (works on Render / cloud containers) ───────
-  if (apiKey) {
+  // ── Primary: Gmail REST API over HTTPS (Bypasses all cloud port blocks) ──
+  if (clientId && clientSecret && refreshToken) {
     try {
-      const resendClient = new Resend(apiKey);
-      const { data, error } = await resendClient.emails.send({
-        from: `${senderName} <onboarding@resend.dev>`,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
+      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, 'https://developers.google.com/oauthplayground');
+      oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+      const raw = createRawEmail(options, senderName);
+
+      const res = await gmail.users.messages.send({
+        userId: 'me',
+        requestBody: { raw },
       });
 
-      if (error) {
-        console.error('[Resend API] Provider Error:', JSON.stringify(error));
-        const errMsg = typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error);
-        throw new Error(`Resend Error: ${errMsg}`);
-      }
-
-      console.log(`[Resend API] Email delivered successfully: ${data?.id} to ${options.to}`);
+      console.log(`[Gmail API (HTTPS)] Email delivered: ${res.data.id} to ${options.to}`);
       return true;
-    } catch (resendErr: any) {
-      console.error(`[Resend API] Failed:`, resendErr.message || resendErr);
-      throw new Error(`Resend failed: ${resendErr.message || resendErr}`);
+    } catch (apiErr: any) {
+      console.error('[Gmail API (HTTPS)] Error:', apiErr.message || apiErr);
+      throw new Error(`Gmail API Delivery Failed: ${apiErr.message || apiErr}`);
     }
   }
 
-  // ── Fallback: Gmail SMTP via Nodemailer (only when RESEND_API_KEY is NOT set) ──
+  // ── Fallback: Gmail SMTP via Nodemailer (Free, unlimited for local / paid host) ──
   try {
     const info = await smtpTransporter.sendMail({
       from: `"${senderName}" <${gmailUser}>`,
@@ -59,7 +88,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       html: options.html,
     });
 
-    console.log(`[Gmail SMTP] Email sent: ${info.messageId} to ${options.to}`);
+    console.log(`[Gmail SMTP (SSL)] Email sent: ${info.messageId} to ${options.to}`);
     return true;
   } catch (smtpErr: any) {
     console.error('[Gmail SMTP] sendMail error:', smtpErr.message || smtpErr);

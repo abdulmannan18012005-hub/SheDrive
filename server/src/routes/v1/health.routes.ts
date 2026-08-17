@@ -3,12 +3,16 @@ import { Router, Request, Response } from 'express';
 const router = Router();
 
 const handleHealth = (req: Request, res: Response) => {
-  const hasResend = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.trim().length > 0);
+  const hasGmailApi = Boolean(
+    process.env.GMAIL_CLIENT_ID &&
+    process.env.GMAIL_CLIENT_SECRET &&
+    process.env.GMAIL_REFRESH_TOKEN
+  );
   res.status(200).json({
     status: 'ok',
     service: 'SheDrive Backend API',
     version: 'v1',
-    resendConfigured: hasResend,
+    gmailApiConfigured: hasGmailApi,
     timestamp: Date.now(),
     uptimeSeconds: process.uptime(),
   });
