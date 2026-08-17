@@ -73,14 +73,21 @@ router.post('/send-registration-otp', async (req: Request, res: Response) => {
       verified: false,
     });
 
-    // Build professional HTML email and send via Gmail SMTP
     const emailHtml = buildRegistrationOtpEmailHtml(cleanEmail, otp);
-    await sendEmail({
-      to: cleanEmail,
-      subject: 'Your SheDrive Email Verification Code',
-      html: emailHtml,
-      fromName: 'SheDrive Support',
-    });
+    try {
+      await sendEmail({
+        to: cleanEmail,
+        subject: 'Your SheDrive Email Verification Code',
+        html: emailHtml,
+        fromName: 'SheDrive Support',
+      });
+    } catch (mailErr: any) {
+      console.error('[Gmail SMTP] Direct send error:', mailErr);
+      return res.status(500).json({
+        error: 'Failed to send verification code. Please check your email address and try again.',
+        details: mailErr?.message || mailErr?.toString() || 'SMTP connection rejected'
+      });
+    }
 
     console.log(`[Gmail SMTP] Registration OTP sent to ${cleanEmail}`);
 
@@ -89,8 +96,8 @@ router.post('/send-registration-otp', async (req: Request, res: Response) => {
       message: 'Verification code has been sent to your email address.',
     });
   } catch (error: any) {
-    const errorStr = error instanceof Error ? error.message : (typeof error === 'object' ? JSON.stringify(error) : String(error));
-    console.error('[Gmail SMTP] Registration OTP error:', errorStr);
+    const errorStr = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+    console.error('[Registration OTP error]:', errorStr);
     res.status(500).json({
       error: 'Failed to send verification code. Please check your email address and try again.',
       details: errorStr || 'Unknown error'
