@@ -37,7 +37,8 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
   const [lastName, setLastName] = useState(user?.name?.split(' ').slice(1).join(' ') || '');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
-  const [gender, setGender] = useState(user?.gender || '');
+  const [cnic, setCnic] = useState(user?.cnic || '');
+  const [gender, setGender] = useState(user?.gender || 'female');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -92,9 +93,25 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
       return;
     }
 
+    // CNIC Validation (if provided or changing)
+    const cleanCnic = cnic.trim();
+    if (cleanCnic) {
+      const cnicRegex = /^\d{5}-\d{7}-\d{1}$|^\d{13}$/;
+      if (!cnicRegex.test(cleanCnic)) {
+        Alert.alert('Invalid CNIC', 'Please enter a valid 13-digit Pakistani CNIC number (e.g., 12345-1234567-2).');
+        return;
+      }
+      const cnicDigits = cleanCnic.replace(/\D/g, '');
+      const lastDigit = parseInt(cnicDigits.slice(-1), 10);
+      if (lastDigit % 2 !== 0) {
+        Alert.alert('CNIC Gender Mismatch', 'This CNIC indicates male gender. SheDrive is strictly dedicated to female users.');
+        return;
+      }
+    }
+
     try {
       setIsLoading(true);
-      const token = await AsyncStorage.getItem('shedrive_token');
+      const token = await AsyncStorage.getItem('shedrive_token') || await AsyncStorage.getItem('@shedrive_auth_token');
       const API_BASE_URL = await getApiBaseUrl();
 
       // Convert image to base64 if selected
@@ -109,6 +126,7 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
         name: fullName,
         email: email.trim(),
         phone: phone.trim(),
+        cnic: cleanCnic,
         gender,
       };
 
@@ -141,13 +159,14 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
             name: fullName,
             email: email.trim(),
             phone: phone.trim(),
+            cnic: cleanCnic,
             gender,
-            photoURL,
+            photoURL: photoURL || user.photoURL,
           },
         });
       }
 
-      Alert.alert('Profile Updated', 'Your profile details have been saved successfully.', [
+      Alert.alert('Profile Updated', 'Your profile details and CNIC have been saved successfully.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
@@ -253,6 +272,36 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
                 keyboardType="phone-pad"
                 editable={!isLoading}
               />
+            </View>
+          </View>
+
+          {/* CNIC Number Bar */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>National Identity Card (CNIC)</Text>
+            <View style={styles.inputWrapper}>
+              <Text style={styles.inputIcon}>🪪</Text>
+              <TextInput
+                style={styles.input}
+                value={cnic}
+                onChangeText={setCnic}
+                placeholder="e.g. 35201-1234567-2"
+                placeholderTextColor={Colors.light.textTertiary}
+                keyboardType="numeric"
+                maxLength={15}
+                editable={!isLoading}
+              />
+            </View>
+            <Text style={styles.helperText}>
+              Verified Pakistani CNIC with female indicator (last digit even)
+            </Text>
+          </View>
+
+          {/* Gender Display */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Gender</Text>
+            <View style={[styles.inputWrapper, styles.readOnlyInputWrapper]}>
+              <Text style={styles.inputIcon}>👩</Text>
+              <Text style={styles.readOnlyText}>Female (Verified Exclusive)</Text>
             </View>
           </View>
         </View>
@@ -515,5 +564,21 @@ const styles = StyleSheet.create({
   },
   genderOptionTextActive: {
     color: '#fff',
+  },
+  helperText: {
+    fontSize: 11,
+    color: Colors.light.textTertiary,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  readOnlyInputWrapper: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
+  readOnlyText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
   },
 });

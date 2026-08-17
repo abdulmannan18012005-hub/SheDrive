@@ -17,6 +17,9 @@ export const CONTACT_INFO = {
   supportPhone: '+92 300 1234567',
   emergencyHotline: '+92 42 111 743 374',
   
+  // Official Website
+  websiteUrl: 'https://shedrive.great-site.net',
+
   // Office Address
   officeAddress: 'Lahore, Punjab, Pakistan',
   

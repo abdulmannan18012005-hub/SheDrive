@@ -511,6 +511,10 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
           email: regData.user.email,
           name: regData.user.name,
           role: regData.user.role,
+          cnic: regData.user.cnic || cnicNumber.trim(),
+          gender: 'female',
+          dateOfBirth: regData.user.dateOfBirth || (role === 'driver' ? dateOfBirth : undefined),
+          isVerified: regData.user.isVerified ?? (role === 'passenger'),
           createdAt: Date.now(),
         },
       });

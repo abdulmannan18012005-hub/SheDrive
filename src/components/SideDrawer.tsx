@@ -11,10 +11,12 @@ import {
   Image,
   Alert,
   SafeAreaView,
+  Linking,
 } from 'react-native';
 import Colors from '../constants/Colors';
 import { UserProfile } from '../types';
 import { signOutUser } from '../firebase/auth';
+import { CONTACT_INFO } from '../config/contactConfig';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.78, 320);
@@ -225,6 +227,23 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
               >
                 <Text style={styles.menuIcon}>🔒</Text>
                 <Text style={styles.menuText}>Privacy Policy</Text>
+              </TouchableOpacity>
+
+              {/* Official Website Link */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  onClose();
+                  Linking.openURL(CONTACT_INFO.websiteUrl).catch(() => {
+                    Alert.alert('Unable to Open Link', 'Could not open official website.');
+                  });
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.menuIcon}>🌐</Text>
+                <Text style={[styles.menuText, { color: Colors.light.primary, fontWeight: '700' }]}>
+                  Official Website
+                </Text>
               </TouchableOpacity>
 
               <View style={styles.divider} />

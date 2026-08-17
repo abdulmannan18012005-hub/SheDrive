@@ -185,6 +185,10 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
           email: data.user.email,
           name: data.user.name,
           role: data.user.role,
+          cnic: data.user.cnic || '',
+          gender: data.user.gender || (data.user.role === 'driver' ? 'female' : 'female'),
+          isVerified: data.user.isVerified ?? (data.user.role === 'passenger'),
+          photoURL: data.user.photo_url || data.user.photoURL || undefined,
           createdAt: Date.now(),
         },
       });

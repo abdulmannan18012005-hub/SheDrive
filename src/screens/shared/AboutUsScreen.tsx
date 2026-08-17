@@ -181,6 +181,18 @@ export default function AboutUsScreen(): React.JSX.Element {
           <TouchableOpacity onPress={handleEmailPress} activeOpacity={0.7}>
             <Text style={styles.contactRow}>📧 Email: {CONTACT_INFO.supportEmail}</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              Linking.openURL(CONTACT_INFO.websiteUrl).catch(() => {
+                Alert.alert('Error', 'Unable to open official website.');
+              });
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.contactRow, { color: Colors.light.primary, fontWeight: '700' }]}>
+              🌐 Official Website: {CONTACT_INFO.websiteUrl}
+            </Text>
+          </TouchableOpacity>
           <Text style={styles.contactRow}>🕐 Hours: Mon–Sat, 9:00 AM – 9:00 PM PKT</Text>
           <Text style={styles.contactRow}>📍 Office: {CONTACT_INFO.officeAddress}</Text>
           <Text style={styles.contactRow}>🚨 Emergency SOS: Available 24/7 in-app</Text>

@@ -24,6 +24,23 @@ const smtpTransporter = nodemailer.createTransport({
   socketTimeout: 15000,
 });
 
+// Cache OAuth2 Client instance so token exchanges are persistent and instant (no re-handshake overhead)
+let cachedOAuth2Client: any = null;
+let cachedGmailService: any = null;
+
+function getGmailService(clientId: string, clientSecret: string, refreshToken: string) {
+  if (!cachedGmailService) {
+    cachedOAuth2Client = new google.auth.OAuth2(
+      clientId,
+      clientSecret,
+      'https://developers.google.com/oauthplayground'
+    );
+    cachedOAuth2Client.setCredentials({ refresh_token: refreshToken });
+    cachedGmailService = google.gmail({ version: 'v1', auth: cachedOAuth2Client });
+  }
+  return cachedGmailService;
+}
+
 /**
  * Helper to encode an email payload into standard RFC 2822 base64url for the Gmail API
  */
@@ -60,10 +77,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   // ── Primary: Gmail REST API over HTTPS (Bypasses all cloud port blocks) ──
   if (clientId && clientSecret && refreshToken) {
     try {
-      const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, 'https://developers.google.com/oauthplayground');
-      oauth2Client.setCredentials({ refresh_token: refreshToken });
-
-      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+      const gmail = getGmailService(clientId, clientSecret, refreshToken);
       const raw = createRawEmail(options, senderName);
 
       const res = await gmail.users.messages.send({

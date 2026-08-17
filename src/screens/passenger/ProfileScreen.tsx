@@ -97,16 +97,28 @@ export default function ProfileScreen({ navigation }: Props): React.JSX.Element 
       </TouchableOpacity>
 
       <View style={styles.card}>
-        <Text style={styles.cardHeaderTitle}>Contact Information</Text>
+        <Text style={styles.cardHeaderTitle}>Contact & Identity Information</Text>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>📧 Email Address</Text>
           <Text style={styles.infoValue}>{user?.email || 'N/A'}</Text>
         </View>
 
-        <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+        <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>📱 Phone Number</Text>
           <Text style={styles.infoValue}>{user?.phone || 'N/A'}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>🪪 CNIC Number</Text>
+          <Text style={[styles.infoValue, !user?.cnic && { color: Colors.light.textTertiary, fontStyle: 'italic' }]}>
+            {user?.cnic || 'Not Added (Tap Edit Profile)'}
+          </Text>
+        </View>
+
+        <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+          <Text style={styles.infoLabel}>👩 Gender</Text>
+          <Text style={styles.infoValue}>Female (Verified)</Text>
         </View>
       </View>
 

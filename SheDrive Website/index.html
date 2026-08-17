@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SheDrive | Pakistan's 1st Women-Only Ride-Hailing Platform</title>
+  <meta name="description" content="SheDrive connects female passengers exclusively with verified female drivers in Lahore. Freedom of fare negotiation, emergency SOS, and 100% dignified travel.">
+  <link rel="icon" type="image/png" href="assets/images/favicon.png">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+  <!-- Navigation Header -->
+  <header class="header">
+    <div class="container">
+      <nav class="navbar">
+        <a href="index.html" class="logo-group">
+          <img src="assets/images/logo.png" alt="SheDrive" class="logo-img">
+          <div class="brand-text">
+            <span class="brand-name">SheDrive</span>
+            <span class="brand-tagline">Safe Rides for Women</span>
+          </div>
+        </a>
+
+        <ul class="nav-menu">
+          <li><a href="passenger.html" class="nav-link">For Passengers</a></li>
+          <li><a href="driver.html" class="nav-link">For Drivers</a></li>
+          <li><a href="safety.html" class="nav-link">Safety Center</a></li>
+          <li><a href="downloads.html" class="nav-link">Download App</a></li>
+          <li><a href="contact.html" class="nav-link">Support</a></li>
+        </ul>
+
+        <div class="nav-actions">
+          <a href="downloads.html" class="btn btn-primary">📥 Download APK</a>
+          <a href="/admin/" target="_blank" class="btn btn-outline">Portal Login</a>
+        </div>
+
+        <button class="mobile-toggle" aria-label="Toggle navigation">☰</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-grid">
+        <div class="hero-content">
+          <div class="badge-lahore">
+            <span>🇵🇰</span>
+            <span>Serving Lahore • Women-Only Community</span>
+          </div>
+          <h1 class="hero-title">
+            Your Ride, Your Price. <span>Exclusively for Women.</span>
+          </h1>
+          <p class="hero-desc">
+            Pakistan's first dedicated female-only ride-hailing app. Connect exclusively with verified female drivers, set your own fair prices, and travel with total dignity and peace of mind.
+          </p>
+
+          <div class="hero-cta-group">
+            <a href="downloads.html" class="btn btn-primary" style="padding: 16px 32px; font-size: 1.05rem;">
+              📥 Download Android App
+            </a>
+            <a href="driver.html" class="btn btn-outline" style="padding: 16px 32px; font-size: 1.05rem;">
+              🚗 Become a Driver (5% Fee)
+            </a>
+          </div>
+
+          <div class="hero-features-strip">
+            <div class="strip-item">
+              <span class="strip-icon">🪪</span>
+              <span class="strip-text">CNIC Verified Women Only</span>
+            </div>
+            <div class="strip-item">
+              <span class="strip-icon">🤝</span>
+              <span class="strip-text">Fare Bidding Freedom</span>
+            </div>
+            <div class="strip-item">
+              <span class="strip-icon">🚨</span>
+              <span class="strip-text">24/7 Police 15 SOS</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Bidding Demo Mockup -->
+        <div class="hero-mockup-wrapper">
+          <div class="phone-mockup">
+            <div class="phone-header">
+              <span class="phone-brand">SheDrive</span>
+              <span class="phone-badge">● Active Bidding</span>
+            </div>
+
+            <div class="bidding-card">
+              <div class="bidding-route">
+                <div class="route-point">
+                  <span>🟢</span>
+                  <span>Gulberg III, Lahore</span>
+                </div>
+                <div class="route-point">
+                  <span>🔴</span>
+                  <span>DHA Phase 5, Lahore</span>
+                </div>
+              </div>
+
+              <div class="fare-offer-box">
+                <span class="fare-label">Passenger Offered Fare:</span>
+                <span class="fare-amount">PKR 400</span>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 8px; font-size: 0.8rem; font-weight: 700; color: #64748B;">
+              Incoming Driver Offers (Real-Time):
+            </div>
+
+            <div id="liveBidsList" class="driver-bids-list">
+              <div class="bid-item">
+                <div class="driver-info-mini">
+                  <span class="driver-avatar">👩</span>
+                  <div>
+                    <div class="driver-name">Ayesha Khan • <span style="font-size:0.75rem; color:#64748B;">Suzuki Alto</span></div>
+                    <div class="driver-rating">4.9 ★ (Verified Driver)</div>
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-weight:800; color:#E91E63;">Rs. 380</span>
+                  <button class="bid-action-btn">Accept</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dual Audience Funnel -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Designed for Women</span>
+        <h2 class="section-title">A Safer Platform for Both Passengers and Drivers</h2>
+        <p class="section-subtitle">
+          Whether you need a daily commute to university or work, or you want to earn financial independence driving on your schedule.
+        </p>
+      </div>
+
+      <div class="dual-cards-grid">
+        <!-- Passenger Card -->
+        <div class="audience-card">
+          <div class="audience-icon">👩</div>
+          <h3 class="audience-title">For Female Passengers</h3>
+          <p class="audience-desc">
+            Never worry about male drivers or unexpected surge pricing again. Offer your price and ride with verified female captains.
+          </p>
+          <div class="perks-list">
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>100% Female Drivers guaranteed on every trip</span>
+            </div>
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>Offer your fare & choose your preferred driver</span>
+            </div>
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>1-Tap Live SOS Broadcast to Punjab Police 15 & family</span>
+            </div>
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>Real-time GPS ride tracking shared with loved ones</span>
+            </div>
+          </div>
+          <a href="passenger.html" class="btn btn-outline" style="width:100%;">Explore Passenger Features →</a>
+        </div>
+
+        <!-- Driver Card -->
+        <div class="audience-card">
+          <div class="audience-icon">🚗</div>
+          <h3 class="audience-title">For Female Drivers</h3>
+          <p class="audience-desc">
+            Drive exclusively with female passengers in a safe, dignified environment. Keep 95% of your earnings with Pakistan's lowest platform fee.
+          </p>
+          <div class="perks-list">
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>Keep 95% of every fare — lowest 5% fee in Pakistan</span>
+            </div>
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>Zero male passengers — 100% women-only rides</span>
+            </div>
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>Choose your own rides & counter-offer fares freely</span>
+            </div>
+            <div class="perk-item">
+              <span class="perk-check">✓</span>
+              <span>Flexible working hours with direct cash earnings</span>
+            </div>
+          </div>
+          <a href="driver.html" class="btn btn-primary" style="width:100%;">Start Driving with SheDrive →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How Fare Bidding Works -->
+  <section class="section" style="background: #FFF;">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">inDrive Model</span>
+        <h2 class="section-title">How Direct Fare Negotiation Works</h2>
+        <p class="section-subtitle">
+          Say goodbye to surge pricing and arbitrary algorithm rates. You decide what the ride is worth.
+        </p>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-num-badge">1</div>
+          <h3 class="step-heading">Set Pickup & Offer Fare</h3>
+          <p class="step-detail">Enter your destination and propose a fair price. No surge multipliers or hidden platform fees.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num-badge">2</div>
+          <h3 class="step-heading">Receive Real-Time Offers</h3>
+          <p class="step-detail">Nearby verified female drivers review your offer. They can accept it or offer their counter-price.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num-badge">3</div>
+          <h3 class="step-heading">Pick Driver & Enjoy Ride</h3>
+          <p class="step-detail">Select the best driver based on their offered price, vehicle model, rating, and arrival time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Safety Center Preview -->
+  <section class="section safety-section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Safety First</span>
+        <h2 class="section-title">Pakistan's Most Secure Travel Network</h2>
+        <p class="section-subtitle">
+          We built multi-layered verification and live emergency protection into every screen of the SheDrive app.
+        </p>
+      </div>
+
+      <div class="safety-grid">
+        <div class="safety-card">
+          <div class="safety-card-icon">🪪</div>
+          <h3 class="safety-card-title">CNIC Gender Verification</h3>
+          <p class="safety-card-desc">Every passenger and driver is verified via Pakistani CNIC with mandatory female identification checks.</p>
+        </div>
+
+        <div class="safety-card">
+          <div class="safety-card-icon">🚨</div>
+          <h3 class="safety-card-title">1-Tap 15 Police SOS</h3>
+          <p class="safety-card-desc">Instant emergency panic button dials Punjab Police 15 and sends live SMS coordinates to 5 emergency contacts.</p>
+        </div>
+
+        <div class="safety-card">
+          <div class="safety-card-icon">📍</div>
+          <h3 class="safety-card-title">Live GPS Ride Sharing</h3>
+          <p class="safety-card-desc">Share your real-time ride route with parents, family, or friends with 1 tap via WhatsApp or SMS.</p>
+        </div>
+
+        <div class="safety-card">
+          <div class="safety-card-icon">📑</div>
+          <h3 class="safety-card-title">Strict Driver Vetting</h3>
+          <p class="safety-card-desc">Driver's license, vehicle registration, and biometric selfie verification checked prior to account approval.</p>
+        </div>
+
+        <div class="safety-card">
+          <div class="safety-card-icon">⭐</div>
+          <h3 class="safety-card-title">Two-Way Ratings</h3>
+          <p class="safety-card-desc">Transparent ratings and feedback keep our community safe, respectful, and reliable for all women.</p>
+        </div>
+
+        <div class="safety-card">
+          <div class="safety-card-icon">🔒</div>
+          <h3 class="safety-card-title">Encrypted Data Privacy</h3>
+          <p class="safety-card-desc">Your personal contact and trip records are protected with industry-standard cryptographic encryption.</p>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin-top:40px;">
+        <a href="safety.html" class="btn btn-outline">Read Full Safety Protocols →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Hub CTA -->
+  <section class="section">
+    <div class="container">
+      <div class="download-banner">
+        <div>
+          <h2 class="download-title">Download SheDrive Today & Ride with Dignity</h2>
+          <p class="download-desc">
+            Get the full Android APK directly to your phone. Fast, light, and purpose-built for women across Lahore.
+          </p>
+          <div style="display:flex; gap:16px; flex-wrap:wrap;">
+            <a href="downloads.html" class="btn btn-white">📥 Get Android APK</a>
+            <a href="driver.html" class="btn btn-outline" style="color:#FFF; border-color:#FFF;">Register as Driver</a>
+          </div>
+        </div>
+
+        <div class="download-box-card">
+          <div class="apk-badge-row">
+            <span class="apk-version">v1.0.0 Release</span>
+            <span class="apk-size">45 MB • Android 8.0+</span>
+          </div>
+          <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">SheDrive Android APK</h3>
+          <p style="font-size:0.85rem; color:#64748B; margin-bottom:20px;">Direct installation for Android devices in Pakistan</p>
+          <a href="assets/downloads/SheDrive.apk" download class="btn btn-primary download-btn-apk">
+            ⬇️ Download SheDrive.apk
+          </a>
+          <a href="downloads.html#guide" class="install-guide-link">How to install APK on Android →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand-title">SheDrive</div>
+          <p class="footer-desc">
+            Pakistan's first female-only ride-hailing and economic empowerment platform. Connecting verified female passengers with verified female drivers.
+          </p>
+          <div class="footer-socials">
+            <a href="https://www.facebook.com/share/19LKH6jThh/" target="_blank" class="social-btn">📘</a>
+            <a href="https://www.instagram.com/shedrive.official?igsh=aTYwczR2ZGt2eHNt" target="_blank" class="social-btn">📷</a>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Quick Links</h4>
+          <div class="footer-links">
+            <a href="passenger.html" class="footer-link">For Passengers</a>
+            <a href="driver.html" class="footer-link">For Drivers</a>
+            <a href="safety.html" class="footer-link">Safety Center</a>
+            <a href="downloads.html" class="footer-link">Download APK</a>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Legal & Trust</h4>
+          <div class="footer-links">
+            <a href="terms.html" class="footer-link">Terms & Conditions</a>
+            <a href="privacy.html" class="footer-link">Privacy Policy</a>
+            <a href="contact.html" class="footer-link">Support & Helpline</a>
+            <a href="/admin/" target="_blank" class="footer-link">Admin Portal</a>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Contact & Help</h4>
+          <div class="footer-links">
+            <span class="footer-link">📍 Lahore, Punjab, Pakistan</span>
+            <span class="footer-link">📧 shedrive.support@gmail.com</span>
+            <span class="footer-link">📞 +92 42 111 743 374</span>
+            <span class="footer-link">🚨 Police Emergency: 15</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>© 2026 SheDrive Pakistan. All rights reserved.</span>
+        <span>Dedicated Exclusively to Women's Mobility and Safety.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
