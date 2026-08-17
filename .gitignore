@@ -14,6 +14,19 @@ admin-portal/dist/
 server/.env
 admin-portal/.env
 
+# Firebase service account (contains private keys)
+firebase-service-account.json
+server/firebase-service-account.json
+*.json
+!app.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!firebase.json
+!firestore.indexes.json
+!firestore.rules
+!.firebaserc
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -43,3 +56,7 @@ npm-debug.log*
 # Temporary files
 *.tmp
 *.swp
+
+# APK files
+*.apk
+*.aab

@@ -1,5 +1,5 @@
 {
-"expo": {
+  "expo": {
     "name": "SheDrive",
     "slug": "shedrive",
     "scheme": "shedrive",
@@ -7,20 +7,21 @@
     "jsEngine": "hermes",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/ICON.jpeg",
     "splash": {
-      "image": "./assets/icon.png",
-      "backgroundColor": "#ffffff",
+      "image": "./assets/ICON.jpeg",
+      "backgroundColor": "#E91E63",
       "resizeMode": "contain"
     },
     "ios": {
-    "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lahore.pinkrides"
     },
     "android": {
       "package": "com.lahore.pinkrides",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "foregroundImage": "./assets/ICON.jpeg",
+        "backgroundColor": "#E91E63"
       },
       "permissions": [
         "INTERNET",
@@ -31,8 +32,20 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "POST_NOTIFICATIONS"
       ]
+    },
+    "updates": {
+      "url": "https://u.expo.dev/984107313094"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "984107313094"
+      }
     }
-}
+  }
 }
