@@ -105,7 +105,7 @@ export default function TermsAndConditionsScreen(): React.JSX.Element {
 
       <Section title="5. Fare & Payment Terms">
         <Clause text="Fares on SheDrive are dynamically estimated based on distance (km), vehicle category base fare, per-kilometer rate, per-minute rate, and any applicable minimum fare floor. Passengers may negotiate the final fare within the platform's bidding system before confirming a ride." />
-        <Clause text="SheDrive applies a 5% platform commission on every completed ride. Drivers are required to submit their monthly platform fee payments through the SheDrive app by the 4th of each month. Payment instructions and transaction tracking are available in the Driver Payments section." />
+        <Clause text="SheDrive applies a 7% platform commission on every completed ride. Drivers are required to submit their monthly platform fee payments through the SheDrive app by the 4th of each month. Payment instructions and transaction tracking are available in the Driver Payments section." />
         <BulletList items={[
           'All fares shown are in Pakistani Rupees (PKR)',
           'Minimum fares apply based on vehicle category',

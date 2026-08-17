@@ -627,7 +627,7 @@ export default function App() {
               {activeTab === 'rejected' && 'Rejected Driver Applications'}
               {activeTab === 'passengers' && 'Registered Passenger Directory'}
               {activeTab === 'rides' && 'Live Ride Dispatch Monitor'}
-              {activeTab === 'payments' && 'Monthly 5% Platform Fee & Payment Approvals'}
+              {activeTab === 'payments' && 'Monthly 7% Platform Fee & Payment Approvals'}
               {activeTab === 'settings' && 'Category Base Fare & Platform Controls'}
             </h2>
             <p style={styles.headerSub}>SheDrive Operating Network | 100% Real Database Connected</p>
@@ -1279,7 +1279,7 @@ export default function App() {
               <div style={styles.metricCard}>
                 <span style={styles.metricIcon}>💰</span>
                 <div>
-                  <p style={styles.metricLabel}>Total Platform Revenue (5%)</p>
+                  <p style={styles.metricLabel}>Total Platform Revenue (7%)</p>
                   <h3 style={{ ...styles.metricValue, color: '#10B981' }}>PKR {paymentSummary.totalPlatformIncome.toLocaleString()}</h3>
                 </div>
               </div>
@@ -1370,7 +1370,7 @@ export default function App() {
                       <th>Month</th>
                       <th>Completed Rides</th>
                       <th>Total Earnings</th>
-                      <th>5% Platform Fee</th>
+                      <th>7% Platform Fee</th>
                       <th>Transaction ID</th>
                       <th>Receipt Proof</th>
                       <th>Status</th>

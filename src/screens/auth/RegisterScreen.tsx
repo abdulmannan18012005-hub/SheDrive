@@ -310,7 +310,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       if (!acceptedFeeTerms) {
         Alert.alert(
           'Platform Fee Agreement Required',
-          'Please accept the 5% monthly platform fee agreement to register as a SheDrive driver partner.'
+          'Please accept the 7% monthly platform fee agreement to register as a SheDrive driver partner.'
         );
         return;
       }
@@ -1042,7 +1042,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             </Text>
           </TouchableOpacity>
 
-          {/* Mandatory 5% Platform Fee Agreement for Drivers */}
+          {/* Mandatory 7% Platform Fee Agreement for Drivers */}
           {role === 'driver' && (
             <View style={[styles.termsContainer, { marginTop: 10 }]}>
               <TouchableOpacity
@@ -1060,7 +1060,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                 activeOpacity={0.7}
               >
                 <Text style={styles.termsText}>
-                  I agree to pay the <Text style={{ fontWeight: '800', color: Colors.light.primary }}>5% monthly platform fee</Text> on total completed ride earnings.
+                  I agree to pay the <Text style={{ fontWeight: '800', color: Colors.light.primary }}>7% monthly platform fee</Text> on total completed ride earnings.
                 </Text>
                 <Text style={styles.linkText}>Tap to view details</Text>
               </TouchableOpacity>

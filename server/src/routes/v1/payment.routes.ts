@@ -47,7 +47,7 @@ router.get('/driver/monthly', authenticateToken, async (req: AuthRequest, res: R
 
     const totalRides = parseInt(ridesRes.rows[0].total_rides || '0', 10);
     const totalEarnings = parseFloat(ridesRes.rows[0].total_earnings || '0');
-    const platformFee = Math.round(totalEarnings * 0.05 * 100) / 100; // 5% fee
+    const platformFee = Math.round(totalEarnings * 0.07 * 100) / 100; // 7% fee
 
     // Due date calculation: 4th of the following month
     const [yearStr, monthStr] = requestedMonthYear.split('-');

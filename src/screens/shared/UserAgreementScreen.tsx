@@ -127,7 +127,7 @@ export default function UserAgreementScreen(): React.JSX.Element {
 
       <Section title="7. Payments & Fare Policy">
         <Clause text="SheDrive operates a transparent fare bidding system. The initial fare estimate is calculated based on distance, ride category, and current platform base rates. Passengers and drivers may negotiate the final fare within the app before a ride is confirmed." />
-        <Clause text="SheDrive charges a 5% platform commission on every completed ride. This commission covers platform maintenance, safety infrastructure, payment processing, and 24/7 support. Driver partners retain 95% of all fare income." />
+        <Clause text="SheDrive charges a 7% platform commission on every completed ride. This commission covers platform maintenance, safety infrastructure, payment processing, and 24/7 support. Driver partners retain 93% of all fare income." />
         <Clause text="All payments are currently conducted as cash transactions directly between passenger and driver upon ride completion. SheDrive is not responsible for payment disputes arising from off-platform transactions." />
       </Section>
 
