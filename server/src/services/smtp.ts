@@ -27,18 +27,15 @@ const smtpTransporter = nodemailer.createTransport({
   socketTimeout: 15000,
 });
 
-/**
- * Send email via best available transport:
- *  1. Resend HTTP API (if RESEND_API_KEY is set — works on Render free tier)
- *  2. Gmail SMTP via Nodemailer (fallback for local dev / paid hosting)
- */
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const senderName = options.fromName || 'SheDrive Support';
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
 
-  // ── Primary: Resend HTTP API ─────────────────────────────────
-  if (resend) {
+  // ── Primary: Resend HTTP API (works on Render / cloud containers) ───────
+  if (apiKey) {
     try {
-      const { data, error } = await resend.emails.send({
+      const resendClient = new Resend(apiKey);
+      const { data, error } = await resendClient.emails.send({
         from: `${senderName} <onboarding@resend.dev>`,
         to: options.to,
         subject: options.subject,
@@ -46,14 +43,14 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       });
 
       if (error) {
-        console.error('[Resend API] Error:', error);
-        throw new Error(error.message || 'Resend API error');
+        console.error('[Resend API] Error from provider:', error);
+        throw new Error(error.message || 'Resend delivery failed');
       }
 
-      console.log(`[Resend API] Email sent: ${data?.id} to ${options.to}`);
+      console.log(`[Resend API] Email delivered successfully: ${data?.id} to ${options.to}`);
       return true;
     } catch (resendErr: any) {
-      console.warn(`[Resend API] Failed (${resendErr.message}), falling back to Gmail SMTP...`);
+      console.warn(`[Resend API] Warning (${resendErr.message}), falling back to Gmail SMTP...`);
       // Fall through to SMTP below
     }
   }
