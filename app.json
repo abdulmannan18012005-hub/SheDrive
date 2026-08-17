@@ -7,9 +7,9 @@
     "jsEngine": "hermes",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/ICON.jpeg",
+    "icon": "./assets/icon.png",
     "splash": {
-      "image": "./assets/ICON.jpeg",
+      "image": "./assets/icon.png",
       "backgroundColor": "#E91E63",
       "resizeMode": "contain"
     },
@@ -20,7 +20,7 @@
     "android": {
       "package": "com.lahore.pinkrides",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/ICON.jpeg",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#E91E63"
       },
       "permissions": [
