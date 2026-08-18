@@ -159,7 +159,7 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 36px;
+  gap: 24px;
 }
 
 .nav-link {
