@@ -59,4 +59,36 @@ document.addEventListener('DOMContentLoaded', () => {
       parent.classList.toggle('open');
     });
   });
+
+  // Silent Background Download Handler for APK Links
+  const apkDownloadBtns = document.querySelectorAll('a[href*="drive.usercontent.google.com"], .download-btn-apk, .download-apk-btn');
+  apkDownloadBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const downloadUrl = btn.getAttribute('href');
+      
+      // Create or reuse hidden iframe to trigger browser background file download stream
+      let iframe = document.getElementById('silentDownloadIframe');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'silentDownloadIframe';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+      }
+      iframe.src = downloadUrl;
+
+      // Subtle visual feedback on button
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⌛ Starting Download...';
+      btn.style.opacity = '0.85';
+      setTimeout(() => {
+        btn.innerHTML = '✅ Download Started!';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.opacity = '1';
+        }, 3000);
+      }, 1500);
+    });
+  });
 });
+
