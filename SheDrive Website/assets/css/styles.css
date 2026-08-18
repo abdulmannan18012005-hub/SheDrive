@@ -869,11 +869,27 @@ img {
 }
 
 @media (max-width: 768px) {
-  .nav-menu, .nav-actions {
-    display: none;
-  }
   .mobile-toggle {
     display: block;
+  }
+  .nav-menu {
+    display: none;
+    position: absolute;
+    top: 80px;
+    left: 0;
+    width: 100%;
+    background: #FFFFFF;
+    flex-direction: column;
+    padding: 24px;
+    gap: 20px;
+    box-shadow: var(--shadow-lg);
+    border-bottom: 1px solid var(--card-border);
+  }
+  .nav-menu.active {
+    display: flex;
+  }
+  .nav-actions {
+    display: none;
   }
   .hero-title {
     font-size: 2.5rem;
