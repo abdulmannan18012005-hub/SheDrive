@@ -1,5 +1,13 @@
 // SheDrive Official Web Platform Client Logic
 document.addEventListener('DOMContentLoaded', () => {
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CONFIGURATION — Single source of truth for APK download URL
+  // Uses GitHub Releases "latest" permalink so future releases auto-resolve.
+  // To release a new APK: create a new GitHub Release and attach "SheDrive.apk".
+  // ═══════════════════════════════════════════════════════════════════════
+  const APK_DOWNLOAD_URL = 'https://github.com/abdulmannan18012005-hub/SheDrive/releases/latest/download/SheDrive.apk';
+
   // Sticky Header Effect
   const header = document.querySelector('.header');
   if (header) {
@@ -72,51 +80,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  /**
-   * Cloudflare R2 Dedicated Object Storage APK Download Manager
-   * Solves 80 MB APK file limit issues with 0 egress fees & direct HTTPS streaming payload.
-   */
-  const CLOUDFLARE_R2_CDN_URL = 'https://download.shedrive.great-site.net/SheDrive-latest.apk';
-  const BACKEND_R2_REDIRECT = 'https://shedrive.onrender.com/api/v1/app/download';
-
+  // ═══════════════════════════════════════════════════════════════════════
+  // GitHub Releases APK Download Manager
+  // - Uses the single APK_DOWNLOAD_URL constant defined above.
+  // - GitHub internally redirects to its CDN (objects.githubusercontent.com)
+  //   which streams the binary directly to the browser.
+  // - Double-click prevention with a downloading lock flag.
+  // - Button states: original → "⌛ Starting download..." → "✅ Download started"
+  // - Auto-restores button text after 4 seconds.
+  // ═══════════════════════════════════════════════════════════════════════
   const apkDownloadBtns = document.querySelectorAll('.download-btn-apk, .download-apk-btn, a[data-download-apk]');
+  let isDownloading = false;
 
   apkDownloadBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      
+
+      // Double-click guard
+      if (isDownloading) return;
+      isDownloading = true;
+
       const originalText = btn.innerHTML;
       btn.innerHTML = '⌛ Starting download...';
 
-      let targetUrl = btn.getAttribute('href');
-      if (!targetUrl || targetUrl === '#' || targetUrl.includes('drive.google.com') || targetUrl.includes('drive.usercontent.google.com') || targetUrl.includes('supabase.co')) {
-        targetUrl = CLOUDFLARE_R2_CDN_URL;
-      }
-
       try {
-        // Native browser 1-click download trigger without navigating away from current page
+        // Use a hidden anchor to trigger a native browser download.
+        // GitHub's /releases/latest/download/ endpoint returns a 302 redirect
+        // to objects.githubusercontent.com which serves the binary directly.
+        // The browser handles the redirect chain transparently and begins
+        // streaming the APK file without leaving the current page.
         const hiddenAnchor = document.createElement('a');
-        hiddenAnchor.href = targetUrl;
-        hiddenAnchor.setAttribute('download', 'SheDrive-latest.apk');
-        hiddenAnchor.setAttribute('target', '_self');
+        hiddenAnchor.href = APK_DOWNLOAD_URL;
+        hiddenAnchor.setAttribute('download', 'SheDrive.apk');
         hiddenAnchor.style.display = 'none';
         document.body.appendChild(hiddenAnchor);
         hiddenAnchor.click();
         document.body.removeChild(hiddenAnchor);
 
-        btn.innerHTML = '✅ Download started';
+        // Short delay so the browser has time to initiate the request
+        setTimeout(() => {
+          btn.innerHTML = '✅ Download started';
+        }, 600);
+
       } catch (err) {
-        console.error('Cloudflare R2 Download Error:', err);
+        console.error('GitHub Releases download error:', err);
+        // Fallback: direct navigation to the GitHub Release asset URL
+        // The browser will still download the file (not show the repo page)
+        // because the endpoint serves application/octet-stream with Content-Disposition.
         try {
-          window.location.assign(BACKEND_R2_REDIRECT);
+          window.location.href = APK_DOWNLOAD_URL;
           btn.innerHTML = '✅ Download started';
         } catch (fallbackErr) {
           btn.innerHTML = '❌ Download failed — try again';
+          console.error('Fallback download error:', fallbackErr);
         }
       }
 
+      // Restore button text and unlock after 4 seconds
       setTimeout(() => {
         btn.innerHTML = originalText;
+        isDownloading = false;
       }, 4000);
     });
   });

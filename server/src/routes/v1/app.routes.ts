@@ -3,15 +3,16 @@ import { Router, Request, Response } from 'express';
 const router = Router();
 
 /**
- * Dedicated Cloudflare R2 Global CDN Object Storage URL
- * Handles 80 MB APK binaries with 0 egress fees and direct browser attachments.
+ * GitHub Releases APK Download URL (single source of truth for backend).
+ * Uses the "latest" permalink so new releases auto-resolve without code changes.
+ * Override via GITHUB_APK_DOWNLOAD_URL env var if needed.
  */
-const CLOUDFLARE_R2_CDN_URL = process.env.CLOUDFLARE_R2_DOWNLOAD_URL || 
-  'https://download.shedrive.great-site.net/SheDrive-latest.apk';
+const APK_DOWNLOAD_URL = process.env.GITHUB_APK_DOWNLOAD_URL ||
+  'https://github.com/abdulmannan18012005-hub/SheDrive/releases/latest/download/SheDrive.apk';
 
 /**
  * GET /api/v1/app/info
- * Returns official release metadata backed by Cloudflare R2
+ * Returns current public release metadata
  */
 router.get('/info', (_req: Request, res: Response) => {
   res.status(200).json({
@@ -23,20 +24,18 @@ router.get('/info', (_req: Request, res: Response) => {
     releaseDate: 'August 2026',
     fileSize: '80.0 MB',
     minAndroidVersion: '8.0 (Oreo)',
-    cdnProvider: 'Cloudflare R2',
-    downloadUrl: CLOUDFLARE_R2_CDN_URL,
-    releaseNotes: 'Official release of SheDrive Pakistan. High-speed 1-click download hosted via Cloudflare R2 Global CDN.'
+    cdnProvider: 'GitHub Releases',
+    downloadUrl: APK_DOWNLOAD_URL,
+    releaseNotes: 'Official release of SheDrive Pakistan. APK hosted via GitHub Releases for reliable, high-speed downloads.'
   });
 });
 
 /**
  * GET /api/v1/app/download
- * Performs direct 302 redirect to Cloudflare R2 CDN storage payload
+ * Performs 302 redirect to GitHub Releases APK asset
  */
 router.get('/download', (_req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', 'attachment; filename="SheDrive-latest.apk"');
-  res.redirect(302, CLOUDFLARE_R2_CDN_URL);
+  res.redirect(302, APK_DOWNLOAD_URL);
 });
 
 export default router;
