@@ -31,7 +31,7 @@
         </ul>
 
         <div class="nav-actions">
-          <a href="downloads.html" class="btn btn-primary">📥 Download APK</a>
+          <a href="https://bulntofrddglxyxhtykf.supabase.co/storage/v1/object/public/releases/SheDrive-latest.apk" data-download-apk="true" class="btn btn-primary download-apk-btn">📥 Download APK</a>
         </div>
 
         <button class="mobile-toggle" aria-label="Toggle navigation">☰</button>
@@ -56,7 +56,7 @@
           </p>
 
           <div class="hero-cta-group">
-            <a href="downloads.html" class="btn btn-primary" style="padding: 16px 32px; font-size: 1.05rem;">
+            <a href="https://bulntofrddglxyxhtykf.supabase.co/storage/v1/object/public/releases/SheDrive-latest.apk" data-download-apk="true" class="btn btn-primary download-apk-btn" style="padding: 16px 32px; font-size: 1.05rem;">
               📥 Download Android App
             </a>
             <a href="driver.html" class="btn btn-outline" style="padding: 16px 32px; font-size: 1.05rem;">
@@ -100,28 +100,24 @@
                 </div>
               </div>
 
-              <div class="fare-offer-box">
-                <span class="fare-label">Passenger Offered Fare:</span>
-                <span class="fare-amount">PKR 400</span>
+              <div class="bidding-offer-box">
+                <span style="font-size: 0.8rem; color: #64748B;">Your Offered Fare:</span>
+                <span class="bidding-price">Rs. 400</span>
               </div>
-            </div>
 
-            <div style="margin-bottom: 8px; font-size: 0.8rem; font-weight: 700; color: #64748B;">
-              Incoming Driver Offers (Real-Time):
-            </div>
-
-            <div id="liveBidsList" class="driver-bids-list">
-              <div class="bid-item">
-                <div class="driver-info-mini">
-                  <span class="driver-avatar">👩</span>
-                  <div>
-                    <div class="driver-name">Ayesha Khan • <span style="font-size:0.75rem; color:#64748B;">Suzuki Alto</span></div>
-                    <div class="driver-rating">4.9 ★ (Verified Driver)</div>
+              <div class="bids-list" id="liveBidsList">
+                <div class="bid-item">
+                  <div class="driver-info-mini">
+                    <span class="driver-avatar">👩</span>
+                    <div>
+                      <div class="driver-name">Ayesha Khan • Suzuki Alto</div>
+                      <div class="driver-rating">4.9 ★ (Verified Driver)</div>
+                    </div>
                   </div>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-weight:800; color:#E91E63;">Rs. 380</span>
-                  <button class="bid-action-btn">Accept</button>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-weight:800; color:var(--primary);">Rs. 380</span>
+                    <button class="bid-action-btn" onclick="alert('SheDrive Fare Bidding: In the app, you can accept any driver\'s bid or wait for counter-offers!')">Accept</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -131,61 +127,53 @@
     </div>
   </section>
 
-  <!-- Dual Audience Funnel -->
+  <!-- Audience Split Section (inDrive Style Dual CTAs) -->
   <section class="section">
     <div class="container">
       <div class="section-header">
-        <span class="section-tag">Designed for Women</span>
-        <h2 class="section-title">A Safer Platform for Both Passengers and Drivers</h2>
+        <span class="section-tag">Built for Women</span>
+        <h2 class="section-title">Designed for Both Passengers & Drivers</h2>
         <p class="section-subtitle">
-          Whether you need a daily commute to university or work, or you want to earn financial independence driving on your schedule.
+          Whether you need safe, comfortable rides or want to generate flexible income with your vehicle — SheDrive is built for you.
         </p>
       </div>
 
       <div class="dual-cards-grid">
-        <!-- Passenger Card -->
+        <!-- For Passengers -->
         <div class="audience-card">
-          <div class="audience-icon">👩</div>
-          <h3 class="audience-title">For Female Passengers</h3>
+          <div class="audience-badge">For Passengers</div>
+          <h3 class="audience-title">Freedom to Travel Safely</h3>
           <p class="audience-desc">
-            Never worry about male drivers or unexpected surge pricing again. Offer your price and ride with verified female captains.
+            Never worry about male drivers or unexpected surge prices again. Propose your own fare, choose verified female captains, and share live location with your family.
           </p>
           <div class="perks-list">
             <div class="perk-item">
               <span class="perk-check">✓</span>
-              <span>100% Female Drivers guaranteed on every trip</span>
+              <span>100% CNIC verified female driver community</span>
             </div>
             <div class="perk-item">
               <span class="perk-check">✓</span>
-              <span>Offer your fare & choose your preferred driver</span>
+              <span>No surge pricing algorithms — suggest your fare</span>
             </div>
             <div class="perk-item">
               <span class="perk-check">✓</span>
-              <span>1-Tap Live SOS Broadcast to Punjab Police 15 & family</span>
-            </div>
-            <div class="perk-item">
-              <span class="perk-check">✓</span>
-              <span>Real-time GPS ride tracking shared with loved ones</span>
+              <span>1-Tap direct link with 15 Punjab Police SOS</span>
             </div>
           </div>
-          <a href="passenger.html" class="btn btn-outline" style="width:100%;">Explore Passenger Features →</a>
+          <a href="passenger.html" class="btn btn-outline" style="width:100%;">Learn More for Passengers →</a>
         </div>
 
-        <!-- Driver Card -->
-        <div class="audience-card">
-          <div class="audience-icon">🚗</div>
-          <h3 class="audience-title">For Female Drivers</h3>
+        <!-- For Drivers -->
+        <div class="audience-card" style="border-color: var(--primary);">
+          <div class="audience-badge" style="background: var(--primary-ghost); color: var(--primary);">For Driver Partners</div>
+          <h3 class="audience-title">Earn with Dignity & Independence</h3>
           <p class="audience-desc">
-            Drive exclusively with female passengers in a safe, dignified environment. Keep 93% of your earnings with Pakistan's lowest 7% platform fee.
+            Join Pakistan's lowest commission platform. Keep 93% of your hard-earned ride income with direct cash payments from riders.
           </p>
           <div class="perks-list">
             <div class="perk-item">
               <span class="perk-check">✓</span>
-              <span>Keep 93% of every fare — lowest 7% fee in Pakistan</span>
-            </div>
-            <div class="perk-item">
-              <span class="perk-check">✓</span>
-              <span>Zero male passengers — 100% women-only rides</span>
+              <span>Only 7% platform fee — keep 93% of every fare</span>
             </div>
             <div class="perk-item">
               <span class="perk-check">✓</span>
@@ -255,6 +243,7 @@
 
         <div class="safety-card">
           <div class="safety-card-icon">📍</div>
+          <h3 class="safety-card-title">Live GPS Ride Sharing</h3>
           <p class="safety-card-desc">Share your real-time ride route with parents, family, or friends with 1 tap via WhatsApp or SMS.</p>
         </div>
 
@@ -377,7 +366,7 @@
             Get the full Android APK directly to your phone. Fast, light, and purpose-built for women across Lahore.
           </p>
           <div style="display:flex; gap:16px; flex-wrap:wrap;">
-            <a href="downloads.html" class="btn btn-white">📥 Get Android APK</a>
+            <a href="https://bulntofrddglxyxhtykf.supabase.co/storage/v1/object/public/releases/SheDrive-latest.apk" data-download-apk="true" class="btn btn-white download-apk-btn">📥 Get Android APK</a>
             <a href="driver.html" class="btn btn-outline" style="color:#FFF; border-color:#FFF;">Register as Driver</a>
           </div>
         </div>
@@ -389,7 +378,7 @@
           </div>
           <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">SheDrive Android APK</h3>
           <p style="font-size:0.85rem; color:#64748B; margin-bottom:20px;">Direct installation for Android devices in Pakistan</p>
-          <a href="https://drive.usercontent.google.com/download?id=1f9GOjuntFy0GVafnptTYSQGe1nalNIDf&export=download&confirm=t" class="btn btn-primary download-btn-apk">
+          <a href="https://bulntofrddglxyxhtykf.supabase.co/storage/v1/object/public/releases/SheDrive-latest.apk" data-download-apk="true" class="btn btn-primary download-btn-apk">
             ⬇️ Download SheDrive.apk
           </a>
           <a href="downloads.html#guide" class="install-guide-link">How to install APK on Android →</a>
@@ -398,7 +387,7 @@
     </div>
   </section>
 
-  <!-- Footer -->
+  <!-- Full Footer -->
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">

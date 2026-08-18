@@ -1,25 +1,35 @@
-// SheDrive Interactive Client Scripts
+// SheDrive Official Web Platform Client Logic
 document.addEventListener('DOMContentLoaded', () => {
   // Sticky Header Effect
   const header = document.querySelector('.header');
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 20) {
-      header.classList.add('scrolled');
-    } else {
-      header.classList.remove('scrolled');
-    }
-  });
-
-  // Mobile Navigation Toggle
-  const mobileToggle = document.querySelector('.mobile-toggle');
-  const navMenu = document.querySelector('.nav-menu');
-  if (mobileToggle && navMenu) {
-    mobileToggle.addEventListener('click', () => {
-      navMenu.classList.toggle('active');
+  if (header) {
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 20) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
     });
   }
 
-  // Interactive Live Bidding Simulation Demo
+  // Mobile Navigation Drawer Toggle
+  const mobileToggle = document.querySelector('.mobile-toggle');
+  const navMenu = document.querySelector('.nav-menu');
+  if (mobileToggle && navMenu) {
+    mobileToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      navMenu.classList.toggle('active');
+    });
+
+    // Close mobile menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (navMenu.classList.contains('active') && !navMenu.contains(e.target) && e.target !== mobileToggle) {
+        navMenu.classList.remove('active');
+      }
+    });
+  }
+
+  // Interactive Live Bidding Simulation Demo (inDrive Parity)
   const liveBids = [
     { name: 'Ayesha Khan', car: 'Suzuki Alto', rating: '4.9 ★', fare: 'Rs. 380' },
     { name: 'Fatima Noor', car: 'Toyota Vitz', rating: '5.0 ★', fare: 'Rs. 400' },
@@ -51,27 +61,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 4000);
   }
 
-  // FAQ Accordion Handler
+  // FAQ Accordion Handler (inDrive Parity)
   const faqItems = document.querySelectorAll('.faq-question');
   faqItems.forEach(item => {
     item.addEventListener('click', () => {
       const parent = item.parentElement;
-      parent.classList.toggle('open');
+      if (parent) {
+        parent.classList.toggle('open');
+      }
     });
   });
 
-  // Direct APK Download Handler
-  const apkDownloadBtns = document.querySelectorAll('a[href*="drive.usercontent.google.com"], .download-btn-apk, .download-apk-btn');
+  // Production Object Storage / CDN APK Download Manager
+  // Configured with primary Object Storage CDN & live backend fallback
+  const PRIMARY_CDN_URL = 'https://bulntofrddglxyxhtykf.supabase.co/storage/v1/object/public/releases/SheDrive-latest.apk';
+  const BACKEND_REDIRECT_URL = 'https://shedrive.onrender.com/api/v1/app/download';
+
+  const apkDownloadBtns = document.querySelectorAll('.download-btn-apk, .download-apk-btn, a[data-download-apk]');
+
   apkDownloadBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      const downloadUrl = btn.getAttribute('href');
       
       const originalText = btn.innerHTML;
-      btn.innerHTML = '⌛ Starting Download...';
-      
-      // Trigger browser direct download stream
-      window.location.href = downloadUrl;
+      btn.innerHTML = '⌛ Starting download...';
+
+      let targetUrl = btn.getAttribute('href');
+      if (!targetUrl || targetUrl === '#' || targetUrl.includes('drive.google.com') || targetUrl.includes('drive.usercontent.google.com')) {
+        targetUrl = PRIMARY_CDN_URL;
+      }
+
+      try {
+        // Trigger browser native direct binary download without navigating away
+        const hiddenAnchor = document.createElement('a');
+        hiddenAnchor.href = targetUrl;
+        hiddenAnchor.setAttribute('download', 'SheDrive-latest.apk');
+        hiddenAnchor.setAttribute('target', '_blank');
+        hiddenAnchor.style.display = 'none';
+        document.body.appendChild(hiddenAnchor);
+        hiddenAnchor.click();
+        document.body.removeChild(hiddenAnchor);
+
+        btn.innerHTML = '✅ Download started';
+      } catch (err) {
+        console.error('APK Download Initiation Failed:', err);
+        // Fallback to backend redirect stream
+        try {
+          window.location.assign(BACKEND_REDIRECT_URL);
+          btn.innerHTML = '✅ Download started';
+        } catch (fallbackErr) {
+          btn.innerHTML = '❌ Download failed — try again';
+        }
+      }
 
       setTimeout(() => {
         btn.innerHTML = originalText;
@@ -79,4 +120,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
-

@@ -17,6 +17,7 @@ import driverRoutes from './routes/v1/driver.routes';
 import paymentRoutes from './routes/v1/payment.routes';
 import userRoutes from './routes/v1/user.routes';
 import notificationRoutes from './routes/v1/notification.routes';
+import appRoutes from './routes/v1/app.routes';
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ app.use(requestLogger);
 app.use('/', healthRoutes);
 app.use('/health', healthRoutes);
 app.use('/api/v1', healthRoutes);
+app.use('/api/v1/app', appRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/rides', rideRoutes);
 app.use('/api/v1/upload', uploadRoutes);
