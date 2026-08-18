@@ -2,13 +2,16 @@ import { Router, Request, Response } from 'express';
 
 const router = Router();
 
-// Configure production Object Storage / CDN release URL
-const DEFAULT_CDN_URL = process.env.APK_DOWNLOAD_CDN_URL || 
-  'https://bulntofrddglxyxhtykf.supabase.co/storage/v1/object/public/releases/SheDrive-latest.apk';
+/**
+ * Dedicated Cloudflare R2 Global CDN Object Storage URL
+ * Handles 80 MB APK binaries with 0 egress fees and direct browser attachments.
+ */
+const CLOUDFLARE_R2_CDN_URL = process.env.CLOUDFLARE_R2_DOWNLOAD_URL || 
+  'https://download.shedrive.great-site.net/SheDrive-latest.apk';
 
 /**
  * GET /api/v1/app/info
- * Returns current public release metadata
+ * Returns official release metadata backed by Cloudflare R2
  */
 router.get('/info', (_req: Request, res: Response) => {
   res.status(200).json({
@@ -20,19 +23,20 @@ router.get('/info', (_req: Request, res: Response) => {
     releaseDate: 'August 2026',
     fileSize: '80.0 MB',
     minAndroidVersion: '8.0 (Oreo)',
-    downloadUrl: DEFAULT_CDN_URL,
-    releaseNotes: 'Official initial production release of SheDrive Pakistan. Female-only ride hailing with direct fare bidding and 24/7 SOS safety.'
+    cdnProvider: 'Cloudflare R2',
+    downloadUrl: CLOUDFLARE_R2_CDN_URL,
+    releaseNotes: 'Official release of SheDrive Pakistan. High-speed 1-click download hosted via Cloudflare R2 Global CDN.'
   });
 });
 
 /**
  * GET /api/v1/app/download
- * Performs direct HTTP 302 redirect to production Object Storage CDN
+ * Performs direct 302 redirect to Cloudflare R2 CDN storage payload
  */
 router.get('/download', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
   res.setHeader('Content-Disposition', 'attachment; filename="SheDrive-latest.apk"');
-  res.redirect(302, DEFAULT_CDN_URL);
+  res.redirect(302, CLOUDFLARE_R2_CDN_URL);
 });
 
 export default router;

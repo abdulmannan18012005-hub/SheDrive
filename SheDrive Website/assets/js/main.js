@@ -72,10 +72,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Production Object Storage / CDN APK Download Manager
-  // Configured with primary Object Storage CDN & live backend fallback
-  const PRIMARY_CDN_URL = 'https://bulntofrddglxyxhtykf.supabase.co/storage/v1/object/public/releases/SheDrive-latest.apk';
-  const BACKEND_REDIRECT_URL = 'https://shedrive.onrender.com/api/v1/app/download';
+  /**
+   * Cloudflare R2 Dedicated Object Storage APK Download Manager
+   * Solves 80 MB APK file limit issues with 0 egress fees & direct HTTPS streaming payload.
+   */
+  const CLOUDFLARE_R2_CDN_URL = 'https://download.shedrive.great-site.net/SheDrive-latest.apk';
+  const BACKEND_R2_REDIRECT = 'https://shedrive.onrender.com/api/v1/app/download';
 
   const apkDownloadBtns = document.querySelectorAll('.download-btn-apk, .download-apk-btn, a[data-download-apk]');
 
@@ -87,16 +89,16 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.innerHTML = '⌛ Starting download...';
 
       let targetUrl = btn.getAttribute('href');
-      if (!targetUrl || targetUrl === '#' || targetUrl.includes('drive.google.com') || targetUrl.includes('drive.usercontent.google.com')) {
-        targetUrl = PRIMARY_CDN_URL;
+      if (!targetUrl || targetUrl === '#' || targetUrl.includes('drive.google.com') || targetUrl.includes('drive.usercontent.google.com') || targetUrl.includes('supabase.co')) {
+        targetUrl = CLOUDFLARE_R2_CDN_URL;
       }
 
       try {
-        // Trigger browser native direct binary download without navigating away
+        // Native browser 1-click download trigger without navigating away from current page
         const hiddenAnchor = document.createElement('a');
         hiddenAnchor.href = targetUrl;
         hiddenAnchor.setAttribute('download', 'SheDrive-latest.apk');
-        hiddenAnchor.setAttribute('target', '_blank');
+        hiddenAnchor.setAttribute('target', '_self');
         hiddenAnchor.style.display = 'none';
         document.body.appendChild(hiddenAnchor);
         hiddenAnchor.click();
@@ -104,10 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         btn.innerHTML = '✅ Download started';
       } catch (err) {
-        console.error('APK Download Initiation Failed:', err);
-        // Fallback to backend redirect stream
+        console.error('Cloudflare R2 Download Error:', err);
         try {
-          window.location.assign(BACKEND_REDIRECT_URL);
+          window.location.assign(BACKEND_R2_REDIRECT);
           btn.innerHTML = '✅ Download started';
         } catch (fallbackErr) {
           btn.innerHTML = '❌ Download failed — try again';
