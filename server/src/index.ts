@@ -5,6 +5,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 
 import { requestLogger, errorLogger } from './middleware/logger';
+import { query } from './config/db';
+import { sendPushNotification } from './services/notificationService';
 import healthRoutes from './routes/v1/health.routes';
 import authRoutes from './routes/v1/auth.routes';
 import rideRoutes from './routes/v1/ride.routes';
@@ -71,18 +73,93 @@ io.on('connection', (socket) => {
     io.emit('driver_location_broadcast', data);
   });
 
-  // Real-Time Bidding Offer Event
-  socket.on('send_fare_bid', (data: { rideId: string; senderId: string; amount: number; role: string }) => {
+  // Real-Time Bidding Offer Event with Push Notification Dispatch
+  socket.on('send_fare_bid', async (data: { rideId: string; senderId: string; amount: number; role: string }) => {
     io.emit(`ride_bid_${data.rideId}`, data);
+
+    try {
+      const rideRes = await query('SELECT passenger_id, driver_id FROM rides WHERE ride_id = $1', [data.rideId]);
+      if (rideRes.rows.length > 0) {
+        const { passenger_id, driver_id } = rideRes.rows[0];
+        const recipientId = data.role === 'driver' ? passenger_id : driver_id;
+        if (recipientId && recipientId !== data.senderId) {
+          sendPushNotification({
+            userId: recipientId,
+            title: data.role === 'driver' ? '💬 Driver Counter Offer' : '💬 Passenger Bid Received',
+            body: `Offer: Rs. ${data.amount}. Tap to review and accept.`,
+            data: { type: 'counter_bid', rideId: data.rideId, amount: String(data.amount) },
+          }).catch(e => console.warn('[FCM] Bid push error:', e?.message));
+        }
+      }
+    } catch (dbErr) {
+      console.warn('[FCM] Bid push notification DB lookup error:', dbErr);
+    }
   });
 
-  // Real-Time Ride Lifecycle Status Transition Event
-  socket.on('ride_status_update', (data: { rideId: string; status: string; driverId?: string; pin?: string }) => {
+  // Real-Time Ride Lifecycle Status Transition Event with Push Notification Dispatch
+  socket.on('ride_status_update', async (data: { rideId: string; status: string; driverId?: string; pin?: string }) => {
     io.emit(`ride_status_${data.rideId}`, data);
     io.emit('admin_live_ride_update', data);
+
+    try {
+      const rideRes = await query('SELECT passenger_id, driver_id, driver_name, offered_fare, current_fare FROM rides WHERE ride_id = $1', [data.rideId]);
+      if (rideRes.rows.length > 0) {
+        const { passenger_id, driver_id, driver_name, offered_fare, current_fare } = rideRes.rows[0];
+        const fare = current_fare || offered_fare || 0;
+
+        if (data.status === 'accepted' && driver_id) {
+          sendPushNotification({
+            userId: driver_id,
+            title: '🎉 Ride Offer Accepted!',
+            body: `Passenger accepted your offer of Rs. ${fare}. Navigate to pickup now.`,
+            data: { type: 'ride_accepted', rideId: data.rideId },
+          }).catch(e => console.warn('[FCM] Accept push error:', e?.message));
+        } else if (data.status === 'arrived' && passenger_id) {
+          sendPushNotification({
+            userId: passenger_id,
+            title: '📍 Driver Has Arrived',
+            body: `Your verified driver ${driver_name || 'Partner'} is waiting at the pickup location.`,
+            data: { type: 'driver_arrived', rideId: data.rideId },
+          }).catch(e => console.warn('[FCM] Arrived push error:', e?.message));
+        } else if (data.status === 'in_progress' && passenger_id) {
+          sendPushNotification({
+            userId: passenger_id,
+            title: '🛣️ Trip Started',
+            body: 'Your ride is in progress. You can share your live journey with trusted contacts.',
+            data: { type: 'ride_started', rideId: data.rideId },
+          }).catch(e => console.warn('[FCM] Trip start push error:', e?.message));
+        } else if (data.status === 'completed' && passenger_id) {
+          sendPushNotification({
+            userId: passenger_id,
+            title: '🏁 Trip Completed',
+            body: `You have arrived at your destination! Total fare: Rs. ${fare}. Please rate your driver.`,
+            data: { type: 'ride_completed', rideId: data.rideId },
+          }).catch(e => console.warn('[FCM] Complete push error:', e?.message));
+        } else if (data.status === 'cancelled') {
+          if (passenger_id) {
+            sendPushNotification({
+              userId: passenger_id,
+              title: '⚠️ Ride Cancelled',
+              body: 'Your ride has been cancelled.',
+              data: { type: 'ride_cancelled', rideId: data.rideId },
+            }).catch(e => console.warn('[FCM] Cancel push error:', e?.message));
+          }
+          if (driver_id) {
+            sendPushNotification({
+              userId: driver_id,
+              title: '⚠️ Ride Cancelled',
+              body: 'The ride was cancelled.',
+              data: { type: 'ride_cancelled', rideId: data.rideId },
+            }).catch(e => console.warn('[FCM] Cancel push error:', e?.message));
+          }
+        }
+      }
+    } catch (statusErr) {
+      console.warn('[FCM] Ride status push notification error:', statusErr);
+    }
   });
 
-  // Emergency SOS Broadcast Event
+  // Emergency SOS Broadcast Event with Admin Push Notification Dispatch
   socket.on('trigger_sos', (data: { userId: string; userName: string; lat: number; lng: number; rideId?: string }) => {
     console.warn(`[🚨 EMERGENCY SOS TRIGGERED] User: ${data.userName} (${data.userId})`);
     io.emit('admin_sos_alert', data);

@@ -45,6 +45,15 @@ export default function App() {
   const [passengerSearchQuery, setPassengerSearchQuery] = useState('');
   const [paymentReviewModal, setPaymentReviewModal] = useState(null);
   const [adminPaymentNotes, setAdminPaymentNotes] = useState('');
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [feedbackStats, setFeedbackStats] = useState({
+    total_feedback: 0,
+    avg_rating: 5.0,
+    driver_feedback_count: 0,
+    passenger_feedback_count: 0,
+  });
+  const [feedbackSearchQuery, setFeedbackSearchQuery] = useState('');
+  const [feedbackFilterCategory, setFeedbackFilterCategory] = useState('all');
   const [settings, setSettings] = useState({
     commission_pct: 5.0,
     sos_hotline: '+92 42 111 743 374',
@@ -145,6 +154,16 @@ export default function App() {
       if (setRes.ok) {
         const sData = await setRes.json();
         setSettings(prev => sData.settings || prev);
+      }
+
+      // Always fetch user & driver feedbacks
+      const fbRes = await fetch(`${API_BASE_URL}/admin/feedback?t=${Date.now()}`, { headers });
+      if (fbRes.ok) {
+        const fbData = await fbRes.json();
+        setFeedbacks(fbData.feedbacks || []);
+        if (fbData.stats) {
+          setFeedbackStats(fbData.stats);
+        }
       }
     } catch (err) {
       console.error('Admin API fetch error:', err);
@@ -599,6 +618,12 @@ export default function App() {
             onClick={() => setActiveTab('payments')}
           >
             💳 Monthly Payments {paymentSummary.pendingSubmissionsCount > 0 ? `(${paymentSummary.pendingSubmissionsCount})` : ''}
+          </button>
+          <button
+            style={activeTab === 'feedback' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('feedback')}
+          >
+            💬 Feedbacks & Ideas ({feedbackStats.total_feedback || feedbacks.length})
           </button>
           <button
             style={activeTab === 'settings' ? styles.navItemActive : styles.navItem}
@@ -1469,6 +1494,206 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* FEEDBACK & SUGGESTIONS TAB */}
+        {activeTab === 'feedback' && (
+          <div style={styles.tabContent}>
+            <div style={styles.pageHeader}>
+              <div>
+                <h2 style={styles.pageTitle}>User & Driver Feedbacks 💬</h2>
+                <p style={styles.pageSubtitle}>
+                  Real-time reviews, suggestions, and feature requests submitted directly through the mobile app.
+                </p>
+              </div>
+            </div>
+
+            {/* Feedback Metric Stats */}
+            <div style={styles.statsGrid}>
+              <div style={styles.statCard}>
+                <span style={styles.statIcon}>⭐</span>
+                <div>
+                  <h3 style={styles.statValue}>{feedbackStats.avg_rating || '5.0'} / 5</h3>
+                  <p style={styles.statLabel}>Average Community Rating</p>
+                </div>
+              </div>
+
+              <div style={styles.statCard}>
+                <span style={styles.statIcon}>💬</span>
+                <div>
+                  <h3 style={styles.statValue}>{feedbackStats.total_feedback || feedbacks.length}</h3>
+                  <p style={styles.statLabel}>Total Submissions</p>
+                </div>
+              </div>
+
+              <div style={styles.statCard}>
+                <span style={styles.statIcon}>👩</span>
+                <div>
+                  <h3 style={styles.statValue}>{feedbackStats.passenger_feedback_count || 0}</h3>
+                  <p style={styles.statLabel}>Passenger Reviews</p>
+                </div>
+              </div>
+
+              <div style={styles.statCard}>
+                <span style={styles.statIcon}>🚘</span>
+                <div>
+                  <h3 style={styles.statValue}>{feedbackStats.driver_feedback_count || 0}</h3>
+                  <p style={styles.statLabel}>Driver Partner Reviews</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
+              <div style={{ minWidth: '180px' }}>
+                <select
+                  value={feedbackFilterCategory}
+                  onChange={(e) => setFeedbackFilterCategory(e.target.value)}
+                  style={{ ...styles.input, padding: '8px 14px', borderRadius: '10px' }}
+                >
+                  <option value="all">All Categories</option>
+                  <option value="General Suggestion">General Suggestion</option>
+                  <option value="App Performance">App Performance</option>
+                  <option value="Safety & Security">Safety & Security</option>
+                  <option value="Fare & Bidding">Fare & Bidding</option>
+                  <option value="Driver Experience">Driver Experience</option>
+                  <option value="New Feature Idea">New Feature Idea</option>
+                </select>
+              </div>
+
+              <div style={{ flex: 1, maxWidth: '380px' }}>
+                <input
+                  type="text"
+                  placeholder="Search by User Name, Phone, Email, or Comment..."
+                  value={feedbackSearchQuery}
+                  onChange={(e) => setFeedbackSearchQuery(e.target.value)}
+                  style={{ ...styles.input, padding: '8px 14px', borderRadius: '10px' }}
+                />
+              </div>
+            </div>
+
+            {/* Feedback Cards & Table */}
+            <div style={styles.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={styles.cardHeader}>Recent Community Feedback</h3>
+                <span style={{ fontSize: '13px', color: '#7E8299', fontWeight: '600' }}>
+                  Showing {
+                    feedbacks.filter(f => {
+                      if (feedbackFilterCategory !== 'all' && f.category !== feedbackFilterCategory) return false;
+                      if (feedbackSearchQuery.trim()) {
+                        const q = feedbackSearchQuery.toLowerCase();
+                        const name = (f.user_name || '').toLowerCase();
+                        const phone = (f.user_phone || '').toLowerCase();
+                        const email = (f.user_email || '').toLowerCase();
+                        const comment = (f.comment || '').toLowerCase();
+                        return name.includes(q) || phone.includes(q) || email.includes(q) || comment.includes(q);
+                      }
+                      return true;
+                    }).length
+                  } submissions
+                </span>
+              </div>
+
+              {feedbacks.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#7E8299' }}>
+                  <span style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>💬</span>
+                  <strong style={{ fontSize: '16px', color: '#3F4254' }}>No Feedback Submitted Yet</strong>
+                  <p style={{ fontSize: '13px', marginTop: '6px' }}>
+                    When riders or drivers submit feedback through the app, their reviews and suggestions will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>User Profile</th>
+                        <th>Role</th>
+                        <th>Rating</th>
+                        <th>Topic</th>
+                        <th>Feedback Message</th>
+                        <th>Device / Version</th>
+                        <th>Date & Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {feedbacks
+                        .filter(f => {
+                          if (feedbackFilterCategory !== 'all' && f.category !== feedbackFilterCategory) return false;
+                          if (feedbackSearchQuery.trim()) {
+                            const q = feedbackSearchQuery.toLowerCase();
+                            const name = (f.user_name || '').toLowerCase();
+                            const phone = (f.user_phone || '').toLowerCase();
+                            const email = (f.user_email || '').toLowerCase();
+                            const comment = (f.comment || '').toLowerCase();
+                            return name.includes(q) || phone.includes(q) || email.includes(q) || comment.includes(q);
+                          }
+                          return true;
+                        })
+                        .map((f) => (
+                          <tr key={f.id}>
+                            <td>
+                              <strong style={{ color: '#181C32' }}>{f.user_name || 'Community Member'}</strong>
+                              {f.user_phone && <div style={{ fontSize: '12px', color: '#7E8299' }}>{f.user_phone}</div>}
+                            </td>
+                            <td>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: '800',
+                                  color: '#FFFFFF',
+                                  backgroundColor: f.user_role === 'driver' ? '#7239EA' : '#E91E63',
+                                }}
+                              >
+                                {f.user_role === 'driver' ? '🚘 DRIVER' : '👩 PASSENGER'}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ color: '#FFB800', fontSize: '16px', fontWeight: '800' }}>
+                                {'★'.repeat(f.rating || 5)}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '4px 10px',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  backgroundColor: '#F3F6F9',
+                                  color: '#3F4254',
+                                }}
+                              >
+                                {f.category || 'General'}
+                              </span>
+                            </td>
+                            <td style={{ maxWidth: '340px' }}>
+                              <p style={{ margin: 0, fontSize: '13px', color: '#3F4254', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                {f.comment}
+                              </p>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '11px', color: '#7E8299' }}>
+                                {f.device_info || 'Mobile App'} • v{f.app_version || '1.0.0'}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '12px', color: '#7E8299' }}>
+                                {f.created_at ? new Date(Number(f.created_at)).toLocaleString() : 'Recent'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

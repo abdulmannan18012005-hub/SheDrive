@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Colors from '../../constants/Colors';
+import { useApp } from '../../contexts/AppContext';
+import { FeedbackModal } from '../../components/FeedbackModal';
 
 interface SettingsItem {
   icon: string;
@@ -18,8 +20,16 @@ interface SettingsItem {
 
 export default function SettingsScreen(): React.JSX.Element {
   const navigation = useNavigation<any>();
+  const { state } = useApp();
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   const settingsItems: SettingsItem[] = [
+    {
+      icon: '💬',
+      title: 'Send App Feedback',
+      subtitle: 'Share your suggestions or report issues directly',
+      onPress: () => setFeedbackVisible(true),
+    },
     {
       icon: '🔔',
       title: 'Notification Settings',
@@ -124,6 +134,13 @@ export default function SettingsScreen(): React.JSX.Element {
         <Text style={styles.footerText}>Pakistan's First Women-Only Ride-Hailing Platform</Text>
         <Text style={styles.footerVersion}>Version 1.0.0 — Lahore, Pakistan</Text>
       </View>
+
+      <FeedbackModal
+        visible={feedbackVisible}
+        onClose={() => setFeedbackVisible(false)}
+        user={state.user}
+        authToken={state.token}
+      />
     </ScrollView>
   );
 }

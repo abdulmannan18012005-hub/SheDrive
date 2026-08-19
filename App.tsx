@@ -23,25 +23,21 @@ export default function App(): React.JSX.Element {
     try {
       // Dynamic import to prevent crash if module not available
       const notificationService = await import('./src/services/notificationService');
-      const { getFCMToken, initializeNotificationListeners, onTokenRefresh } = notificationService;
+      const { getFCMToken, initializeNotificationListeners } = notificationService;
       
       // Request permission and get token
       const token = await getFCMToken();
       if (token) {
-        console.log('FCM initialized with token:', token);
+        console.log('FCM initialized with token:', token.substring(0, 15) + '...');
       }
 
-      // Initialize listeners
+      // Initialize listeners (foreground, background, and refresh)
       const unsubscribe = initializeNotificationListeners();
-      
-      // Listen for token refresh
-      const unsubscribeTokenRefresh = onTokenRefresh(async newToken => {
-        console.log('Token refreshed:', newToken);
-      });
 
       return () => {
-        unsubscribe();
-        unsubscribeTokenRefresh();
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
       };
     } catch (error) {
       console.error('FCM initialization failed (non-critical):', error);

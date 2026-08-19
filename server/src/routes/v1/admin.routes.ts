@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { query } from '../../config/db';
 import { generateToken, comparePassword, hashPassword, authenticateToken } from '../../middleware/auth';
+import { sendPushNotification } from '../../services/notificationService';
 
 const router = Router();
 
@@ -163,6 +164,14 @@ router.put('/drivers/:id/verify', authenticateToken, requireAdmin, async (req: R
       );
       await query('UPDATE drivers SET is_active = true, is_available = true WHERE driver_id = $1', [id]);
 
+      // Push notification to driver (non-blocking)
+      sendPushNotification({
+        userId: id,
+        title: '🛡️ Account Verified & Approved!',
+        body: 'Congratulations! Your SheDrive partner profile is approved. You can now go online.',
+        data: { type: 'driver_verified', driverId: id },
+      }).catch(err => console.warn('[FCM] Driver approval push notification error:', err));
+
       // Audit log entry (non-blocking)
       query(
         'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
@@ -176,6 +185,14 @@ router.put('/drivers/:id/verify', authenticateToken, requireAdmin, async (req: R
         ['rejected', Date.now(), Date.now(), reason || 'Documents did not meet verification standards', id]
       );
       await query('UPDATE drivers SET is_active = false, is_available = false WHERE driver_id = $1', [id]);
+
+      // Push notification to driver (non-blocking)
+      sendPushNotification({
+        userId: id,
+        title: '⚠️ Verification Action Required',
+        body: `Your application status: ${reason || 'Documents did not meet verification standards. Please resubmit.'}`,
+        data: { type: 'driver_rejected', driverId: id, reason: reason || '' },
+      }).catch(err => console.warn('[FCM] Driver rejection push notification error:', err));
 
       query(
         'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
@@ -500,6 +517,43 @@ router.put('/credentials', authenticateToken, requireAdmin, async (req: Request,
   } catch (error) {
     console.error('Update admin credentials error:', error);
     res.status(500).json({ error: 'Failed to update admin credentials' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/feedback
+ * Description: Retrieves all user and driver feedback with statistics.
+ */
+router.get('/feedback', authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const feedbackResult = await query(
+      `SELECT f.*, u.phone as user_phone, u.email as user_email
+       FROM feedbacks f
+       LEFT JOIN users u ON f.user_id = u.id
+       ORDER BY f.created_at DESC LIMIT 200`
+    );
+
+    const statsResult = await query(
+      `SELECT 
+        COUNT(*) as total_feedback,
+        AVG(rating)::numeric(10,2) as avg_rating,
+        COUNT(CASE WHEN user_role = 'driver' THEN 1 END) as driver_feedback_count,
+        COUNT(CASE WHEN user_role = 'passenger' THEN 1 END) as passenger_feedback_count
+       FROM feedbacks`
+    );
+
+    res.status(200).json({
+      feedbacks: feedbackResult.rows,
+      stats: statsResult.rows[0] || {
+        total_feedback: 0,
+        avg_rating: 5.0,
+        driver_feedback_count: 0,
+        passenger_feedback_count: 0,
+      },
+    });
+  } catch (error) {
+    console.error('Admin fetch feedback error:', error);
+    res.status(500).json({ error: 'Failed to fetch feedback logs' });
   }
 });
 

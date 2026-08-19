@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { query } from '../../config/db';
+import { notifyNearbyDrivers, sendPushNotification } from '../../services/notificationService';
 
 const router = Router();
 
@@ -115,6 +116,14 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
         now,
       ]
     );
+
+    // Dispatch push notification to nearby online verified female drivers (non-blocking)
+    notifyNearbyDrivers(
+      vehicleCategory || 'mini',
+      pickup.label || 'Lahore Pickup',
+      offeredFare || estimatedFare || 0,
+      rideId
+    ).catch(err => console.warn('[FCM] Dispatch to drivers warning:', err));
 
     res.status(201).json({
       rideId,

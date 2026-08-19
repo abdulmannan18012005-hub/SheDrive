@@ -69,21 +69,83 @@ router.post('/tickets', authenticateToken, async (req: Request, res: Response) =
 });
 
 /**
- * GET /api/v1/support/tickets
+ * POST /api/v1/support/feedback
  * Headers: Authorization: Bearer <token>
+ * Body: { rating: number, category: string, comment: string, appVersion?: string, deviceInfo?: string }
+ * Description: Submits user/driver feedback linked via Foreign Key to users(id).
  */
-router.get('/tickets', authenticateToken, async (req: Request, res: Response) => {
+router.post('/feedback', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const userId = user?.id;
+    const { rating, category, comment, appVersion, deviceInfo } = req.body;
+
+    if (!rating || !comment || !comment.trim()) {
+      return res.status(400).json({ error: 'Rating (1-5) and feedback comment are required' });
+    }
+
+    const ratingNum = Math.min(5, Math.max(1, parseInt(rating, 10) || 5));
+    const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = Date.now();
+
+    // Query user name and role if available
+    let userName = user.name || 'Community Member';
+    let userRole = user.role || 'passenger';
+
+    const userRes = await query('SELECT name, role FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length > 0) {
+      userName = userRes.rows[0].name || userName;
+      userRole = userRes.rows[0].role || userRole;
+    }
+
+    // Insert into PostgreSQL feedbacks table (attached via FK to users.id)
+    await query(
+      `INSERT INTO feedbacks (
+        id, user_id, user_role, user_name, rating, category, comment,
+        app_version, device_info, status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10)`,
+      [
+        feedbackId,
+        userId,
+        userRole,
+        userName,
+        ratingNum,
+        category?.trim() || 'General Suggestion',
+        comment.trim(),
+        appVersion || '1.0.0',
+        deviceInfo || 'Mobile App',
+        now,
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Thank you for your valuable feedback! The SheDrive team reviews every submission.',
+      feedbackId,
+    });
+  } catch (error: any) {
+    console.error('Submit feedback error:', error);
+    res.status(500).json({ error: 'Failed to submit feedback' });
+  }
+});
+
+/**
+ * GET /api/v1/support/feedback
+ * Headers: Authorization: Bearer <token>
+ * Description: Fetches feedbacks submitted by the logged-in user.
+ */
+router.get('/feedback', authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const result = await query(
-      'SELECT id, category, subject, message, status, created_at FROM support_tickets WHERE user_id = $1 ORDER BY created_at DESC',
+      'SELECT id, rating, category, comment, status, created_at FROM feedbacks WHERE user_id = $1 ORDER BY created_at DESC',
       [userId]
     );
 
-    res.status(200).json({ tickets: result.rows });
+    res.status(200).json({ feedbacks: result.rows });
   } catch (error) {
-    console.error('Fetch support tickets error:', error);
-    res.status(500).json({ error: 'Failed to fetch support tickets' });
+    console.error('Fetch user feedback error:', error);
+    res.status(500).json({ error: 'Failed to fetch feedbacks' });
   }
 });
 

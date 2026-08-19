@@ -5,6 +5,7 @@ import { PassengerStackParamList } from '../../types';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { signOutUser } from '../../firebase/auth';
+import { FeedbackModal } from '../../components/FeedbackModal';
 
 type ProfileScreenNavigationProp = StackNavigationProp<PassengerStackParamList, 'Profile'>;
 
@@ -15,6 +16,8 @@ interface Props {
 export default function ProfileScreen({ navigation }: Props): React.JSX.Element {
   const { state, dispatch } = useApp();
   const user = state.user;
+  const [modalVisible, setModalVisible] = React.useState(false);
+  const [feedbackVisible, setFeedbackVisible] = React.useState(false);
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -33,8 +36,6 @@ export default function ProfileScreen({ navigation }: Props): React.JSX.Element 
       },
     ]);
   };
-
-  const [modalVisible, setModalVisible] = React.useState(false);
 
   const calculatePassengerCompletion = () => {
     let completed = 0;
@@ -185,6 +186,23 @@ export default function ProfileScreen({ navigation }: Props): React.JSX.Element 
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
 
+        {/* Feedback Link */}
+        <TouchableOpacity
+          style={styles.menuItemCard}
+          onPress={() => setFeedbackVisible(true)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.menuItemLeft}>
+            <View style={[styles.menuItemIconBadge, { backgroundColor: '#FFF0F5' }]}>
+              <Text style={{ fontSize: 18 }}>💬</Text>
+            </View>
+            <Text style={[styles.menuItemText, { color: '#4A2060', fontWeight: '700' }]}>
+              Share App Feedback & Ideas
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
         {/* Log Out Link */}
         <TouchableOpacity
           style={styles.logoutButton}
@@ -194,6 +212,14 @@ export default function ProfileScreen({ navigation }: Props): React.JSX.Element 
           <Text style={styles.logoutButtonText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
+
+      {/* In-App Feedback Modal */}
+      <FeedbackModal
+        visible={feedbackVisible}
+        onClose={() => setFeedbackVisible(false)}
+        user={user}
+        authToken={state.token}
+      />
 
       {/* Completion Detail Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent={true} onRequestClose={() => setModalVisible(false)}>

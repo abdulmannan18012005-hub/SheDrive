@@ -17,6 +17,7 @@ import Colors from '../constants/Colors';
 import { UserProfile } from '../types';
 import { signOutUser } from '../firebase/auth';
 import { CONTACT_INFO } from '../config/contactConfig';
+import { FeedbackModal } from './FeedbackModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.78, 320);
@@ -38,6 +39,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   navigation,
   dispatch,
 }) => {
+  const [feedbackVisible, setFeedbackVisible] = React.useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -246,6 +248,18 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                 </Text>
               </TouchableOpacity>
 
+              {/* In-App Feedback Button */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => setFeedbackVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.menuIcon}>💬</Text>
+                <Text style={[styles.menuText, { color: '#4A2060', fontWeight: '700' }]}>
+                  Share App Feedback
+                </Text>
+              </TouchableOpacity>
+
               <View style={styles.divider} />
 
               <TouchableOpacity style={styles.logoutItem} onPress={handleLogout} activeOpacity={0.7}>
@@ -261,6 +275,13 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
             </View>
           </SafeAreaView>
         </Animated.View>
+
+        {/* In-App Feedback Modal */}
+        <FeedbackModal
+          visible={feedbackVisible}
+          onClose={() => setFeedbackVisible(false)}
+          user={user}
+        />
       </View>
     </Modal>
   );

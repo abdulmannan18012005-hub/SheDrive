@@ -170,6 +170,15 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     };
   }, []);
 
+  // Synchronize FCM device push token whenever user logs in or authenticates
+  useEffect(() => {
+    if (state.isAuthenticated && state.token && state.user) {
+      import('../services/notificationService').then(({ registerDeviceTokenWithBackend }) => {
+        registerDeviceTokenWithBackend(state.token, state.user?.uid, state.user?.role);
+      }).catch(err => console.warn('[FCM] Token sync warning:', err));
+    }
+  }, [state.isAuthenticated, state.token, state.user?.uid]);
+
   return (
     <AppContext.Provider value={{ state, dispatch }}>
       {children}
