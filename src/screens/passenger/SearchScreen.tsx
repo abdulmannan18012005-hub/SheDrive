@@ -15,8 +15,9 @@ import {
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { PassengerStackParamList, NominatimResult, LocationPoint } from '../../types';
+import { PassengerStackParamList, LocationPoint } from '../../types';
 import Colors from '../../constants/Colors';
+import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction } from '../../services/googlePlaces';
 import { searchAddress, reverseGeocode } from '../../services/nominatim';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useLocation } from '../../hooks/useLocation';
@@ -33,6 +34,18 @@ interface Props {
   route: SearchScreenRouteProp;
 }
 
+// Unified Search Result item supporting Google Places and Fallbacks
+interface SearchItem {
+  id: string;
+  placeId?: string;
+  title: string;
+  subtitle: string;
+  fullAddress: string;
+  latitude?: number;
+  longitude?: number;
+  source: 'google' | 'nominatim' | 'saved';
+}
+
 export default function SearchScreen({ navigation, route }: Props): React.JSX.Element {
   const { location: gpsCoords } = useLocation();
   const { state } = useApp();
@@ -44,7 +57,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const [pickupPoint, setPickupPoint] = useState<LocationPoint | null>(null);
   const [destPoint, setDestPoint] = useState<LocationPoint | null>(null);
 
-  const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
@@ -99,19 +112,45 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
     initPickup();
   }, [gpsCoords]);
 
-  // Execute address search query when debounced text updates
+  // Execute address search query when debounced text updates using Google Places (New)
   useEffect(() => {
     const runSearch = async () => {
       const activeQuery = activeField === 'pickup' ? debouncedPickup : debouncedDest;
-      if (!activeQuery || activeQuery.trim().length < 1 || activeQuery === 'My Location') {
+      if (!activeQuery || activeQuery.trim().length < 2 || activeQuery === 'My Location') {
         setSearchResults([]);
         return;
       }
 
       try {
         setIsSearching(true);
-        const places = await searchAddress(activeQuery);
-        setSearchResults(places);
+
+        // 1. Query Google Places API (New) Autocomplete
+        const googlePredictions = await getPlaceAutocomplete(activeQuery, gpsCoords);
+
+        if (googlePredictions && googlePredictions.length > 0) {
+          const items: SearchItem[] = googlePredictions.map((pred) => ({
+            id: pred.placeId,
+            placeId: pred.placeId,
+            title: pred.title,
+            subtitle: pred.subtitle,
+            fullAddress: pred.fullText,
+            source: 'google',
+          }));
+          setSearchResults(items);
+        } else {
+          // 2. Graceful Fallback to Nominatim if Google Places returns empty or quota issue
+          const nominatimPlaces = await searchAddress(activeQuery);
+          const items: SearchItem[] = nominatimPlaces.map((np) => ({
+            id: `nom_${np.place_id}`,
+            title: np.display_name.split(',')[0],
+            subtitle: np.display_name,
+            fullAddress: np.display_name,
+            latitude: parseFloat(np.lat),
+            longitude: parseFloat(np.lon),
+            source: 'nominatim',
+          }));
+          setSearchResults(items);
+        }
       } catch (err) {
         console.error('Search failed:', err);
       } finally {
@@ -120,31 +159,58 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
     };
 
     runSearch();
-  }, [debouncedPickup, debouncedDest, activeField]);
+  }, [debouncedPickup, debouncedDest, activeField, gpsCoords]);
 
-  const handleSelectItem = async (item: NominatimResult) => {
-    const lat = parseFloat(item.lat);
-    const lon = parseFloat(item.lon);
-    const shortLabel = item.display_name.split(',')[0];
+  const handleSelectItem = async (item: SearchItem) => {
+    let lat = item.latitude;
+    let lon = item.longitude;
+    let label = item.title;
+
+    // If result came from Google Places autocomplete, resolve exact coordinates via Place Details
+    if (item.placeId && (lat === undefined || lon === undefined)) {
+      try {
+        setIsSearching(true);
+        const details = await getPlaceDetailsById(item.placeId);
+        if (details) {
+          lat = details.coordinates.latitude;
+          lon = details.coordinates.longitude;
+          label = details.name || item.title;
+        }
+      } catch (err) {
+        console.error('Error resolving place details:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }
+
+    if (lat === undefined || lon === undefined) {
+      Alert.alert('Location Error', 'Unable to resolve coordinates for this place. Please try another location.');
+      return;
+    }
 
     const selectedPoint: LocationPoint = {
       latitude: lat,
       longitude: lon,
-      label: shortLabel,
+      label: label,
     };
 
     if (activeField === 'pickup') {
       setPickupPoint(selectedPoint);
-      setPickupText(shortLabel);
+      setPickupText(label);
       setSearchResults([]);
       setActiveField('dest');
     } else {
       setDestPoint(selectedPoint);
-      setDestText(shortLabel);
+      setDestText(label);
       setSearchResults([]);
 
       // Auto-navigate to booking screen if pickup exists
-      const pPoint = pickupPoint || (gpsCoords ? { latitude: gpsCoords.latitude, longitude: gpsCoords.longitude, label: 'Current Location' } : null);
+      const pPoint =
+        pickupPoint ||
+        (gpsCoords
+          ? { latitude: gpsCoords.latitude, longitude: gpsCoords.longitude, label: 'Current Location' }
+          : null);
+
       if (pPoint) {
         try {
           setIsCalculatingRoute(true);
@@ -155,6 +221,8 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
               destination: selectedPoint,
               route: osrmRoute,
             });
+          } else {
+            Alert.alert('Routing Failed', 'Could not calculate road route between these points. Please check locations.');
           }
         } catch (e) {
           console.warn('Auto route calculation error:', e);
@@ -277,17 +345,19 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           ) : searchResults.length > 0 ? (
             <FlatList
               data={searchResults}
-              keyExtractor={(item) => item.place_id.toString()}
+              keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.resultItem}
                   onPress={() => handleSelectItem(item)}
                 >
-                  <Text style={styles.resultIcon}>📍</Text>
+                  <View style={[styles.resultIconBadge, item.source === 'google' && { backgroundColor: Colors.light.primaryGhost }]}>
+                    <Text style={styles.resultIcon}>{item.source === 'google' ? '📍' : '📌'}</Text>
+                  </View>
                   <View style={styles.resultTextContainer}>
-                    <Text style={styles.resultTitle}>{item.display_name.split(',')[0]}</Text>
+                    <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
                     <Text style={styles.resultSubtitle} numberOfLines={2}>
-                      {item.display_name}
+                      {item.subtitle || item.fullAddress}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -466,15 +536,23 @@ const styles = StyleSheet.create({
   resultItem: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.divider,
     alignItems: 'center',
     backgroundColor: Colors.light.surface,
-    gap: 16,
+    gap: 14,
+  },
+  resultIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.light.background,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   resultIcon: {
-    fontSize: 20,
+    fontSize: 18,
   },
   resultTextContainer: {
     flex: 1,

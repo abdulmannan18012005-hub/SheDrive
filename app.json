@@ -19,6 +19,11 @@
     },
     "android": {
       "package": "com.lahore.pinkrides",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCsOFBXAEmYvsV7SG6-VKK4cjyH9NoS7vs"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#E91E63"

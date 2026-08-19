@@ -236,18 +236,21 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
   const getMapMarkers = (): MapMarker[] => {
     if (!ride) return [];
     const markers: MapMarker[] = [
-      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '�', title: 'Pickup', isCustomer: true },
-      { id: 'dropoff', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🔴', title: 'Dropoff', isDestination: true },
+      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '📍', title: 'Pickup', isCustomer: true },
+      { id: 'dropoff', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🏁', title: 'Destination', isDestination: true },
     ];
 
     // Show driver vehicle moving on the map if accepted/arrived/enroute
-    if (driver && driver.latitude && driver.longitude) {
+    const dLat = ride.driverCoords?.latitude || driver?.latitude;
+    const dLng = ride.driverCoords?.longitude || driver?.longitude;
+
+    if (dLat && dLng) {
       markers.push({
         id: 'driver',
-        lat: driver.latitude,
-        lng: driver.longitude,
+        lat: dLat,
+        lng: dLng,
         emoji: '🚗',
-        title: `${driver.name} (Arriving)`,
+        title: `${ride.driverName || driver?.name || 'Driver'} (${ride.status === 'accepted' ? 'Approaching' : 'On Trip'})`,
         isDriver: true,
       });
     }

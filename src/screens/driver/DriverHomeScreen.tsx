@@ -353,6 +353,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         lng: currentCoords.longitude,
         emoji: '🚗',
         title: 'My Location',
+        isDriver: true,
       });
     }
 
@@ -362,8 +363,9 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         id: ride.rideId,
         lat: ride.pickup.latitude,
         lng: ride.pickup.longitude,
-        emoji: '🟢',
+        emoji: '📍',
         title: `Ride Offer: ${formatCurrency(ride.currentFare)}`,
+        isCustomer: true,
       });
     });
 

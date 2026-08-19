@@ -1,16 +1,18 @@
 import messaging from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 
+const getMessagingInstance = () => (typeof messaging === 'function' ? (messaging as any)() : (messaging as any));
+
 /**
  * Request notification permission from user
  */
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
     if (Platform.OS === 'ios') {
-      const authStatus = await messaging().requestPermission();
+      const authStatus = await getMessagingInstance().requestPermission();
       const enabled =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+        authStatus === (messaging as any).AuthorizationStatus?.AUTHORIZED ||
+        authStatus === (messaging as any).AuthorizationStatus?.PROVISIONAL;
       return enabled;
     }
     // Android permissions are granted by default
@@ -27,7 +29,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export async function getFCMToken(): Promise<string | null> {
   try {
     // Check if app has notification permission
-    const enabled = await messaging().hasPermission();
+    const enabled = await getMessagingInstance().hasPermission();
     if (!enabled) {
       const granted = await requestNotificationPermission();
       if (!granted) {
@@ -37,7 +39,7 @@ export async function getFCMToken(): Promise<string | null> {
     }
 
     // Get the token
-    const token = await messaging().getToken();
+    const token = await getMessagingInstance().getToken();
     console.log('FCM Token:', token);
     return token;
   } catch (error) {
@@ -50,14 +52,14 @@ export async function getFCMToken(): Promise<string | null> {
  * Listen for token refresh
  */
 export function onTokenRefresh(callback: (token: string) => void) {
-  return messaging().onTokenRefresh(callback);
+  return getMessagingInstance().onTokenRefresh(callback);
 }
 
 /**
  * Listen for incoming messages when app is in foreground
  */
 export function onMessageReceived(callback: (message: any) => void) {
-  return messaging().onMessage(callback);
+  return getMessagingInstance().onMessage(callback);
 }
 
 /**
@@ -65,13 +67,11 @@ export function onMessageReceived(callback: (message: any) => void) {
  */
 export function initializeNotificationListeners() {
   // Foreground messages
-  const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+  const unsubscribeForeground = getMessagingInstance().onMessage(async (remoteMessage: any) => {
     console.log('Foreground message received:', remoteMessage);
     // You can show an in-app notification here
   });
 
-  // Background/quit state messages are handled automatically by FCM
-  // No additional code needed for background messages
-
   return unsubscribeForeground;
 }
+

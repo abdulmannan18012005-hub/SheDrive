@@ -222,8 +222,8 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
   const getMapMarkers = (): MapMarker[] => {
     if (!ride) return [];
     const markers: MapMarker[] = [
-      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '🟢', title: 'Pickup point' },
-      { id: 'destination', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🔴', title: 'Dropoff point' },
+      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '📍', title: 'Pickup point', isCustomer: true },
+      { id: 'destination', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🏁', title: 'Dropoff point', isDestination: true },
     ];
 
     if (driverCoords) {
@@ -233,6 +233,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         lng: driverCoords.longitude,
         emoji: '🚗',
         title: 'My Position',
+        isDriver: true,
       });
     }
 

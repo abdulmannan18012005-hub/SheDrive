@@ -36,6 +36,15 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   
   const mapRef = useRef<LeafletMapRef>(null);
+  const hasCenteredRef = useRef(false);
+
+  // Auto-center map once real GPS location is acquired
+  useEffect(() => {
+    if (currentCoords && mapRef.current && !hasCenteredRef.current) {
+      hasCenteredRef.current = true;
+      mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 15);
+    }
+  }, [currentCoords]);
 
   // Subscribe to real-time online drivers from Firestore
   useEffect(() => {
@@ -88,6 +97,7 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         lng: currentCoords.longitude,
         emoji: '👩',
         title: 'My Location',
+        isCustomer: true,
       });
     }
 

@@ -178,8 +178,8 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
   };
 
   const mapMarkers = [
-    { id: 'pickup', lat: pickup.latitude, lng: pickup.longitude, emoji: '�', title: 'Pickup point', isCustomer: true },
-    { id: 'destination', lat: destination.latitude, lng: destination.longitude, emoji: '🔴', title: 'Destination', isDestination: true },
+    { id: 'pickup', lat: pickup.latitude, lng: pickup.longitude, emoji: '📍', title: 'Pickup point', isCustomer: true },
+    { id: 'destination', lat: destination.latitude, lng: destination.longitude, emoji: '🏁', title: 'Destination', isDestination: true },
   ];
 
   return (
