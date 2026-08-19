@@ -23,21 +23,21 @@ export default function WelcomeScreen({ navigation }: Props): React.JSX.Element 
             <Text style={styles.logoIcon}>🚗</Text>
           </View>
           <Text style={styles.logoText}>SheDrive</Text>
-          <Text style={styles.tagline}>Safe, Empowering & Dedicated Rides for Women</Text>
+          <Text style={styles.tagline}>Safe rides, by women, for women</Text>
 
           {/* Value Proposition Pills */}
           <View style={styles.featurePillsContainer}>
             <View style={styles.featurePill}>
               <Text style={styles.featurePillIcon}>🔒</Text>
-              <Text style={styles.featurePillText}>Verified Female Drivers</Text>
+              <Text style={styles.featurePillText}>Verified Female Drivers Only</Text>
             </View>
             <View style={styles.featurePill}>
               <Text style={styles.featurePillIcon}>🛡️</Text>
-              <Text style={styles.featurePillText}>24/7 SOS & Live Support</Text>
+              <Text style={styles.featurePillText}>24/7 SOS & Real-time Location Share</Text>
             </View>
             <View style={styles.featurePill}>
               <Text style={styles.featurePillIcon}>🎀</Text>
-              <Text style={styles.featurePillText}>Comfort & Peace of Mind</Text>
+              <Text style={styles.featurePillText}>Comfort & Transparent Bidding</Text>
             </View>
           </View>
         </View>
@@ -61,7 +61,10 @@ export default function WelcomeScreen({ navigation }: Props): React.JSX.Element 
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footerText}>Designed for Women across Pakistan</Text>
+        <View style={styles.trustBadge}>
+          <Text style={styles.trustBadgeIcon}>🛡️</Text>
+          <Text style={styles.trustBadgeText}>100% Verified Female Community</Text>
+        </View>
       </View>
     </View>
   );
@@ -198,5 +201,25 @@ const styles = StyleSheet.create({
     color: Colors.light.textTertiary,
     fontWeight: '600',
     letterSpacing: 0.2,
+  },
+  trustBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(233, 30, 99, 0.08)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(233, 30, 99, 0.18)',
+    marginBottom: 10,
+  },
+  trustBadgeIcon: {
+    fontSize: 14,
+    marginRight: 8,
+  },
+  trustBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.primary,
   },
 });

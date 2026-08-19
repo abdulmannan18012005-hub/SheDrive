@@ -125,9 +125,15 @@ export const RideBookingSummaryModal: React.FC<Props> = ({
                 disabled={isLoading}
               >
                 <Text style={styles.confirmBtnText}>
-                  {isLoading ? 'Sending...' : 'Confirm & Book'}
+                  {isLoading ? 'Sending Request...' : 'Request Safety Ride'}
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Verified Guarantee Badge */}
+            <View style={styles.guaranteeBadge}>
+              <Text style={styles.guaranteeIcon}>🛡️</Text>
+              <Text style={styles.guaranteeText}>Verified Female Driver Guarantee</Text>
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -309,5 +315,25 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.light.textOnPrimary,
     letterSpacing: 0.3,
+  },
+  guaranteeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FCEFEF',
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#F8BBD0',
+  },
+  guaranteeIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  guaranteeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6A1B9A',
   },
 });

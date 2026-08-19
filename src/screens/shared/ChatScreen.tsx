@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -164,8 +165,14 @@ export default function ChatScreen({ navigation, route }: Props): React.JSX.Elem
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>Chat with {otherUserName}</Text>
-          <Text style={styles.headerSubtitle}>{otherUserRole === 'driver' ? 'Driver Partner' : 'Passenger'}</Text>
+          <Text style={styles.headerSubtitle}>{otherUserRole === 'driver' ? 'Verified Female Driver' : 'Passenger'}</Text>
         </View>
+      </View>
+
+      {/* Safety Notice Banner */}
+      <View style={styles.safetyNotice}>
+        <Text style={styles.safetyNoticeIcon}>🛡️</Text>
+        <Text style={styles.safetyNoticeText}>For your security, in-ride chats are protected and recorded.</Text>
       </View>
 
       <FlatList
@@ -178,10 +185,26 @@ export default function ChatScreen({ navigation, route }: Props): React.JSX.Elem
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No messages yet</Text>
-            <Text style={styles.emptySubtext}>Start the conversation!</Text>
+            <Text style={styles.emptySubtext}>Start the conversation with {otherUserName}!</Text>
           </View>
         }
       />
+
+      {/* Quick Reply Chips from Template */}
+      <View style={styles.quickChipsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickChipsScroll}>
+          {['I am at the pickup', 'Running 2 min late', 'I am near the entrance', 'Wearing pink dupatta'].map((chip, idx) => (
+            <TouchableOpacity
+              key={idx}
+              style={styles.quickChip}
+              onPress={() => setInputText(chip)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickChipText}>{chip}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       <View style={styles.inputContainer}>
         <TextInput
@@ -249,9 +272,51 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
+    fontWeight: '500',
+  },
+  safetyNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FDF2F4',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8D7DA',
+  },
+  safetyNoticeIcon: {
+    fontSize: 12,
+    marginRight: 6,
+  },
+  safetyNoticeText: {
+    fontSize: 11,
+    color: '#842029',
+    fontWeight: '600',
+  },
+  quickChipsContainer: {
+    paddingVertical: 6,
+    backgroundColor: Colors.light.surface,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  quickChipsScroll: {
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  quickChip: {
+    backgroundColor: '#FCEFEF',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#F8BBD0',
+  },
+  quickChipText: {
+    fontSize: 12,
+    color: '#6A1B9A',
+    fontWeight: '600',
   },
   messagesList: {
     flex: 1,
