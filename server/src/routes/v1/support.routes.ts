@@ -70,35 +70,68 @@ router.post('/tickets', authenticateToken, async (req: Request, res: Response) =
 
 /**
  * POST /api/v1/support/feedback
- * Headers: Authorization: Bearer <token>
- * Body: { rating: number, category: string, comment: string, appVersion?: string, deviceInfo?: string }
- * Description: Submits user/driver feedback linked via Foreign Key to users(id).
+ * Headers: Optional Authorization: Bearer <token>
+ * Body: { rating: number, category: string, comment: string, name?: string, phone?: string, email?: string, appVersion?: string, deviceInfo?: string }
+ * Description: Submits user/driver/website feedback linked to users(id) or guest profile.
  */
-router.post('/feedback', authenticateToken, async (req: Request, res: Response) => {
+router.post('/feedback', async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    const userId = user?.id;
-    const { rating, category, comment, appVersion, deviceInfo } = req.body;
+    const { rating, category, comment, name, phone, email, appVersion, deviceInfo } = req.body;
 
     if (!rating || !comment || !comment.trim()) {
       return res.status(400).json({ error: 'Rating (1-5) and feedback comment are required' });
+    }
+
+    let userId: string | null = null;
+    let userName = name || 'Community Member';
+    let userRole = 'passenger';
+
+    // Check if authenticated via JWT token
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'shedrive_super_secret_jwt_key_2026');
+        if (decoded && decoded.id) {
+          userId = decoded.id;
+          const userRes = await query('SELECT id, name, role, phone FROM users WHERE id = $1', [userId]);
+          if (userRes.rows.length > 0) {
+            userName = userRes.rows[0].name || userName;
+            userRole = userRes.rows[0].role || userRole;
+          }
+        }
+      } catch (jwtErr) {
+        // Invalid or expired token; fallback to guest submission
+      }
+    }
+
+    // If submitted from website without auth, check if user exists by email/phone or create guest entry
+    if (!userId) {
+      if (email || phone) {
+        const matchRes = await query(
+          'SELECT id, name, role FROM users WHERE email = $1 OR phone = $2 LIMIT 1',
+          [email || null, phone || null]
+        );
+        if (matchRes.rows.length > 0) {
+          userId = matchRes.rows[0].id;
+          userName = matchRes.rows[0].name || userName;
+          userRole = matchRes.rows[0].role || userRole;
+        }
+      }
+
+      // If still no matching user in DB, link to primary admin or create transient guest record
+      if (!userId) {
+        const adminLookup = await query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+        userId = adminLookup.rows.length > 0 ? adminLookup.rows[0].id : 'usr_guest_web';
+      }
     }
 
     const ratingNum = Math.min(5, Math.max(1, parseInt(rating, 10) || 5));
     const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const now = Date.now();
 
-    // Query user name and role if available
-    let userName = user.name || 'Community Member';
-    let userRole = user.role || 'passenger';
-
-    const userRes = await query('SELECT name, role FROM users WHERE id = $1', [userId]);
-    if (userRes.rows.length > 0) {
-      userName = userRes.rows[0].name || userName;
-      userRole = userRes.rows[0].role || userRole;
-    }
-
-    // Insert into PostgreSQL feedbacks table (attached via FK to users.id)
+    // Insert into PostgreSQL feedbacks table
     await query(
       `INSERT INTO feedbacks (
         id, user_id, user_role, user_name, rating, category, comment,
@@ -113,7 +146,7 @@ router.post('/feedback', authenticateToken, async (req: Request, res: Response) 
         category?.trim() || 'General Suggestion',
         comment.trim(),
         appVersion || '1.0.0',
-        deviceInfo || 'Mobile App',
+        deviceInfo || 'Website / Web Portal',
         now,
       ]
     );

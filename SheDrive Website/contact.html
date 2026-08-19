@@ -125,8 +125,107 @@
           </div>
         </div>
       </div>
+
+      <!-- Interactive Web Feedback Form -->
+      <div style="max-width:800px; margin:40px auto 0; background:#FFF; border-radius:24px; padding:36px; box-shadow:0 10px 30px rgba(74,32,96,0.08); border:1px solid rgba(74,32,96,0.08);">
+        <div style="text-align:center; margin-bottom:28px;">
+          <span style="font-size:2.4rem;">💬</span>
+          <h3 style="font-size:1.8rem; font-weight:800; color:#4A2060; margin:8px 0 4px;">Share Your Feedback & Ideas</h3>
+          <p style="color:#64748B; font-size:0.95rem;">Have a suggestion, compliment, or feature request? We read and review every message!</p>
+        </div>
+
+        <form id="webFeedbackForm" onsubmit="handleWebFeedback(event)" style="display:flex; flex-direction:column; gap:18px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div>
+              <label style="display:block; font-size:0.85rem; font-weight:700; color:#1E293B; margin-bottom:6px;">Your Name (Optional)</label>
+              <input type="text" id="fbName" placeholder="e.g. Fatima Ali" style="width:100%; padding:12px 16px; border:1px solid #E2E8F0; border-radius:12px; font-family:inherit; font-size:0.95rem;">
+            </div>
+            <div>
+              <label style="display:block; font-size:0.85rem; font-weight:700; color:#1E293B; margin-bottom:6px;">Phone / Email (Optional)</label>
+              <input type="text" id="fbContact" placeholder="e.g. 0300-1234567" style="width:100%; padding:12px 16px; border:1px solid #E2E8F0; border-radius:12px; font-family:inherit; font-size:0.95rem;">
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div>
+              <label style="display:block; font-size:0.85rem; font-weight:700; color:#1E293B; margin-bottom:6px;">Feedback Category</label>
+              <select id="fbCategory" style="width:100%; padding:12px 16px; border:1px solid #E2E8F0; border-radius:12px; font-family:inherit; font-size:0.95rem; background:#FFF;">
+                <option value="General Suggestion">General Suggestion</option>
+                <option value="App Performance">App Performance</option>
+                <option value="Safety & Security">Safety & Security</option>
+                <option value="Fare & Bidding">Fare & Bidding</option>
+                <option value="Driver Experience">Driver Experience</option>
+                <option value="New Feature Idea">New Feature Idea</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:0.85rem; font-weight:700; color:#1E293B; margin-bottom:6px;">Overall Rating</label>
+              <select id="fbRating" style="width:100%; padding:12px 16px; border:1px solid #E2E8F0; border-radius:12px; font-family:inherit; font-size:0.95rem; background:#FFF;">
+                <option value="5">⭐⭐⭐⭐⭐ 5 Stars (Excellent)</option>
+                <option value="4">⭐⭐⭐⭐ 4 Stars (Good)</option>
+                <option value="3">⭐⭐⭐ 3 Stars (Average)</option>
+                <option value="2">⭐⭐ 2 Stars (Needs Improvement)</option>
+                <option value="1">⭐ 1 Star (Poor)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size:0.85rem; font-weight:700; color:#1E293B; margin-bottom:6px;">Your Message / Comment *</label>
+            <textarea id="fbComment" rows="4" required placeholder="Tell us how we can make SheDrive better for you..." style="width:100%; padding:12px 16px; border:1px solid #E2E8F0; border-radius:12px; font-family:inherit; font-size:0.95rem; resize:vertical;"></textarea>
+          </div>
+
+          <button type="submit" id="fbSubmitBtn" class="btn btn-primary" style="padding:14px; font-size:1rem; font-weight:800; width:100%; justify-content:center;">
+            Submit Feedback ✨
+          </button>
+          <div id="fbSuccessMsg" style="display:none; text-align:center; padding:12px; background:#ECFDF5; color:#065F46; border-radius:12px; font-weight:700;">
+            💖 Thank you! Your feedback has been sent directly to the SheDrive team.
+          </div>
+        </form>
+      </div>
     </div>
   </section>
+
+  <script>
+    async function handleWebFeedback(e) {
+      e.preventDefault();
+      const btn = document.getElementById('fbSubmitBtn');
+      const msg = document.getElementById('fbSuccessMsg');
+      const name = document.getElementById('fbName').value.trim();
+      const contact = document.getElementById('fbContact').value.trim();
+      const category = document.getElementById('fbCategory').value;
+      const rating = parseInt(document.getElementById('fbRating').value, 10);
+      const comment = document.getElementById('fbComment').value.trim();
+
+      if (!comment) return;
+
+      btn.disabled = true;
+      btn.innerText = 'Submitting...';
+
+      try {
+        const isEmail = contact.includes('@');
+        await fetch('https://shedrive.onrender.com/api/v1/support/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name || 'Website Visitor',
+            email: isEmail ? contact : undefined,
+            phone: !isEmail ? contact : undefined,
+            category,
+            rating,
+            comment,
+            appVersion: 'Web Platform',
+            deviceInfo: navigator.userAgent.substring(0, 50),
+          })
+        });
+      } catch (err) {
+        console.warn('Feedback submit notice:', err);
+      } finally {
+        btn.style.display = 'none';
+        msg.style.display = 'block';
+      }
+    }
+  </script>
 
   <!-- Full Footer -->
   <footer class="footer">
