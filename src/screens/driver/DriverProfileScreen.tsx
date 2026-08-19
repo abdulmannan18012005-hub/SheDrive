@@ -20,6 +20,7 @@ import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { signOutUser } from '../../firebase/auth';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { DriverVerificationStatusModal } from '../../components/DriverVerificationStatusModal';
 
 type DriverProfileNavigationProp = StackNavigationProp<DriverStackParamList, 'DriverProfile'>;
 
@@ -33,6 +34,7 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
+  const [verificationModalVisible, setVerificationModalVisible] = useState(false);
 
   useEffect(() => {
     const fetchDriverProfile = async () => {
@@ -236,12 +238,17 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         <Text style={styles.userName}>{user?.name || 'Driver Partner'}</Text>
         <View style={styles.badgeContainer}>
           <Text style={styles.userRole}>🚗 Registered Driver</Text>
-          <Text style={[
-            styles.statusBadge,
-            driverProfile?.isActive ? styles.statusActive : styles.statusPending
-          ]}>
-            {driverProfile?.isActive ? '✓ Verified Partner' : '⏳ Verification Pending'}
-          </Text>
+          <TouchableOpacity
+            onPress={() => setVerificationModalVisible(true)}
+            activeOpacity={0.75}
+          >
+            <Text style={[
+              styles.statusBadge,
+              driverProfile?.isActive ? styles.statusActive : styles.statusPending
+            ]}>
+              {driverProfile?.isActive ? '✓ Verified Partner' : '⏳ Verification Pending (Tap)'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsContainer}>
@@ -438,6 +445,21 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
       <View style={styles.actionsContainer}>
         <Text style={styles.menuGroupTitle}>Partner Menu</Text>
 
+        {/* Verification Status Stepper Link */}
+        <TouchableOpacity
+          style={styles.menuItemCard}
+          onPress={() => setVerificationModalVisible(true)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.menuItemLeft}>
+            <View style={styles.menuItemIconBadge}>
+              <Text style={{ fontSize: 18 }}>🛡️</Text>
+            </View>
+            <Text style={styles.menuItemText}>Verification Status & Checklist</Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+
         {/* Vehicle Management Link */}
         <TouchableOpacity
           style={styles.menuItemCard}
@@ -534,6 +556,15 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
           </View>
         </View>
       </Modal>
+
+      {/* Driver Step-by-Step Verification Status Stepper Modal */}
+      <DriverVerificationStatusModal
+        visible={verificationModalVisible}
+        onClose={() => setVerificationModalVisible(false)}
+        driverProfile={driverProfile}
+        verificationStatus={(user as any)?.verificationStatus || (driverProfile?.isActive ? 'approved' : 'pending')}
+        rejectionReason={(user as any)?.rejectionReason}
+      />
     </ScrollView>
   );
 }

@@ -24,6 +24,7 @@ import { formatCurrency } from '../../utils/helpers';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SideDrawer } from '../../components/SideDrawer';
+import { DriverVerificationStatusModal } from '../../components/DriverVerificationStatusModal';
 
 type DriverHomeNavigationProp = StackNavigationProp<DriverStackParamList, 'DriverHome'>;
 
@@ -39,6 +40,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   const [isOnline, setIsOnline] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [verificationModalVisible, setVerificationModalVisible] = useState(false);
 
   const [availableRides, setAvailableRides] = useState<RideRequest[]>([]);
   const [counterModalVisible, setCounterModalVisible] = useState(false);
@@ -408,6 +410,22 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         </TouchableOpacity>
       </View>
 
+      {/* Driver Verification Status Banner */}
+      {!user?.isVerified && (
+        <TouchableOpacity
+          style={styles.verificationBanner}
+          onPress={() => setVerificationModalVisible(true)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.verificationBannerIcon}>🔍</Text>
+          <View style={styles.verificationBannerTextContainer}>
+            <Text style={styles.verificationBannerTitle}>Verification in Progress</Text>
+            <Text style={styles.verificationBannerSub}>Tap to view 4-step approval checklist</Text>
+          </View>
+          <Text style={styles.verificationBannerChevron}>›</Text>
+        </TouchableOpacity>
+      )}
+
       {errorMessage && (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{errorMessage}</Text>
@@ -580,6 +598,16 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         navigation={navigation}
         dispatch={dispatch}
       />
+
+      {/* Driver Step-by-Step Verification Status Stepper Modal */}
+      <DriverVerificationStatusModal
+        visible={verificationModalVisible}
+        onClose={() => setVerificationModalVisible(false)}
+        driverProfile={user as any}
+        verificationStatus={(user as any)?.verificationStatus || (user?.isVerified ? 'approved' : 'pending')}
+        rejectionReason={(user as any)?.rejectionReason}
+        onRefresh={() => refreshLocation()}
+      />
     </SafeAreaView>
   );
 }
@@ -646,6 +674,39 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.light.text,
+  },
+  verificationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8F9',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFD1E3',
+  },
+  verificationBannerIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  verificationBannerTextContainer: {
+    flex: 1,
+  },
+  verificationBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#4A2060',
+  },
+  verificationBannerSub: {
+    fontSize: 11,
+    color: '#666666',
+    marginTop: 1,
+    fontWeight: '500',
+  },
+  verificationBannerChevron: {
+    fontSize: 20,
+    color: '#4A2060',
+    fontWeight: '700',
+    marginLeft: 8,
   },
   errorBanner: {
     backgroundColor: Colors.light.errorLight,
