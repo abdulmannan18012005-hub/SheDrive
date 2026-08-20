@@ -1,7 +1,7 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply plugin: "com.google.gms.google-services"
+// Removed google-services plugin - @react-native-firebase handles Firebase configuration directly
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
@@ -91,6 +91,13 @@ react {
  */
 def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInReleaseBuilds') ?: false).toBoolean()
 
+// Force compatible play-services-measurement version to avoid Kotlin metadata incompatibility
+configurations.all {
+    resolutionStrategy {
+        force 'com.google.android.gms:play-services-measurement:21.5.1'
+    }
+}
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -171,9 +178,11 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // Import the Firebase BoM
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-analytics")
+    // @react-native-firebase will pull in the correct Firebase dependencies
+    // No manual Firebase BoM needed - let the library manage its own dependencies
+    
+    // Force Kotlin stdlib version to match compiler
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.23")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
