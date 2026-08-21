@@ -8,8 +8,12 @@ export interface SendEmailOptions {
   fromName?: string;
 }
 
-const gmailUser = (process.env.GMAIL_USER || 'SheDrive.Support@gmail.com').trim();
-const gmailPass = (process.env.GMAIL_APP_PASSWORD || 'pofs asgp bruk yomi').replace(/\s+/g, '');
+const gmailUser = process.env.GMAIL_USER?.trim();
+const gmailPass = process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, '');
+
+if (!gmailUser || !gmailPass) {
+  console.warn('[SMTP] GMAIL_USER and GMAIL_APP_PASSWORD environment variables are required for email delivery. Email features will not work.');
+}
 
 /**
  * Standard Gmail SMTP Transporter (Fallback for local dev or when Render is upgraded)

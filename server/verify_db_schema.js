@@ -4,8 +4,6 @@ require('dotenv').config();
 const connectionCandidates = [
   process.env.DATABASE_URL,
   process.env.DATABASE_URL?.replace(':5432/', ':6543/'),
-  'postgresql://postgres:H18a01m%402003@db.bulntofrddglxyxhtykf.supabase.co:5432/postgres',
-  'postgresql://postgres.bulntofrddglxyxhtykf:H18a01m%402003@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres',
 ];
 
 async function verifyAndMigrate() {

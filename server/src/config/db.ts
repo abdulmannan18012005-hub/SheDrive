@@ -65,8 +65,12 @@ async function checkTcpHealth() {
 checkTcpHealth();
 
 // 2. Supabase Client over HTTPS Port 443
-const supabaseUrl = process.env.SUPABASE_URL || 'https://bulntofrddglxyxhtykf.supabase.co';
+const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('[Supabase] SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables are required for Supabase fallback. Supabase features will not work.');
+}
 
 let supabaseClient: any = null;
 if (supabaseUrl && supabaseKey) {

@@ -5,7 +5,7 @@ import path from 'path';
 dotenv.config();
 
 // Initialize Firebase Admin
-let serviceAccount: admin.ServiceAccount;
+let serviceAccount: admin.ServiceAccount | null = null;
 
 // Try to load from file first (for local development)
 try {
@@ -13,17 +13,30 @@ try {
   serviceAccount = require(serviceAccountPath);
 } catch (error) {
   // Fallback to environment variables (for Render)
-  serviceAccount = {
-    project_id: process.env.FIREBASE_PROJECT_ID || 'lahore-pink-rides',
-    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    client_email: process.env.FIREBASE_CLIENT_EMAIL,
-  } as admin.ServiceAccount;
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+
+  if (projectId && privateKey && clientEmail) {
+    serviceAccount = {
+      project_id: projectId,
+      private_key: privateKey,
+      client_email: clientEmail,
+    } as admin.ServiceAccount;
+  } else {
+    console.warn('[Firebase] Firebase Admin credentials not found (set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL). Push notifications will be disabled.');
+  }
 }
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+if (serviceAccount && !admin.apps.length) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (e: any) {
+    console.warn('[Firebase] Firebase Admin app initialization failed:', e?.message);
+  }
 }
 
-export const fcm = admin.messaging();
+export const fcm = admin.apps.length ? admin.messaging() : (null as any);
+

@@ -31,6 +31,11 @@ export async function sendPushNotification({
   data = {},
 }: SendNotificationParams): Promise<boolean> {
   try {
+    if (!fcm) {
+      console.log(`[FCM] Push skipped for user ${userId} (FCM not configured)`);
+      return false;
+    }
+
     // 1. Fetch user's active FCM token from database
     const result = await query(
       'SELECT fcm_token FROM users WHERE id = $1 AND fcm_token IS NOT NULL',

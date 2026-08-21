@@ -23,19 +23,27 @@ import appRoutes from './routes/v1/app.routes';
 
 dotenv.config();
 
+const allowedOrigins: string[] = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'https://shedrive.onrender.com'];
+
 const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: '*',
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
   },
 });
 
 const PORT = process.env.PORT || 3000;
 
 // Express Global Middlewares
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.set('etag', false); // Disable ETag to prevent 304 stale data in Admin Portal

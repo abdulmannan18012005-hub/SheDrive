@@ -225,12 +225,16 @@ router.post('/driver/submit', authenticateToken, async (req: AuthRequest, res: R
 /**
  * GET /api/v1/admin/payments
  * Query: status?, search?, page?, limit?
- * Description: Admin list of all driver monthly payment records with filters & search.
+ * Description: Admin list of all driver monthly payment records with filters & search and pagination.
  */
 router.get('/admin/payments', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
     const status = req.query.status as string;
     const search = req.query.search as string;
+
+    const offset = (page - 1) * limit;
 
     let queryStr = `
       SELECT p.*, 
@@ -259,13 +263,25 @@ router.get('/admin/payments', authenticateToken, async (req: AuthRequest, res: R
       queryStr += ` AND (LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.phone) LIKE $${params.length} OR LOWER(p.transaction_id) LIKE $${params.length} OR LOWER(d.vehicle_plate) LIKE $${params.length})`;
     }
 
-    queryStr += ` ORDER BY p.updated_at DESC`;
+    // Get total count for pagination
+    const countQueryStr = queryStr.replace(/SELECT.*?FROM/, 'SELECT COUNT(*) as total FROM');
+    const countResult = await query(countQueryStr, params);
+    const total = parseInt(countResult.rows[0].total, 10);
+
+    // Get paginated data
+    queryStr += ` ORDER BY p.updated_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
 
     const result = await query(queryStr, params);
 
     res.status(200).json({
       payments: result.rows,
-      totalCount: result.rows.length,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error: any) {
     console.error('Fetch admin monthly payments error:', error);

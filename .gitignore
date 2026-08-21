@@ -17,6 +17,8 @@ admin-portal/.env
 # Firebase service account (contains private keys)
 firebase-service-account.json
 server/firebase-service-account.json
+
+# JSON files (except specific ones)
 *.json
 !app.json
 !package.json
@@ -26,6 +28,11 @@ server/firebase-service-account.json
 !firestore.indexes.json
 !firestore.rules
 !.firebaserc
+
+# Environment example files (keep these)
+!.env.example
+!server/.env.example
+!admin-portal/.env.example
 
 # OS files
 .DS_Store

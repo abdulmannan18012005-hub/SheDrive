@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-
-// If running on localhost/127.0.0.1 and custom VITE_API_BASE_URL is provided, use it. Otherwise, default to live Render backend.
-const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-const API_BASE_URL = isLocalhost
-  ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1')
-  : 'https://shedrive.onrender.com/api/v1';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import adminApi, { getAuthToken, setAuthToken, clearAuthToken, cancelAllRequests } from './api/adminApi';
+import { ToastContainer } from './components/Toast';
+import { LoadingSpinner } from './components/LoadingSpinner';
+import { PaginationBar } from './components/PaginationBar';
+import { ConfirmDialog } from './components/ConfirmDialog';
+import { useDebounce } from './hooks/useDebounce';
 
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('shedrive_admin_token') || '');
+  const [token, setToken] = useState(getAuthToken());
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,6 +15,24 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // Toast notifications
+  const [toasts, setToasts] = useState([]);
+  const addToast = useCallback((message, type = 'info') => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, message, type }]);
+  }, []);
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    drivers: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    passengers: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    payments: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    feedback: { page: 1, limit: 50, total: 0, totalPages: 1 },
+  });
   const [stats, setStats] = useState({
     onlineDrivers: 0,
     completedRidesToday: 0,
@@ -78,121 +96,218 @@ export default function App() {
   const [credNewPassword, setCredNewPassword] = useState('');
   const [credLoading, setCredLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  
+  // Ref for abort controllers
+  const abortControllerRef = useRef(null);
 
-  // Fetch on mount, tab change, and every 5 seconds for live updates
-  useEffect(() => {
+  // Debounced search queries
+  const debouncedVerificationSearch = useDebounce(verificationSearchQuery, 300);
+  const debouncedDriverRosterSearch = useDebounce(driverRosterSearchQuery, 300);
+  const debouncedPassengerSearch = useDebounce(passengerSearchQuery, 300);
+  const debouncedPaymentSearch = useDebounce(paymentSearchQuery, 300);
+  const debouncedFeedbackSearch = useDebounce(feedbackSearchQuery, 300);
+
+  // Fetch data based on active tab
+  const fetchTabData = useCallback(async (showSpinner = true) => {
     if (!token) return;
-    fetchAdminData(true);
-    const autoRefreshInterval = setInterval(() => {
-      fetchAdminData(false); // Silent refresh — no loading spinner
-    }, 5000);
-    return () => clearInterval(autoRefreshInterval);
-  }, [token, activeTab]);
-
-  const fetchAdminData = async (showSpinner = true) => {
+    
     try {
       if (showSpinner) setIsLoadingData(true);
-      const headers = { 
-        Authorization: `Bearer ${token}`,
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-      };
-
-      // Always fetch stats (drives all dashboard metric cards)
-      const statsRes = await fetch(`${API_BASE_URL}/admin/stats?t=${Date.now()}`, { headers });
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
-      }
-
-      // Always fetch pending drivers (Verification Queue + Dashboard badge)
-      const pendingRes = await fetch(`${API_BASE_URL}/admin/drivers/pending?t=${Date.now()}`, { headers });
-      if (pendingRes.ok) {
-        const pData = await pendingRes.json();
-        setPendingDrivers(pData.pendingDrivers || []);
-      }
-
-      // Always fetch verified drivers roster (Approved Drivers tab)
-      const drvRes = await fetch(`${API_BASE_URL}/admin/drivers?t=${Date.now()}`, { headers });
-      if (drvRes.ok) {
-        const dData = await drvRes.json();
-        const allDrivers = dData.drivers || [];
-        // Categorize drivers based on verification_status
-        setVerifiedDrivers(allDrivers.filter(d => d.verification_status === 'approved'));
-        setRejectedDrivers(allDrivers.filter(d => d.verification_status === 'rejected'));
-      }
-
-      // Always fetch passengers roster
-      const passRes = await fetch(`${API_BASE_URL}/admin/passengers?t=${Date.now()}`, { headers });
-      if (passRes.ok) {
-        const passData = await passRes.json();
-        setPassengers(passData.passengers || []);
-      }
-
-      // Always fetch live rides (Live Ride Monitor + Dashboard)
-      const ridesRes = await fetch(`${API_BASE_URL}/admin/rides/live?t=${Date.now()}`, { headers });
-      if (ridesRes.ok) {
-        const rData = await ridesRes.json();
-        setLiveRides(rData.liveRides || []);
-      }
-
-      // Always fetch monthly payments roster & summary stats
-      const paymentsRes = await fetch(`${API_BASE_URL}/payments/admin/payments?t=${Date.now()}`, { headers });
-      if (paymentsRes.ok) {
-        const payData = await paymentsRes.json();
-        setMonthlyPayments(payData.payments || []);
-      }
-
-      const paySumRes = await fetch(`${API_BASE_URL}/payments/admin/payments/summary?t=${Date.now()}`, { headers });
-      if (paySumRes.ok) {
-        const paySumData = await paySumRes.json();
-        setPaymentSummary(paySumData);
-      }
-
-      // Always fetch platform settings (commission, fares)
-      const setRes = await fetch(`${API_BASE_URL}/admin/settings?t=${Date.now()}`, { headers });
-      if (setRes.ok) {
-        const sData = await setRes.json();
-        setSettings(prev => sData.settings || prev);
-      }
-
-      // Always fetch user & driver feedbacks
-      const fbRes = await fetch(`${API_BASE_URL}/admin/feedback?t=${Date.now()}`, { headers });
-      if (fbRes.ok) {
-        const fbData = await fbRes.json();
-        setFeedbacks(fbData.feedbacks || []);
-        if (fbData.stats) {
-          setFeedbackStats(fbData.stats);
-        }
+      
+      // Always fetch stats and live rides (these are lightweight)
+      const [statsData, liveRidesData] = await Promise.all([
+        adminApi.getStats(),
+        adminApi.getLiveRides(),
+      ]);
+      
+      setStats(statsData);
+      setLiveRides(liveRidesData.liveRides || []);
+      
+      // Fetch tab-specific data
+      switch (activeTab) {
+        case 'dashboard':
+          // Also fetch pending drivers for dashboard badge
+          const pendingData = await adminApi.getPendingDrivers();
+          setPendingDrivers(pendingData.pendingDrivers || []);
+          break;
+          
+        case 'verification':
+          const pendingDriversData = await adminApi.getPendingDrivers();
+          setPendingDrivers(pendingDriversData.pendingDrivers || []);
+          break;
+          
+        case 'drivers':
+          const driversData = await adminApi.getDrivers({
+            page: pagination.drivers.page,
+            limit: pagination.drivers.limit,
+            search: debouncedDriverRosterSearch,
+            status: 'approved',
+          });
+          setVerifiedDrivers(driversData.drivers || []);
+          if (driversData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              drivers: driversData.pagination,
+            }));
+          }
+          break;
+          
+        case 'rejected':
+          const rejectedData = await adminApi.getDrivers({
+            page: 1,
+            limit: 100,
+            status: 'rejected',
+          });
+          setRejectedDrivers(rejectedData.drivers || []);
+          break;
+          
+        case 'passengers':
+          const passengersData = await adminApi.getPassengers({
+            page: pagination.passengers.page,
+            limit: pagination.passengers.limit,
+            search: debouncedPassengerSearch,
+          });
+          setPassengers(passengersData.passengers || []);
+          if (passengersData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              passengers: passengersData.pagination,
+            }));
+          }
+          break;
+          
+        case 'rides':
+          // Live rides already fetched above
+          break;
+          
+        case 'settings':
+          const settingsData = await adminApi.getSettings();
+          setSettings(prev => settingsData.settings || prev);
+          break;
+          
+        case 'payments':
+          const [paymentsData, summaryData] = await Promise.all([
+            adminApi.getPayments({
+              page: pagination.payments.page,
+              limit: pagination.payments.limit,
+              status: paymentFilterStatus,
+              search: debouncedPaymentSearch,
+            }),
+            adminApi.getPaymentSummary(),
+          ]);
+          setMonthlyPayments(paymentsData.payments || []);
+          setPaymentSummary(summaryData);
+          if (paymentsData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              payments: paymentsData.pagination,
+            }));
+          }
+          break;
+          
+        case 'feedback':
+          const feedbackData = await adminApi.getFeedback({
+            page: pagination.feedback.page,
+            limit: pagination.feedback.limit,
+            search: debouncedFeedbackSearch,
+            category: feedbackFilterCategory,
+          });
+          setFeedbacks(feedbackData.feedbacks || []);
+          if (feedbackData.stats) {
+            setFeedbackStats(feedbackData.stats);
+          }
+          if (feedbackData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              feedback: feedbackData.pagination,
+            }));
+          }
+          break;
       }
     } catch (err) {
       console.error('Admin API fetch error:', err);
+      addToast('Failed to fetch data. Please try again.', 'error');
     } finally {
       if (showSpinner) setIsLoadingData(false);
     }
-  };
+  }, [token, activeTab, pagination, paymentFilterStatus, feedbackFilterCategory, debouncedDriverRosterSearch, debouncedPassengerSearch, debouncedPaymentSearch, debouncedFeedbackSearch, addToast]);
+
+  // Fetch on mount and tab change
+  useEffect(() => {
+    fetchTabData(true);
+  }, [activeTab, token]);
+
+  // Poll only live data (stats and live rides) every 5 seconds
+  useEffect(() => {
+    if (!token) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const [statsData, liveRidesData] = await Promise.all([
+          adminApi.getStats(),
+          adminApi.getLiveRides(),
+        ]);
+        setStats(statsData);
+        setLiveRides(liveRidesData.liveRides || []);
+      } catch (err) {
+        console.error('Live data refresh error:', err);
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [token]);
+
+  // Refetch when debounced search changes
+  useEffect(() => {
+    if (activeTab === 'drivers' && debouncedDriverRosterSearch !== driverRosterSearchQuery) {
+      setPagination(prev => ({ ...prev, drivers: { ...prev.drivers, page: 1 } }));
+      fetchTabData(false);
+    }
+  }, [debouncedDriverRosterSearch, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'passengers' && debouncedPassengerSearch !== passengerSearchQuery) {
+      setPagination(prev => ({ ...prev, passengers: { ...prev.passengers, page: 1 } }));
+      fetchTabData(false);
+    }
+  }, [debouncedPassengerSearch, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'payments' && debouncedPaymentSearch !== paymentSearchQuery) {
+      setPagination(prev => ({ ...prev, payments: { ...prev.payments, page: 1 } }));
+      fetchTabData(false);
+    }
+  }, [debouncedPaymentSearch, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'feedback' && debouncedFeedbackSearch !== feedbackSearchQuery) {
+      setPagination(prev => ({ ...prev, feedback: { ...prev.feedback, page: 1 } }));
+      fetchTabData(false);
+    }
+  }, [debouncedFeedbackSearch, activeTab]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cancelAllRequests();
+    };
+  }, []);
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
+      const data = await adminApi.login(loginEmail, loginPassword);
       setToken(data.token);
-      localStorage.setItem('shedrive_admin_token', data.token);
+      setAuthToken(data.token);
+      addToast('Login successful!', 'success');
     } catch (err) {
       if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-        setLoginError(`Cannot connect to backend server at: ${API_BASE_URL}. Ensure the backend is running and accessible from this browser.`);
+        setLoginError(`Cannot connect to backend server. Ensure the backend is running and accessible.`);
       } else {
         setLoginError(err.message);
+        addToast(err.message, 'error');
       }
     } finally {
       setIsLoggingIn(false);
@@ -200,109 +315,57 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    clearAuthToken();
     setToken('');
-    localStorage.removeItem('shedrive_admin_token');
+    addToast('Logged out successfully', 'info');
   };
 
-  const executeVerifyDriver = async (driverId, approve) => {
+  const executeVerifyDriver = async (driverId, approve, reason) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/verify`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ approve, reason: approve ? null : rejectionReason }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message || (approve ? 'Driver approved!' : 'Driver rejected'));
-        setSelectedDriverDocs(null);
-        setConfirmModal(null);
-        setRejectionReason('');
-        fetchAdminData();
-      } else {
-        alert(data.error || 'Operation failed');
-      }
+      const res = await adminApi.verifyDriver(driverId, approve, reason || (approve ? undefined : rejectionReason));
+      addToast(res.message || (approve ? 'Driver approved successfully!' : 'Driver application rejected'), 'success');
+      setSelectedDriverDocs(null);
+      setConfirmModal(null);
+      setRejectionReason('');
+      fetchTabData(true);
     } catch (err) {
-      alert('Failed to update driver status');
+      addToast(err.message || 'Failed to update driver status', 'error');
     }
   };
 
   const executeBlockDriver = async (driverId, block) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/block`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ block }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message);
-        setConfirmModal(null);
-        fetchAdminData();
-      } else {
-        alert(data.error || 'Operation failed');
-      }
+      const res = await adminApi.blockDriver(driverId, block);
+      addToast(res.message || `Driver account ${block ? 'suspended' : 'reactivated'} successfully!`, 'success');
+      setConfirmModal(null);
+      fetchTabData(true);
     } catch (err) {
-      alert('Failed to update driver block status');
+      addToast(err.message || 'Failed to update driver status', 'error');
     }
   };
 
   const executeBlockPassenger = async (passengerId, block) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/passengers/${passengerId}/block`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ block }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message);
-        setConfirmModal(null);
-        fetchAdminData();
-      } else {
-        alert(data.error || 'Operation failed');
-      }
+      const res = await adminApi.blockPassenger(passengerId, block);
+      addToast(res.message || `Passenger account ${block ? 'suspended' : 'reactivated'} successfully!`, 'success');
+      setConfirmModal(null);
+      fetchTabData(true);
     } catch (err) {
-      alert('Failed to update passenger block status');
+      addToast(err.message || 'Failed to update passenger status', 'error');
     }
   };
 
   const handleReviewPaymentSubmit = async () => {
     if (!paymentReviewModal) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/payments/admin/payments/${paymentReviewModal.id}/review`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          status: paymentReviewModal.action,
-          adminNotes: adminPaymentNotes,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Failed to update payment status');
-        return;
-      }
-
-      alert(data.message || 'Payment status updated successfully');
+      const res = await adminApi.reviewPayment(paymentReviewModal.id, paymentReviewModal.action, adminPaymentNotes);
+      addToast(res.message || 'Payment review status saved successfully!', 'success');
       setPaymentReviewModal(null);
       setAdminPaymentNotes('');
-      fetchAdminData(true);
+      fetchTabData(true);
     } catch (err) {
       console.error('Review payment error:', err);
-      alert('Failed to connect to backend server');
+      addToast(err.message || 'Failed to save payment status', 'error');
     }
   };
 
@@ -405,43 +468,33 @@ export default function App() {
     
     for (const cat of settings.category_fares) {
       if (cat.baseFare < 0) {
-        alert(`${cat.name}: Base Fare cannot be negative`);
+        addToast(`${cat.name}: Base Fare cannot be negative`, 'warning');
         return;
       }
       if (cat.perKmRate < 0) {
-        alert(`${cat.name}: Rate per KM cannot be negative`);
+        addToast(`${cat.name}: Rate per KM cannot be negative`, 'warning');
         return;
       }
       if (cat.perMinuteRate < 0) {
-        alert(`${cat.name}: Rate per Minute cannot be negative`);
+        addToast(`${cat.name}: Rate per Minute cannot be negative`, 'warning');
         return;
       }
       if (cat.minimumFare < 0) {
-        alert(`${cat.name}: Minimum Fare cannot be negative`);
+        addToast(`${cat.name}: Minimum Fare cannot be negative`, 'warning');
         return;
       }
     }
     
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/settings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          commissionPct: settings.commission_pct,
-          sosHotline: settings.sos_hotline,
-          categoryFares: settings.category_fares,
-        }),
+      const res = await adminApi.saveSettings({
+        commissionPct: settings.commission_pct,
+        sosHotline: settings.sos_hotline,
+        categoryFares: settings.category_fares,
       });
-      if (res.ok) {
-        alert('System settings and category fares updated successfully!');
-      } else {
-        alert('Failed to save settings');
-      }
+      addToast(res.message || 'System settings and category fares saved successfully!', 'success');
+      fetchTabData(true);
     } catch (err) {
-      alert('Error connecting to backend server');
+      addToast(err.message || 'Failed to save settings', 'error');
     }
   };
 
@@ -459,43 +512,31 @@ export default function App() {
   const handleUpdateCredentials = async (e) => {
     e.preventDefault();
     if (!credCurrentPassword) {
-      alert('Please enter your current password to verify authorization.');
+      addToast('Please enter your current password to verify authorization.', 'warning');
       return;
     }
     if (!credNewEmail.trim() && !credNewPassword) {
-      alert('Please enter a new email/username or a new password to update.');
+      addToast('Please enter a new email or password to update.', 'warning');
       return;
     }
     if (credNewPassword && credNewPassword.length < 6) {
-      alert('New password must be at least 6 characters long.');
+      addToast('New password must be at least 6 characters long.', 'warning');
       return;
     }
     setCredLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/admin/credentials`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          currentPassword: credCurrentPassword,
-          newEmail: credNewEmail.trim() || undefined,
-          newPassword: credNewPassword || undefined,
-        }),
+      const res = await adminApi.updateCredentials({
+        currentPassword: credCurrentPassword,
+        newEmail: credNewEmail.trim() || undefined,
+        newPassword: credNewPassword || undefined,
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message || 'Admin credentials updated successfully! Please re-login with your new credentials.');
-        setCredCurrentPassword('');
-        setCredNewEmail('');
-        setCredNewPassword('');
-        handleLogout();
-      } else {
-        alert(data.error || 'Failed to update credentials');
-      }
+      addToast(res.message || 'Admin credentials updated! Please re-login with your new credentials.', 'success');
+      setCredCurrentPassword('');
+      setCredNewEmail('');
+      setCredNewPassword('');
+      handleLogout();
     } catch (err) {
-      alert('Error connecting to backend server to update credentials');
+      addToast(err.message || 'Failed to update credentials', 'error');
     } finally {
       setCredLoading(false);
     }
@@ -952,6 +993,13 @@ export default function App() {
               </table>
               </div>
             )}
+            <PaginationBar
+              currentPage={pagination.drivers.page}
+              totalPages={pagination.drivers.totalPages}
+              totalRecords={pagination.drivers.total}
+              limit={pagination.drivers.limit}
+              onPageChange={(p) => setPagination(prev => ({ ...prev, drivers: { ...prev.drivers, page: p } }))}
+            />
           </div>
         )}
 
@@ -1093,6 +1141,13 @@ export default function App() {
               </table>
               </div>
             )}
+            <PaginationBar
+              currentPage={pagination.passengers.page}
+              totalPages={pagination.passengers.totalPages}
+              totalRecords={pagination.passengers.total}
+              limit={pagination.passengers.limit}
+              onPageChange={(p) => setPagination(prev => ({ ...prev, passengers: { ...prev.passengers, page: p } }))}
+            />
           </div>
         )}
 
@@ -1494,6 +1549,13 @@ export default function App() {
                   </tbody>
                 </table>
               </div>
+              <PaginationBar
+                currentPage={pagination.payments.page}
+                totalPages={pagination.payments.totalPages}
+                totalRecords={pagination.payments.total}
+                limit={pagination.payments.limit}
+                onPageChange={(p) => setPagination(prev => ({ ...prev, payments: { ...prev.payments, page: p } }))}
+              />
             </div>
           </div>
         )}
@@ -1694,6 +1756,13 @@ export default function App() {
                   </table>
                 </div>
               )}
+              <PaginationBar
+                currentPage={pagination.feedback.page}
+                totalPages={pagination.feedback.totalPages}
+                totalRecords={pagination.feedback.total}
+                limit={pagination.feedback.limit}
+                onPageChange={(p) => setPagination(prev => ({ ...prev, feedback: { ...prev.feedback, page: p } }))}
+              />
             </div>
           </div>
         )}
@@ -1959,6 +2028,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Toast Notification System */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }

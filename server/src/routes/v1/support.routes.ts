@@ -92,7 +92,7 @@ router.post('/feedback', async (req: Request, res: Response) => {
       try {
         const jwt = require('jsonwebtoken');
         const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'shedrive_super_secret_jwt_key_2026');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!);
         if (decoded && decoded.id) {
           userId = decoded.id;
           const userRes = await query('SELECT id, name, role, phone FROM users WHERE id = $1', [userId]);

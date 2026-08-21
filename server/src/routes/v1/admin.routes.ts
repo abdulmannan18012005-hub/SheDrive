@@ -217,11 +217,20 @@ router.put('/drivers/:id/block', authenticateToken, requireAdmin, async (req: Re
     const { id } = req.params;
     const { block } = req.body;
 
-    await query('UPDATE users SET is_blocked = $1, updated_at = $2 WHERE id = $3', [Boolean(block), Date.now(), id]);
-    await query('UPDATE drivers SET is_active = $1, is_online = false, is_available = false WHERE driver_id = $2', [
-      !block,
+    const userCheck = await query('SELECT id, role FROM users WHERE id = $1', [id]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    await query('UPDATE users SET is_blocked = $1, updated_at = $2 WHERE id = $3', [
+      Boolean(block),
+      Date.now(),
       id,
     ]);
+
+    if (block) {
+      await query('UPDATE drivers SET is_online = false, is_available = false WHERE driver_id = $1', [id]).catch(() => {});
+    }
 
     query(
       'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
@@ -246,19 +255,58 @@ router.put('/drivers/:id/block', authenticateToken, requireAdmin, async (req: Re
 
 /**
  * GET /api/v1/admin/passengers
+ * Query: page?, limit?, search?
+ * Description: Returns paginated list of passengers with search support.
  */
-router.get('/passengers', authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
+router.get('/passengers', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const result = await query(
-      `SELECT u.id, u.name, u.phone, u.email, u.cnic, u.is_verified, u.is_blocked, u.created_at,
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string || '').trim();
+
+    const offset = (page - 1) * limit;
+
+    let queryStr = `
+      SELECT u.id, u.name, u.phone, u.email, u.cnic, u.is_verified, u.is_blocked, u.created_at,
               COUNT(r.ride_id) as total_rides
        FROM users u
        LEFT JOIN rides r ON u.id = r.passenger_id
-       WHERE u.role = 'passenger'
-       GROUP BY u.id
-       ORDER BY u.created_at DESC`
-    );
-    res.status(200).json({ passengers: result.rows });
+       WHERE u.role = 'passenger'`;
+
+    const params: any[] = [];
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryStr += ` AND (LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.phone) LIKE $${params.length})`;
+    }
+
+    queryStr += ` GROUP BY u.id`;
+
+    // Get total count for pagination
+    let countQueryStr = `SELECT COUNT(DISTINCT u.id) as total FROM users u WHERE u.role = 'passenger'`;
+    const countParams: any[] = [];
+    if (search) {
+      countParams.push(`%${search.toLowerCase()}%`);
+      countQueryStr += ` AND (LOWER(u.name) LIKE $${countParams.length} OR LOWER(u.email) LIKE $${countParams.length} OR LOWER(u.phone) LIKE $${countParams.length})`;
+    }
+    const countResult = await query(countQueryStr, countParams);
+    const total = countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total || '0', 10) : 0;
+
+    // Get paginated data
+    queryStr += ` ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await query(queryStr, params);
+
+    res.status(200).json({
+      passengers: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error('Fetch passengers error:', error);
     res.status(500).json({ error: 'Failed to fetch passengers' });
@@ -298,20 +346,67 @@ router.put('/passengers/:id/block', authenticateToken, requireAdmin, async (req:
 
 /**
  * GET /api/v1/admin/drivers
- * Description: Returns list of all drivers (approved, rejected, pending).
- * Filters based on verification_status for proper categorization.
+ * Query: page?, limit?, search?, status?
+ * Description: Returns paginated list of drivers with search and filter support.
  */
-router.get('/drivers', authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
+router.get('/drivers', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const result = await query(
-      `SELECT u.id, u.name, u.phone, u.email, u.cnic, u.cnic_front_url, u.cnic_back_url, u.is_verified, u.is_blocked, u.date_of_birth, u.verification_status,
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string || '').trim();
+    const status = req.query.status as string;
+
+    const offset = (page - 1) * limit;
+
+    let queryStr = `
+      SELECT u.id, u.name, u.phone, u.email, u.cnic, u.cnic_front_url, u.cnic_back_url, u.is_verified, u.is_blocked, u.date_of_birth, u.verification_status,
               d.vehicle_category, d.vehicle_make, d.vehicle_model, d.vehicle_plate, d.vehicle_color, d.vehicle_year,
               d.license_front_url, d.license_back_url, d.selfie_url, d.vehicle_photo_url, d.rating, d.total_rides, d.is_online, d.is_active
        FROM users u
        JOIN drivers d ON u.id = d.driver_id
-       ORDER BY u.created_at DESC`
-    );
-    res.status(200).json({ drivers: result.rows });
+       WHERE 1=1`;
+
+    const params: any[] = [];
+
+    if (status && status !== 'all') {
+      params.push(status);
+      queryStr += ` AND u.verification_status = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryStr += ` AND (LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.phone) LIKE $${params.length} OR LOWER(d.vehicle_plate) LIKE $${params.length} OR LOWER(d.vehicle_make) LIKE $${params.length} OR LOWER(d.vehicle_model) LIKE $${params.length})`;
+    }
+
+    // Get total count for pagination
+    let countQueryStr = `SELECT COUNT(*) as total FROM users u JOIN drivers d ON u.id = d.driver_id WHERE 1=1`;
+    const countParams: any[] = [];
+    if (status && status !== 'all') {
+      countParams.push(status);
+      countQueryStr += ` AND u.verification_status = $${countParams.length}`;
+    }
+    if (search) {
+      countParams.push(`%${search.toLowerCase()}%`);
+      countQueryStr += ` AND (LOWER(u.name) LIKE $${countParams.length} OR LOWER(u.email) LIKE $${countParams.length} OR LOWER(u.phone) LIKE $${countParams.length} OR LOWER(d.vehicle_plate) LIKE $${countParams.length} OR LOWER(d.vehicle_make) LIKE $${countParams.length} OR LOWER(d.vehicle_model) LIKE $${countParams.length})`;
+    }
+    const countResult = await query(countQueryStr, countParams);
+    const total = countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total || '0', 10) : 0;
+
+    // Get paginated data
+    queryStr += ` ORDER BY u.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await query(queryStr, params);
+
+    res.status(200).json({
+      drivers: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error('Fetch drivers roster error:', error);
     res.status(500).json({ error: 'Failed to fetch driver roster' });
@@ -382,28 +477,22 @@ router.get('/settings', authenticateToken, requireAdmin, async (_req: Request, r
 router.post('/settings', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { commissionPct, sosHotline, categoryFares } = req.body;
-    const categoryFaresJson = JSON.stringify(categoryFares || []);
-
-    // Ensure category_fares column exists in admin_settings table
-    try {
-      await query('ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS category_fares TEXT');
-    } catch (err) {
-      // Ignore if column already exists
-    }
+    const categoryFaresJson = typeof categoryFares === 'string' ? categoryFares : JSON.stringify(categoryFares || []);
 
     const now = Date.now();
-    const finalCommissionPct = commissionPct !== undefined ? commissionPct : 5.0;
+    const finalCommissionPct = commissionPct !== undefined ? Math.max(0, Math.min(100, parseFloat(commissionPct) || 5.0)) : 5.0;
     const finalSosHotline = sosHotline || '+92 42 111 743 374';
 
     await query(
       `INSERT INTO admin_settings (id, commission_pct, sos_hotline, category_fares, updated_at)
-       VALUES (1, $1, $2, $3, $4)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (id) DO UPDATE SET
-         commission_pct = $1,
-         sos_hotline = $2,
-         category_fares = $3,
-         updated_at = $4`,
+         commission_pct = EXCLUDED.commission_pct,
+         sos_hotline = EXCLUDED.sos_hotline,
+         category_fares = EXCLUDED.category_fares,
+         updated_at = EXCLUDED.updated_at`,
       [
+        1,
         finalCommissionPct,
         finalSosHotline,
         categoryFaresJson,
@@ -453,9 +542,6 @@ router.put('/credentials', authenticateToken, requireAdmin, async (req: Request,
     let isCurrentValid = false;
     if (dbAdmin && dbAdmin.password_hash) {
       isCurrentValid = await comparePassword(currentPassword, dbAdmin.password_hash);
-    }
-    if (!isCurrentValid && (currentEmail === 'admin@shedrive.com' || adminId === 'admin_super_01')) {
-      isCurrentValid = (currentPassword === 'Admin#2026!');
     }
 
     if (!isCurrentValid) {
@@ -522,17 +608,57 @@ router.put('/credentials', authenticateToken, requireAdmin, async (req: Request,
 
 /**
  * GET /api/v1/admin/feedback
- * Description: Retrieves all user and driver feedback with statistics.
+ * Query: page?, limit?, search?, category?
+ * Description: Retrieves paginated user and driver feedback with search and filter support.
  */
-router.get('/feedback', authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
+router.get('/feedback', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const feedbackResult = await query(
-      `SELECT f.*, u.phone as user_phone, u.email as user_email
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string || '').trim();
+    const category = req.query.category as string;
+
+    const offset = (page - 1) * limit;
+
+    let queryStr = `
+      SELECT f.*, u.phone as user_phone, u.email as user_email
        FROM feedbacks f
        LEFT JOIN users u ON f.user_id = u.id
-       ORDER BY f.created_at DESC LIMIT 200`
-    );
+       WHERE 1=1`;
 
+    const params: any[] = [];
+
+    if (category && category !== 'all') {
+      params.push(category);
+      queryStr += ` AND f.category = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryStr += ` AND (LOWER(f.user_name) LIKE $${params.length} OR LOWER(f.user_phone) LIKE $${params.length} OR LOWER(f.user_email) LIKE $${params.length} OR LOWER(f.comment) LIKE $${params.length})`;
+    }
+
+    // Get total count for pagination
+    let countQueryStr = `SELECT COUNT(*) as total FROM feedbacks f LEFT JOIN users u ON f.user_id = u.id WHERE 1=1`;
+    const countParams: any[] = [];
+    if (category && category !== 'all') {
+      countParams.push(category);
+      countQueryStr += ` AND f.category = $${countParams.length}`;
+    }
+    if (search) {
+      countParams.push(`%${search.toLowerCase()}%`);
+      countQueryStr += ` AND (LOWER(f.user_name) LIKE $${countParams.length} OR LOWER(f.user_phone) LIKE $${countParams.length} OR LOWER(f.user_email) LIKE $${countParams.length} OR LOWER(f.comment) LIKE $${countParams.length})`;
+    }
+    const countResult = await query(countQueryStr, countParams);
+    const total = countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total || '0', 10) : 0;
+
+    // Get paginated data
+    queryStr += ` ORDER BY f.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const feedbackResult = await query(queryStr, params);
+
+    // Stats query (always fetch full stats)
     const statsResult = await query(
       `SELECT 
         COUNT(*) as total_feedback,
@@ -549,6 +675,12 @@ router.get('/feedback', authenticateToken, requireAdmin, async (_req: Request, r
         avg_rating: 5.0,
         driver_feedback_count: 0,
         passenger_feedback_count: 0,
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {

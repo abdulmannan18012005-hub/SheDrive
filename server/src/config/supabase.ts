@@ -31,13 +31,12 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
  * The globalThis.WebSocket polyfill above resolves the Node.js 20
  * "WebSocket is not defined" error thrown by @supabase/realtime-js.
  */
-export const supabase: SupabaseClient = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseServiceRoleKey || 'placeholder',
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+export const supabase: SupabaseClient = (supabaseUrl && supabaseServiceRoleKey)
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  : (null as any);
+
