@@ -99,7 +99,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
   // A. SELECT COUNT(*) & AGGREGATE QUERIES
   if (lowerSql.includes('count(*)') || lowerSql.includes('sum(')) {
     if (lowerSql.includes('from monthly_payments') && lowerSql.includes('total_platform_income')) {
-      const { data: payments, error } = await supabaseClient.from('monthly_payments').select('*');
+      const { data: payments, error } = await supabaseClient.from('monthly_payments').select('platform_fee, status');
       if (error) throw new Error(error.message);
       const rows = payments || [];
 
@@ -139,7 +139,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
     if (lowerSql.includes('from drivers') && lowerSql.includes('is_fee_suspended')) {
       const { count, error } = await supabaseClient
         .from('drivers')
-        .select('*', { count: 'exact', head: true })
+        .select('driver_id', { count: 'exact', head: true })
         .eq('is_fee_suspended', true);
       if (error) throw new Error(error.message);
       return { rows: [{ count: (count || 0).toString() }], rowCount: 1 };
@@ -202,13 +202,13 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
 
   // B. JOIN QUERY: Drivers List with User Details
   if (lowerSql.includes('from users u') && lowerSql.includes('join drivers d')) {
-    let usersQuery = supabaseClient.from('users').select('*').eq('role', 'driver');
+    let usersQuery = supabaseClient.from('users').select('id, name, phone, email, cnic, cnic_front_url, cnic_back_url, date_of_birth, verification_status, is_verified, is_blocked').eq('role', 'driver');
     if (lowerSql.includes("verification_status = 'pending'")) {
       usersQuery = usersQuery.eq('verification_status', 'pending');
     }
 
     const [{ data: drivers, error: dErr }, { data: users, error: uErr }] = await Promise.all([
-      supabaseClient.from('drivers').select('*'),
+        supabaseClient.from('drivers').select('driver_id, vehicle_category, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, vehicle_year, ac_option, license_front_url, license_back_url, selfie_url, vehicle_photo_url, is_online, is_available, is_active, rating, total_rides, is_fee_suspended'),
       usersQuery,
     ]);
 
@@ -260,7 +260,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
   if (lowerSql.startsWith('select') && lowerSql.includes('from users')) {
     if (lowerSql.includes("u.role = 'passenger'") || lowerSql.includes("role = 'passenger'")) {
       const [{ data: passengers, error: pErr }, { data: rides, error: rErr }] = await Promise.all([
-        supabaseClient.from('users').select('*').eq('role', 'passenger'),
+          supabaseClient.from('users').select('id, name, phone, email, cnic, is_verified, is_blocked, created_at').eq('role', 'passenger'),
         supabaseClient.from('rides').select('passenger_id'),
       ]);
       if (pErr) throw new Error(pErr.message);
@@ -447,7 +447,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
 
   // H. SELECT FROM SAVED_PLACES
   if (lowerSql.startsWith('select') && lowerSql.includes('from saved_places')) {
-    let queryBuilder = supabaseClient.from('saved_places').select('*');
+    let queryBuilder = supabaseClient.from('saved_places').select('id, label, name, latitude, longitude, created_at');
     if (lowerSql.includes('user_id = $1') && params && params[0]) {
       queryBuilder = queryBuilder.eq('user_id', params[0]);
     }
@@ -483,7 +483,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
 
   // I. SELECT FROM USER_NOTIFICATIONS
   if (lowerSql.startsWith('select') && lowerSql.includes('from user_notifications')) {
-    let queryBuilder = supabaseClient.from('user_notifications').select('*');
+    let queryBuilder = supabaseClient.from('user_notifications').select('id, title, message, category, is_read, created_at');
     if (lowerSql.includes('user_id = $1') && params[0]) {
       queryBuilder = queryBuilder.eq('user_id', params[0]);
     }

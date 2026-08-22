@@ -689,5 +689,72 @@ router.get('/feedback', authenticateToken, requireAdmin, async (req: Request, re
   }
 });
 
+/**
+ * GET /api/v1/admin/audit-logs
+ * Query: page?, limit?, search?, action?
+ * Description: Retrieves paginated admin audit logs with search and filter support.
+ */
+router.get('/audit-logs', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string || '').trim();
+    const action = req.query.action as string;
+
+    const offset = (page - 1) * limit;
+
+    let queryStr = `
+      SELECT al.*, u.email as admin_email, u.name as admin_name
+       FROM audit_logs al
+       LEFT JOIN users u ON al.user_id = u.id
+       WHERE 1=1`;
+
+    const params: any[] = [];
+
+    if (action && action !== 'all') {
+      params.push(action);
+      queryStr += ` AND al.action = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryStr += ` AND (LOWER(al.action) LIKE $${params.length} OR LOWER(al.details) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`;
+    }
+
+    // Get total count for pagination
+    let countQueryStr = `SELECT COUNT(*) as total FROM audit_logs al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`;
+    const countParams: any[] = [];
+    if (action && action !== 'all') {
+      countParams.push(action);
+      countQueryStr += ` AND al.action = $${countParams.length}`;
+    }
+    if (search) {
+      countParams.push(`%${search.toLowerCase()}%`);
+      countQueryStr += ` AND (LOWER(al.action) LIKE $${countParams.length} OR LOWER(al.details) LIKE $${countParams.length} OR LOWER(u.email) LIKE $${countParams.length})`;
+    }
+    const countResult = await query(countQueryStr, countParams);
+    const total = countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total || '0', 10) : 0;
+
+    // Get paginated data (newest first)
+    queryStr += ` ORDER BY al.timestamp DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const logsResult = await query(queryStr, params);
+
+    res.status(200).json({
+      logs: logsResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Admin fetch audit logs error:', error);
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
 export default router;
 

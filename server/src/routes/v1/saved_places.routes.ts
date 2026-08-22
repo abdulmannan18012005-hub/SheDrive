@@ -57,6 +57,44 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
 });
 
 /**
+ * PUT /api/v1/saved-places/:id
+ * Headers: Authorization: Bearer <token>
+ * Body: { label?: string, name?: string, latitude?: number, longitude?: number }
+ */
+router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { id } = req.params;
+    const { label, name, latitude, longitude } = req.body;
+
+    if (label === undefined && name === undefined && latitude === undefined && longitude === undefined) {
+      return res.status(400).json({ error: 'At least one field (label, name, latitude, or longitude) is required' });
+    }
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (label !== undefined) { updates.push(`label = $${params.length + 1}`); params.push(label.trim()); }
+    if (name !== undefined) { updates.push(`name = $${params.length + 1}`); params.push(name.trim()); }
+    if (latitude !== undefined) { updates.push(`latitude = $${params.length + 1}`); params.push(latitude); }
+    if (longitude !== undefined) { updates.push(`longitude = $${params.length + 1}`); params.push(longitude); }
+
+    params.push(id);
+    params.push(userId);
+
+    await query(
+      `UPDATE saved_places SET ${updates.join(', ')} WHERE id = $${params.length - 1} AND user_id = $${params.length}`,
+      params
+    );
+
+    res.status(200).json({ success: true, message: 'Saved location updated' });
+  } catch (error) {
+    console.error('Update saved place error:', error);
+    res.status(500).json({ error: 'Failed to update saved location' });
+  }
+});
+
+/**
  * DELETE /api/v1/saved-places/:id
  * Headers: Authorization: Bearer <token>
  */

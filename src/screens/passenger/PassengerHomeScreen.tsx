@@ -9,6 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useIsFocused } from '@react-navigation/native';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 import { PassengerStackParamList, DriverProfile, EmergencyContact } from '../../types';
@@ -19,6 +20,7 @@ import { useLocation } from '../../hooks/useLocation';
 import { SideDrawer } from '../../components/SideDrawer';
 import SOSPanicButton from '../../components/SOSPanicButton';
 import { haversineDistance } from '../../utils/helpers';
+import { getApiBaseUrl } from '../../config/apiConfig';
 
 type PassengerHomeNavigationProp = StackNavigationProp<PassengerStackParamList, 'PassengerHome'>;
 
@@ -29,6 +31,24 @@ interface Props {
 export default function PassengerHomeScreen({ navigation }: Props): React.JSX.Element {
   const { state, dispatch } = useApp();
   const user = state.user;
+  const isFocused = useIsFocused();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      if (!state.token) return;
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/user/notifications/unread-count`, {
+          headers: { Authorization: `Bearer ${state.token}` },
+        });
+        const data = await res.json();
+        if (res.ok) setUnreadCount(data.count || 0);
+      } catch (err) {
+        // Non-critical: badge simply stays at previous value
+      }
+    };
+    if (isFocused) fetchUnread();
+  }, [isFocused, state.token]);
 
   const { location: currentCoords, errorMessage, isLoading: isLocationLoading } = useLocation();
   const [onlineDrivers, setOnlineDrivers] = useState<DriverProfile[]>([]);
@@ -153,6 +173,20 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         <View style={styles.headerTextContainer}>
           <Text style={styles.greetingSubtext}>WHERE ARE YOU GOING?</Text>
           <Text style={styles.welcomeText}>Hi, {user?.name ? user.name.split(' ')[0] : 'Passenger'} 👋</Text>
+        </View>
+        <View style={{ position: 'relative', marginRight: 8 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('NotificationCenter')}
+            activeOpacity={0.8}
+            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light.primaryGhost, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Text style={{ fontSize: 20 }}>🔔</Text>
+          </TouchableOpacity>
+          {unreadCount > 0 && (
+            <View style={{ position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          )}
         </View>
         <TouchableOpacity
           onPress={() => navigation.navigate('Profile')}

@@ -288,6 +288,15 @@ export const adminApi = {
     const endpoint = queryString ? `/admin/feedback?${queryString}` : '/admin/feedback';
     return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
   },
+
+  // Audit logs with pagination
+  getAuditLogs: async (params: { page?: number; limit?: number; search?: string; action?: string } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/audit-logs?${queryString}` : '/admin/audit-logs';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
 };
 
 export default adminApi;

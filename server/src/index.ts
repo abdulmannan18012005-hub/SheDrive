@@ -64,6 +64,7 @@ app.use('/api/v1/rides', rideRoutes);
 app.use('/api/v1/upload', uploadRoutes);
 app.use('/api/v1/vehicles', vehiclesRoutes);
 app.use('/api/v1/saved-places', savedPlacesRoutes);
+app.use('/api/v1/user/saved-places', savedPlacesRoutes); // Alias: mobile app calls /user/saved-places
 app.use('/api/v1/support', supportRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/driver', driverRoutes);

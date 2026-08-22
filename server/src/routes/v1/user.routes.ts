@@ -248,6 +248,25 @@ router.put('/notifications/:id/read', authenticateToken, async (req: AuthRequest
 });
 
 /**
+ * GET /api/v1/user/notifications/unread-count
+ * Description: Returns the count of unread notifications for the current user.
+ */
+router.get('/notifications/unread-count', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const result = await query(
+      'SELECT id, is_read FROM user_notifications WHERE user_id = $1',
+      [userId]
+    );
+    const count = (result.rows || []).filter((n: any) => !n.is_read).length;
+    res.status(200).json({ count });
+  } catch (error: any) {
+    console.error('Fetch unread count error:', error);
+    res.status(500).json({ error: 'Failed to fetch unread count' });
+  }
+});
+
+/**
  * PUT /api/v1/driver/vehicle
  * Body: { make?: string, model?: string, year?: string, plate?: string, color?: string, photoUrl?: string, licenseUrl?: string }
  * Description: Drivers update vehicle details or upload replacement documents (requires admin re-review if plate or docs changed).

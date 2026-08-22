@@ -253,6 +253,7 @@ export type PassengerStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
   SavedPlaces: undefined;
+  NotificationCenter: undefined;
   NotificationSettings: undefined;
   DeleteAccount: undefined;
   LanguageSelection: undefined;
@@ -281,6 +282,7 @@ export type DriverStackParamList = {
   DriverRideHistory: undefined;
   VehicleManagement: undefined;
   DriverSettings: undefined;
+  NotificationCenter: undefined;
   NotificationSettings: undefined;
   DeleteAccount: undefined;
   LanguageSelection: undefined;

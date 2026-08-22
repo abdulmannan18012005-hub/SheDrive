@@ -300,4 +300,65 @@ router.get('/track/:shareToken', async (req: any, res: Response) => {
   }
 });
 
+/**
+ * POST /api/v1/rides/:id/chat-notify
+ * Description: Send FCM notification to the opposite participant when a chat message is sent
+ */
+router.post('/:id/chat-notify', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: rideId } = req.params;
+    const senderId = req.user?.id;
+
+    if (!senderId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify the ride exists and the sender is a participant
+    const rideResult = await query(
+      `SELECT passenger_id, driver_id FROM rides WHERE ride_id = $1`,
+      [rideId]
+    );
+
+    if (rideResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Ride not found' });
+    }
+
+    const { passenger_id, driver_id } = rideResult.rows[0];
+
+    // Verify sender is either passenger or driver
+    if (senderId !== passenger_id && senderId !== driver_id) {
+      return res.status(403).json({ error: 'You are not a participant in this ride' });
+    }
+
+    // Identify the opposite participant
+    const recipientId = senderId === passenger_id ? driver_id : passenger_id;
+
+    if (!recipientId) {
+      return res.status(400).json({ error: 'Opposite participant not found' });
+    }
+
+    // Send FCM notification to recipient
+    const sent = await sendPushNotification({
+      userId: recipientId,
+      title: '💬 New Chat Message',
+      body: 'You have a new message in your active ride chat.',
+      data: {
+        type: 'chat_message',
+        rideId,
+      },
+    });
+
+    if (sent) {
+      res.status(200).json({ success: true, message: 'Chat notification sent' });
+    } else {
+      // Don't fail the request if notification fails - chat should still work
+      res.status(200).json({ success: false, message: 'Notification not sent (no FCM token)' });
+    }
+  } catch (error) {
+    console.error('Chat notify error:', error);
+    // Don't fail the chat if notification fails
+    res.status(200).json({ success: false, message: 'Notification failed' });
+  }
+});
+
 export default router;

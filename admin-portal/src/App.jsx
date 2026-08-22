@@ -6,6 +6,23 @@ import { PaginationBar } from './components/PaginationBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { useDebounce } from './hooks/useDebounce';
 
+// Maps an admin audit-log action to a badge background color
+const getActionColor = (action) => {
+  switch (action) {
+    case 'APPROVE_DRIVER':
+      return '#10B981';
+    case 'REJECT_DRIVER':
+      return '#EF4444';
+    case 'BLOCK_DRIVER':
+    case 'BLOCK_PASSENGER':
+      return '#F59E0B';
+    case 'UPDATE_SETTINGS':
+      return '#6366F1';
+    default:
+      return '#64748B';
+  }
+};
+
 export default function App() {
   const [token, setToken] = useState(getAuthToken());
   const [loginEmail, setLoginEmail] = useState('');
@@ -32,6 +49,7 @@ export default function App() {
     passengers: { page: 1, limit: 50, total: 0, totalPages: 1 },
     payments: { page: 1, limit: 50, total: 0, totalPages: 1 },
     feedback: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    auditLogs: { page: 1, limit: 50, total: 0, totalPages: 1 },
   });
   const [stats, setStats] = useState({
     onlineDrivers: 0,
@@ -72,6 +90,9 @@ export default function App() {
   });
   const [feedbackSearchQuery, setFeedbackSearchQuery] = useState('');
   const [feedbackFilterCategory, setFeedbackFilterCategory] = useState('all');
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLogsSearchQuery, setAuditLogsSearchQuery] = useState('');
+  const [auditLogsFilterAction, setAuditLogsFilterAction] = useState('all');
   const [settings, setSettings] = useState({
     commission_pct: 5.0,
     sos_hotline: '+92 42 111 743 374',
@@ -106,6 +127,7 @@ export default function App() {
   const debouncedPassengerSearch = useDebounce(passengerSearchQuery, 300);
   const debouncedPaymentSearch = useDebounce(paymentSearchQuery, 300);
   const debouncedFeedbackSearch = useDebounce(feedbackSearchQuery, 300);
+  const debouncedAuditLogsSearch = useDebounce(auditLogsSearchQuery, 300);
 
   // Fetch data based on active tab
   const fetchTabData = useCallback(async (showSpinner = true) => {
@@ -223,6 +245,22 @@ export default function App() {
             }));
           }
           break;
+
+        case 'auditLogs':
+          const auditLogsData = await adminApi.getAuditLogs({
+            page: pagination.auditLogs.page,
+            limit: pagination.auditLogs.limit,
+            search: debouncedAuditLogsSearch,
+            action: auditLogsFilterAction,
+          });
+          setAuditLogs(auditLogsData.logs || []);
+          if (auditLogsData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              auditLogs: auditLogsData.pagination,
+            }));
+          }
+          break;
       }
     } catch (err) {
       console.error('Admin API fetch error:', err);
@@ -230,7 +268,7 @@ export default function App() {
     } finally {
       if (showSpinner) setIsLoadingData(false);
     }
-  }, [token, activeTab, pagination, paymentFilterStatus, feedbackFilterCategory, debouncedDriverRosterSearch, debouncedPassengerSearch, debouncedPaymentSearch, debouncedFeedbackSearch, addToast]);
+  }, [token, activeTab, pagination, paymentFilterStatus, feedbackFilterCategory, auditLogsFilterAction, debouncedDriverRosterSearch, debouncedPassengerSearch, debouncedPaymentSearch, debouncedFeedbackSearch, debouncedAuditLogsSearch, addToast]);
 
   // Fetch on mount and tab change
   useEffect(() => {
@@ -285,6 +323,13 @@ export default function App() {
       fetchTabData(false);
     }
   }, [debouncedFeedbackSearch, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'auditLogs' && debouncedAuditLogsSearch !== auditLogsSearchQuery) {
+      setPagination(prev => ({ ...prev, auditLogs: { ...prev.auditLogs, page: 1 } }));
+      fetchTabData(false);
+    }
+  }, [debouncedAuditLogsSearch, activeTab]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -665,6 +710,12 @@ export default function App() {
             onClick={() => setActiveTab('feedback')}
           >
             💬 Feedbacks & Ideas ({feedbackStats.total_feedback || feedbacks.length})
+          </button>
+          <button
+            style={activeTab === 'auditLogs' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('auditLogs')}
+          >
+            📋 Audit Logs
           </button>
           <button
             style={activeTab === 'settings' ? styles.navItemActive : styles.navItem}
@@ -1764,6 +1815,108 @@ export default function App() {
                 onPageChange={(p) => setPagination(prev => ({ ...prev, feedback: { ...prev.feedback, page: p } }))}
               />
             </div>
+          </div>
+        )}
+
+        {/* AUDIT LOGS TAB */}
+        {activeTab === 'auditLogs' && (
+          <div style={styles.tabContent}>
+            <div style={styles.pageHeader}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#181C32' }}>Audit Logs</h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#7E8299' }}>
+                  Track all admin actions including approvals, rejections, blocks, and settings updates.
+                </p>
+              </div>
+            </div>
+
+            <div style={styles.filterBar}>
+              <input
+                type="text"
+                placeholder="Search by action, details, or admin email..."
+                value={auditLogsSearchQuery}
+                onChange={(e) => setAuditLogsSearchQuery(e.target.value)}
+                style={styles.searchInput}
+              />
+              <select
+                value={auditLogsFilterAction}
+                onChange={(e) => setAuditLogsFilterAction(e.target.value)}
+                style={styles.filterSelect}
+              >
+                <option value="all">All Actions</option>
+                <option value="APPROVE_DRIVER">Approve Driver</option>
+                <option value="REJECT_DRIVER">Reject Driver</option>
+                <option value="BLOCK_DRIVER">Block Driver</option>
+                <option value="BLOCK_PASSENGER">Block Passenger</option>
+                <option value="UPDATE_SETTINGS">Update Settings</option>
+              </select>
+            </div>
+
+            {auditLogs.length === 0 ? (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '700', color: '#3F4254' }}>No Audit Logs Found</h3>
+                <p style={{ margin: 0, fontSize: '14px', color: '#7E8299' }}>
+                  Audit logs will appear here as you perform admin actions.
+                </p>
+              </div>
+            ) : (
+              <div style={styles.tableContainer}>
+                <table style={styles.dataTable}>
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>Admin</th>
+                      <th>Action</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#7E8299' }}>
+                            {log.timestamp ? new Date(Number(log.timestamp)).toLocaleString() : 'Recent'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#181C32' }}>{log.admin_name || 'Admin'}</strong>
+                          {log.admin_email && <div style={{ fontSize: '11px', color: '#7E8299' }}>{log.admin_email}</div>}
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              textTransform: 'uppercase',
+                              backgroundColor: getActionColor(log.action),
+                              color: '#FFFFFF',
+                            }}
+                          >
+                            {log.action}
+                          </span>
+                        </td>
+                        <td style={{ maxWidth: '400px' }}>
+                          <p style={{ margin: 0, fontSize: '13px', color: '#3F4254', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {log.details}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <PaginationBar
+              currentPage={pagination.auditLogs.page}
+              totalPages={pagination.auditLogs.totalPages}
+              totalRecords={pagination.auditLogs.total}
+              limit={pagination.auditLogs.limit}
+              onPageChange={(p) => setPagination(prev => ({ ...prev, auditLogs: { ...prev.auditLogs, page: p } }))}
+            />
           </div>
         )}
       </main>

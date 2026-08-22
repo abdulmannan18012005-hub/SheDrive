@@ -14,6 +14,7 @@ import { RideRequest } from '../../types';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { formatCurrency } from '../../utils/helpers';
+import { TripReceiptModal } from '../../components/TripReceiptModal';
 
 export default function RideHistoryScreen(): React.JSX.Element {
   const { state } = useApp();
@@ -21,6 +22,8 @@ export default function RideHistoryScreen(): React.JSX.Element {
 
   const [history, setHistory] = useState<RideRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRide, setSelectedRide] = useState<RideRequest | null>(null);
+  const [receiptVisible, setReceiptVisible] = useState(false);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -94,7 +97,14 @@ export default function RideHistoryScreen(): React.JSX.Element {
           keyExtractor={(item) => item.rideId}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <View style={styles.rideCard}>
+            <TouchableOpacity
+              style={styles.rideCard}
+              activeOpacity={0.7}
+              onPress={() => {
+                setSelectedRide(item);
+                setReceiptVisible(true);
+              }}
+            >
               <View style={styles.cardHeader}>
                 <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
@@ -115,10 +125,20 @@ export default function RideHistoryScreen(): React.JSX.Element {
                 </Text>
                 <Text style={styles.fareText}>{formatCurrency(item.currentFare)}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
+
+      <TripReceiptModal
+        visible={receiptVisible}
+        ride={selectedRide}
+        viewerRole="passenger"
+        onClose={() => {
+          setReceiptVisible(false);
+          setSelectedRide(null);
+        }}
+      />
     </SafeAreaView>
   );
 }

@@ -173,6 +173,15 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                 <Text style={styles.menuText}>Trip History</Text>
               </TouchableOpacity>
 
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleNavigate('NotificationCenter')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.menuIcon}>🔔</Text>
+                <Text style={styles.menuText}>Notifications</Text>
+              </TouchableOpacity>
+
               {role === 'driver' && (
                 <TouchableOpacity
                   style={styles.menuItem}

@@ -19,6 +19,7 @@ import VehicleManagementScreen from '../screens/driver/VehicleManagementScreen';
 import LanguageSelectionScreen from '../screens/shared/LanguageSelectionScreen';
 import HelpSupportScreen from '../screens/shared/HelpSupportScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
+import NotificationCenterScreen from '../screens/shared/NotificationCenterScreen';
 import ContactUsScreen from '../screens/shared/ContactUsScreen';
 
 const Stack = createStackNavigator<DriverStackParamList>();
@@ -87,6 +88,11 @@ export default function DriverStack(): React.JSX.Element {
         name="DriverSettings"
         component={SettingsScreen}
         options={{ title: 'Settings' }}
+      />
+      <Stack.Screen
+        name="NotificationCenter"
+        component={NotificationCenterScreen}
+        options={{ title: 'Notifications' }}
       />
       <Stack.Screen
         name="NotificationSettings"

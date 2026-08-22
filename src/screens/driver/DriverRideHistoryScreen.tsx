@@ -6,6 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
   SafeAreaView,
+  TouchableOpacity,
 } from 'react-native';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
@@ -13,6 +14,7 @@ import { RideRequest } from '../../types';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { formatCurrency } from '../../utils/helpers';
+import { TripReceiptModal } from '../../components/TripReceiptModal';
 
 export default function DriverRideHistoryScreen(): React.JSX.Element {
   const { state } = useApp();
@@ -20,6 +22,8 @@ export default function DriverRideHistoryScreen(): React.JSX.Element {
 
   const [history, setHistory] = useState<RideRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRide, setSelectedRide] = useState<RideRequest | null>(null);
+  const [receiptVisible, setReceiptVisible] = useState(false);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -93,7 +97,14 @@ export default function DriverRideHistoryScreen(): React.JSX.Element {
           keyExtractor={(item) => item.rideId}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <View style={styles.rideCard}>
+            <TouchableOpacity
+              style={styles.rideCard}
+              onPress={() => {
+                setSelectedRide(item);
+                setReceiptVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
               <View style={styles.cardHeader}>
                 <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
@@ -114,10 +125,20 @@ export default function DriverRideHistoryScreen(): React.JSX.Element {
                 </Text>
                 <Text style={styles.fareText}>{formatCurrency(item.currentFare)}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
+
+      <TripReceiptModal
+        visible={receiptVisible}
+        ride={selectedRide}
+        viewerRole="driver"
+        onClose={() => {
+          setReceiptVisible(false);
+          setSelectedRide(null);
+        }}
+      />
     </SafeAreaView>
   );
 }

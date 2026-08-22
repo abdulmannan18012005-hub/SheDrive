@@ -17,6 +17,7 @@ import { collection, query, where, onSnapshot, addDoc, orderBy, serverTimestamp 
 import { db } from '../../config/firebaseConfig';
 import { useApp } from '../../contexts/AppContext';
 import Colors from '../../constants/Colors';
+import { getApiBaseUrl } from '../../config/apiConfig';
 
 interface Message {
   id: string;
@@ -106,6 +107,20 @@ export default function ChatScreen({ navigation, route }: Props): React.JSX.Elem
       });
 
       setInputText('');
+
+      // Trigger chat notification to opposite participant (non-blocking)
+      try {
+        await fetch(`${getApiBaseUrl()}/rides/${rideId}/chat-notify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${state.token}`,
+          },
+        });
+      } catch (notifyError) {
+        // Notification failure should not block chat - log only
+        console.warn('Chat notification failed (non-critical):', notifyError);
+      }
     } catch (error) {
       console.error('Send message error:', error);
       Alert.alert('Send Failed', 'Could not send message. Please try again.');

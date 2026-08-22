@@ -21,6 +21,7 @@ import DeleteAccountScreen from '../screens/shared/DeleteAccountScreen';
 import LanguageSelectionScreen from '../screens/shared/LanguageSelectionScreen';
 import HelpSupportScreen from '../screens/shared/HelpSupportScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
+import NotificationCenterScreen from '../screens/shared/NotificationCenterScreen';
 import ContactUsScreen from '../screens/shared/ContactUsScreen';
 
 const Stack = createStackNavigator<PassengerStackParamList>();
@@ -96,6 +97,11 @@ export default function PassengerStack(): React.JSX.Element {
         name="SavedPlaces"
         component={SavedPlacesScreen}
         options={{ title: 'Saved Places' }}
+      />
+      <Stack.Screen
+        name="NotificationCenter"
+        component={NotificationCenterScreen}
+        options={{ title: 'Notifications' }}
       />
       <Stack.Screen
         name="NotificationSettings"

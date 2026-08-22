@@ -5,6 +5,7 @@ import { generateToken, hashPassword, comparePassword, authenticateToken } from 
 import { supabase } from '../../config/supabase';
 import { sendEmail } from '../../services/smtp';
 import { buildPasswordResetEmailHtml, buildRegistrationOtpEmailHtml } from '../../utils/emailTemplates';
+import { loginRateLimiter, otpRateLimiter, passwordResetRateLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ const resetTokensStore = new Map<string, ResetTokenEntry>();
  * Body: { email: string, phone: string, role: string }
  * Description: Sends a 6-digit verification OTP to the user's email via Gmail SMTP prior to account registration.
  */
-router.post('/send-registration-otp', async (req: Request, res: Response) => {
+router.post('/send-registration-otp', otpRateLimiter, async (req: Request, res: Response) => {
   try {
     const { email, phone, role } = req.body;
 
@@ -435,7 +436,7 @@ router.post('/register', async (req: Request, res: Response) => {
 /**
  * POST /api/v1/auth/login
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
   try {
     const { identifier, email, phone, password, role } = req.body;
     const loginKey = (identifier || phone || email || '').trim();
@@ -573,7 +574,7 @@ router.get('/reset-password-redirect', (req: Request, res: Response) => {
  * Description: Sends custom HTML password reset email via Gmail SMTP (SheDrive Support <SheDrive.Support@gmail.com>).
  */
 
-router.post('/forgot-password', async (req: Request, res: Response) => {
+router.post('/forgot-password', passwordResetRateLimiter, async (req: Request, res: Response) => {
   try {
     const { email, role } = req.body;
 
