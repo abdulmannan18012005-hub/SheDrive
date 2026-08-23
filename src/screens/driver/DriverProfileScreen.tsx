@@ -21,7 +21,6 @@ import { useApp } from '../../contexts/AppContext';
 import { signOutUser } from '../../firebase/auth';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { DriverVerificationStatusModal } from '../../components/DriverVerificationStatusModal';
-import { FeedbackModal } from '../../components/FeedbackModal';
 
 type DriverProfileNavigationProp = StackNavigationProp<DriverStackParamList, 'DriverProfile'>;
 
@@ -36,7 +35,6 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
   const [isLoading, setIsLoading] = useState(true);
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
   const [verificationModalVisible, setVerificationModalVisible] = useState(false);
-  const [feedbackVisible, setFeedbackVisible] = useState(false);
 
   useEffect(() => {
     const fetchDriverProfile = async () => {
@@ -507,23 +505,6 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Feedback Link */}
-        <TouchableOpacity
-          style={styles.menuItemCard}
-          onPress={() => setFeedbackVisible(true)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.menuItemLeft}>
-            <View style={[styles.menuItemIconBadge, { backgroundColor: '#FFF0F5' }]}>
-              <Text style={{ fontSize: 18 }}>💬</Text>
-            </View>
-            <Text style={[styles.menuItemText, { color: '#4A2060', fontWeight: '700' }]}>
-              Partner Feedback & Ideas
-            </Text>
-          </View>
-          <Text style={styles.chevron}>›</Text>
-        </TouchableOpacity>
-
         {/* Log Out Link */}
         <TouchableOpacity
           style={styles.logoutButton}
@@ -533,14 +514,6 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
           <Text style={styles.logoutButtonText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-
-      {/* In-App Feedback Modal */}
-      <FeedbackModal
-        visible={feedbackVisible}
-        onClose={() => setFeedbackVisible(false)}
-        user={user}
-        authToken={state.token}
-      />
 
       {/* Completion Detail Modal */}
       <Modal visible={completionModalVisible} animationType="slide" transparent={true} onRequestClose={() => setCompletionModalVisible(false)}>

@@ -16,6 +16,7 @@ import {
 import Colors from '../constants/Colors';
 import { UserProfile } from '../types';
 import { signOutUser } from '../firebase/auth';
+import { useApp } from '../contexts/AppContext';
 import { CONTACT_INFO } from '../config/contactConfig';
 import { FeedbackModal } from './FeedbackModal';
 
@@ -39,6 +40,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
   navigation,
   dispatch,
 }) => {
+  const { state } = useApp();
   const [feedbackVisible, setFeedbackVisible] = React.useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -290,6 +292,7 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
           visible={feedbackVisible}
           onClose={() => setFeedbackVisible(false)}
           user={user}
+          authToken={state?.token}
         />
       </View>
     </Modal>

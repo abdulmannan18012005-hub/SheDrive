@@ -415,6 +415,39 @@ Phase 5 verification:
 
 ---
 
+# FEEDBACK SYSTEM STREAMLINING & DEDICATED WEBSITE FEATURE — COMPLETED
+
+Status: COMPLETED
+
+Implemented:
+1. **Dedicated Website Feedback Page:**
+   - Created `SheDrive Website/feedback.html` with interactive 1–5 star rating selector, category chips, multiline feedback message, optional contact inputs (Name, Email/Phone), client-side validation, and instant submission feedback.
+   - Connected directly to existing backend `POST /api/v1/support/feedback`.
+2. **Website Navigation & Footer Integration:**
+   - Added `Feedback` navigation link in top navbar across all 10 website pages (`index.html`, `passenger.html`, `driver.html`, `safety.html`, `downloads.html`, `contact.html`, `privacy.html`, `terms.html`, `track.html`, `feedback.html`).
+   - Added `Feedback & Suggestions` link in footer across all 10 website pages.
+3. **Contact Page Streamlining:**
+   - Removed duplicate embedded feedback form in `contact.html`.
+   - Replaced with a professional Call-to-Action banner pointing to `feedback.html`.
+4. **Mobile App Streamlining (Redundancy Removal):**
+   - Established `SideDrawer.tsx` ("Share App Feedback") as the single primary global mobile feedback entry point.
+   - Removed redundant feedback buttons and modals from `Passenger ProfileScreen.tsx`, `Driver ProfileScreen.tsx`, and `SettingsScreen.tsx`.
+   - Connected `SideDrawer` `FeedbackModal` to pass active `authToken` from `AppContext` for automatic authenticated submitter recognition.
+5. **Admin Portal & Backend Compatibility:**
+   - Reused existing `POST /api/v1/support/feedback`, `GET /api/v1/support/feedback`, and `GET /api/v1/admin/feedback`.
+   - Verified that both web guest submissions and mobile app submissions appear seamlessly in the existing Admin Portal Feedback tab.
+   - Zero database migrations required (`feedbacks` table reused 100%).
+
+Verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS
+- Server build (`npm run build`): PASS
+- Admin Portal build (`npm run build`): PASS
+- Live API probe: `POST /api/v1/support/feedback` returned HTTP 201 with generated feedbackId.
+- Validation probe: Empty comment correctly returned HTTP 400 Bad Request.
+- Link verification: 10/10 website pages verified for valid navbar and footer links to `feedback.html`.
+
+---
+
 # FROZEN / OUT OF SCOPE
 
 Do NOT implement:
