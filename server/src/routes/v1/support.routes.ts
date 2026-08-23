@@ -43,7 +43,7 @@ router.get('/faqs', (_req: Request, res: Response) => {
 router.post('/tickets', authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const { category, subject, message } = req.body;
+    const { category, subject, message, screenshotUrl } = req.body;
 
     if (!category || !subject || !message) {
       return res.status(400).json({ error: 'Category, subject, and message are required' });
@@ -53,14 +53,14 @@ router.post('/tickets', authenticateToken, async (req: Request, res: Response) =
     const now = Date.now();
 
     await query(
-      `INSERT INTO support_tickets (id, user_id, category, subject, message, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'open', $6)`,
-      [ticketId, userId, category.trim(), subject.trim(), message.trim(), now]
+      `INSERT INTO support_tickets (id, user_id, category, subject, message, screenshot_url, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'open', $7)`,
+      [ticketId, userId, category.trim(), subject.trim(), message.trim(), screenshotUrl || null, now]
     );
 
     res.status(201).json({
       success: true,
-      ticket: { id: ticketId, userId, category, subject, message, status: 'open', createdAt: now },
+      ticket: { id: ticketId, userId, category, subject, message, screenshotUrl: screenshotUrl || null, status: 'open', createdAt: now },
     });
   } catch (error) {
     console.error('Create support ticket error:', error);

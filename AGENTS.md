@@ -357,6 +357,64 @@ Phase 4 verification:
 
 ---
 
+# PHASE 5 — COMPLETED
+
+Phase 5 objective:
+
+COMPLETE PROFILES, HISTORY AND SUPPORT ECOSYSTEM FOR PRODUCTION READINESS.
+
+Status: COMPLETED
+
+Implemented:
+
+1. Supabase egress optimization:
+   - Replaced `SELECT *` with explicit column selection in GET /user/profile driver query (user.routes.ts).
+   - Replaced inefficient unread-count query (fetched all rows, filtered in JS) with `SELECT COUNT(*) WHERE is_read = false`.
+   - All remaining `SELECT *` queries verified as intentionally retained per Phase 2.7 documentation (admin login needing password_hash, auth login, single-row admin_settings, tiny vehicle lookup tables, monthly_payments needing full row).
+
+2. Account deletion audit logging:
+   - DELETE /api/v1/auth/delete-account now records ACCOUNT_DELETED audit log with user name/email/role before deletion.
+   - Retrieves user info for audit trail before hard delete.
+   - Sets driver offline before cascade deletion.
+   - Returns 404 if account not found.
+
+3. Account deactivation audit logging:
+   - POST /api/v1/user/deactivate now records ACCOUNT_DEACTIVATED audit log before soft-delete.
+
+4. Support ticket screenshot attachment:
+   - POST /api/v1/support/tickets now accepts optional `screenshotUrl` parameter.
+   - Persisted to `screenshot_url` column in support_tickets table (confirmed in live DB schema).
+
+5. Preserved Phase 0–4 functionality:
+   - All notification endpoints unchanged (Phase 2 notification center preserved).
+   - Saved places CRUD with Home/Work exclusivity preserved (Phase 2.2).
+   - Trip receipt modal preserved (Phase 2.4).
+   - Rating synchronization preserved (Phase 3).
+   - SOS endpoints preserved (Phase 4).
+   - Driver document update preserved with role authorization.
+   - Driver vehicle update preserved with admin re-review trigger.
+   - Profile editing preserved with existing validation.
+   - Emergency contacts preserved with max-5 limit and ownership enforcement.
+   - All ownership/authorization checks verified (`AND user_id = $X` on all user-scoped operations).
+
+6. Security verification:
+   - All profile/support/account endpoints require JWT authentication (authenticateToken middleware).
+   - User-scoped operations enforce ownership (user_id filter on all queries).
+   - Driver document/vehicle endpoints enforce role === 'driver'.
+   - CNIC/sensitive data not exposed through public APIs.
+   - Account deletion/deactivation auditable via audit_logs table.
+   - Support tickets scoped to authenticated user.
+   - No password/token/credential leaks in responses.
+
+Phase 5 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS
+- Server build (`npm run build`): PASS
+- Admin Portal build (`npm run build`): PASS
+- No database migration required (all columns confirmed present in live Supabase DB).
+- Environmental verification limitations: Full authenticated business-flow testing requires valid production JWT credentials. Live Supabase egress measurement requires Supabase telemetry dashboard access.
+
+---
+
 # FROZEN / OUT OF SCOPE
 
 Do NOT implement:
@@ -432,4 +490,4 @@ FAILED
 
 # IMPORTANT AGENT BEHAVIOR
 
-Do not start Phase 5 automatically without explicit user instructions.
+Do not start Phase 6 automatically without explicit user instructions.

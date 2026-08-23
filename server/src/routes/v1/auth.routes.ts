@@ -803,6 +803,28 @@ router.post('/change-password', authenticateToken, async (req: Request, res: Res
 router.delete('/delete-account', authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
+    const now = Date.now();
+
+    // Retrieve user info for audit trail before deletion
+    const userRes = await query('SELECT id, name, email, role FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    const user = userRes.rows[0];
+
+    // Write ACCOUNT_DELETED audit log BEFORE deletion (ON DELETE CASCADE would remove it if user_id is FK)
+    const auditId = `aud_${now}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO audit_logs (id, user_id, action, details, timestamp)
+       VALUES ($1, $2, 'ACCOUNT_DELETED', $3, $4)`,
+      [auditId, userId, JSON.stringify({ name: user.name, email: user.email, role: user.role }), now]
+    );
+
+    // If driver, set offline before deletion
+    if (user.role === 'driver') {
+      await query('UPDATE drivers SET is_online = false, is_available = false WHERE driver_id = $1', [userId]);
+    }
+
     await query('DELETE FROM users WHERE id = $1', [userId]);
     res.status(200).json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {

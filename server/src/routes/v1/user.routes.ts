@@ -21,7 +21,10 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
 
     // If driver, attach vehicle details & document expiries
     if (user.role === 'driver') {
-      const driverRes = await query('SELECT * FROM drivers WHERE driver_id = $1', [userId]);
+      const driverRes = await query(
+        `SELECT driver_id, vehicle_category, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, vehicle_year, ac_option, is_verified, is_active, is_online, is_available, rating, total_rides, is_fee_suspended, license_front_url, license_back_url, selfie_url, vehicle_photo_url FROM drivers WHERE driver_id = $1`,
+        [userId]
+      );
       if (driverRes.rows.length > 0) {
         user.driverInfo = driverRes.rows[0];
       }
@@ -188,6 +191,14 @@ router.post('/deactivate', authenticateToken, async (req: AuthRequest, res: Resp
 
     const now = Date.now();
 
+    // Write audit log BEFORE deactivation
+    const auditId = `aud_${now}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO audit_logs (id, user_id, action, details, timestamp)
+       VALUES ($1, $2, 'ACCOUNT_DEACTIVATED', $3, $4)`,
+      [auditId, userId, reason || 'User requested account deactivation', now]
+    );
+
     await query(
       'UPDATE users SET is_active = false, deactivation_reason = $1, deactivated_at = $2 WHERE id = $3',
       [reason || 'User requested account deactivation', now, userId]
@@ -255,10 +266,10 @@ router.get('/notifications/unread-count', authenticateToken, async (req: AuthReq
   try {
     const userId = req.user?.id;
     const result = await query(
-      'SELECT id, is_read FROM user_notifications WHERE user_id = $1',
+      'SELECT COUNT(*) as count FROM user_notifications WHERE user_id = $1 AND is_read = false',
       [userId]
     );
-    const count = (result.rows || []).filter((n: any) => !n.is_read).length;
+    const count = parseInt(result.rows[0]?.count || '0', 10);
     res.status(200).json({ count });
   } catch (error: any) {
     console.error('Fetch unread count error:', error);
