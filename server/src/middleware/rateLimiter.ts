@@ -109,3 +109,12 @@ export const passwordResetRateLimiter = createRateLimiter(
     return email ? `reset:${email.trim().toLowerCase()}` : getClientIp(req);
   }
 );
+
+export const sosRateLimiter = createRateLimiter(
+  5, // 5 SOS alert requests
+  5 * 60 * 1000, // per 5 minutes
+  (req) => {
+    const userId = req.user?.id;
+    return userId ? `sos:${userId}` : getClientIp(req);
+  }
+);

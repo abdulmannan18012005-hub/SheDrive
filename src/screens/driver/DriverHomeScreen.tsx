@@ -297,7 +297,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         updatedAt: Date.now(),
       });
 
-      // Auto-send welcoming message to ride chat
+        // Auto-send welcoming message to ride chat
       try {
         const chatCollectionRef = collection(db, 'rides', ride.rideId, 'messages');
         await addDoc(chatCollectionRef, {
@@ -309,6 +309,27 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         });
       } catch (chatErr) {
         console.warn('Auto message send warning:', chatErr);
+      }
+
+      // Sync accepted status to backend PostgreSQL
+      try {
+        await fetch(`${getApiBaseUrl()}/rides/${ride.rideId}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${state.token}`,
+          },
+          body: JSON.stringify({
+            status: 'accepted',
+            driverId: user.uid,
+            driverName: user.name,
+            driverPhone: user.phone,
+            driverVehicle: vehicleDetails,
+            currentFare: ride.currentFare,
+          }),
+        });
+      } catch (backendErr) {
+        console.warn('Backend ride accept sync warning:', backendErr);
       }
 
       Alert.alert('Success', 'Ride accepted! Navigating to ride progress dashboard.');
@@ -352,6 +373,23 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         offers: [...selectedRide.offers, driverOffer],
         updatedAt: Date.now(),
       });
+
+      // Sync counter offer to backend PostgreSQL
+      try {
+        await fetch(`${getApiBaseUrl()}/rides/${selectedRide.rideId}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${state.token}`,
+          },
+          body: JSON.stringify({
+            status: 'negotiating',
+            currentFare: amountNum,
+          }),
+        });
+      } catch (backendErr) {
+        console.warn('Backend counter offer sync warning:', backendErr);
+      }
 
       Alert.alert('Counter-Offer Sent', `Proposals updated to ${formatCurrency(amountNum)}. Awaiting passenger confirmation.`);
       setCounterModalVisible(false);

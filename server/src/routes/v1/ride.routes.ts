@@ -71,6 +71,7 @@ router.post('/calculate-fare', authenticateToken, async (req: AuthRequest, res: 
 router.post('/request', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const {
+      rideId: clientRideId,
       vehicleCategory,
       pickup,
       destination,
@@ -86,7 +87,9 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
       return res.status(400).json({ error: 'Missing ride parameters' });
     }
 
-    const rideId = `ride_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const rideId = clientRideId && typeof clientRideId === 'string' && clientRideId.trim()
+      ? clientRideId.trim()
+      : `ride_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = Date.now();
 
     await query(
@@ -141,6 +144,182 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
   }
 });
 
+/**
+ * PUT /api/v1/rides/:id/status
+ * Body: { status: string, driverId?: string, driverName?: string, driverPhone?: string, driverVehicle?: string, currentFare?: number }
+ * Description: Updates ride status and associated driver details in PostgreSQL
+ */
+router.put('/:id/status', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: rideId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    const { status, driverId, driverName, driverPhone, driverVehicle, currentFare } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ error: 'Status is required' });
+    }
+
+    // Verify ride exists and user has authorization
+    const rideRes = await query(
+      'SELECT ride_id, passenger_id, driver_id, status FROM rides WHERE ride_id = $1',
+      [rideId]
+    );
+
+    if (rideRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Ride not found' });
+    }
+
+    const currentRide = rideRes.rows[0];
+    const isParticipant = userId === currentRide.passenger_id || userId === currentRide.driver_id || userRole === 'admin' || (userRole === 'driver' && status === 'accepted');
+
+    if (!isParticipant) {
+      return res.status(403).json({ error: 'You are not authorized to update this ride' });
+    }
+
+    const now = Date.now();
+    // Normalize 'enroute' or 'started' to 'in_progress' for database schema compatibility
+    const normalizedStatus = (status === 'enroute' || status === 'started') ? 'in_progress' : status;
+
+    if (normalizedStatus === 'accepted') {
+      const assignedDriverId = driverId || userId;
+      await query(
+        `UPDATE rides SET
+          status = 'accepted',
+          driver_id = $1,
+          final_fare = COALESCE($2, final_fare, offered_fare),
+          updated_at = $3
+         WHERE ride_id = $4`,
+        [assignedDriverId, currentFare || null, now, rideId]
+      );
+    } else if (normalizedStatus === 'arrived') {
+      await query(
+        `UPDATE rides SET status = 'arrived', updated_at = $1 WHERE ride_id = $2`,
+        [now, rideId]
+      );
+    } else if (normalizedStatus === 'in_progress') {
+      await query(
+        `UPDATE rides SET status = 'in_progress', ride_started_at = COALESCE(ride_started_at, $1), updated_at = $1 WHERE ride_id = $2`,
+        [now, rideId]
+      );
+    } else if (normalizedStatus === 'completed') {
+      await query(
+        `UPDATE rides SET status = 'completed', final_fare = COALESCE($1, final_fare, offered_fare), updated_at = $2 WHERE ride_id = $3`,
+        [currentFare || null, now, rideId]
+      );
+
+      // Increment driver total completed rides count
+      const effectiveDriverId = currentRide.driver_id || driverId;
+      if (effectiveDriverId) {
+        await query(
+          'UPDATE drivers SET total_rides = COALESCE(total_rides, 0) + 1 WHERE driver_id = $1',
+          [effectiveDriverId]
+        );
+      }
+    } else if (normalizedStatus === 'cancelled') {
+      await query(
+        `UPDATE rides SET status = 'cancelled', updated_at = $1 WHERE ride_id = $2`,
+        [now, rideId]
+      );
+    } else {
+      await query(
+        `UPDATE rides SET status = $1, updated_at = $2 WHERE ride_id = $3`,
+        [normalizedStatus, now, rideId]
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      rideId,
+      status: normalizedStatus,
+      updatedAt: now,
+    });
+  } catch (error) {
+    console.error('Update ride status error:', error);
+    res.status(500).json({ error: 'Failed to update ride status' });
+  }
+});
+
+/**
+ * POST /api/v1/rides/:id/rating
+ * Body: { rating: number, comment?: string }
+ * Description: Submits rating and review for a completed ride and updates driver aggregate score
+ */
+router.post('/:id/rating', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: rideId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    const { rating, comment } = req.body;
+
+    const ratingNum = parseInt(rating, 10);
+    if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+      return res.status(400).json({ error: 'Rating must be an integer between 1 and 5' });
+    }
+
+    // Verify ride
+    const rideRes = await query(
+      'SELECT ride_id, passenger_id, driver_id FROM rides WHERE ride_id = $1',
+      [rideId]
+    );
+
+    if (rideRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Ride not found' });
+    }
+
+    const ride = rideRes.rows[0];
+    if (userId !== ride.passenger_id && userId !== ride.driver_id) {
+      return res.status(403).json({ error: 'Only ride participants can submit ratings' });
+    }
+
+    const now = Date.now();
+    const feedbackId = `fb_${now}_${Math.random().toString(36).substring(2, 6)}`;
+    const targetDriverId = ride.driver_id;
+
+    // Get user details
+    const userRes = await query('SELECT name, phone, email FROM users WHERE id = $1', [userId]);
+    const user = userRes.rows[0] || {};
+
+    // Record in feedbacks table for admin moderation and historical review
+    await query(
+      `INSERT INTO feedbacks (id, user_id, user_name, user_phone, user_email, user_role, category, rating, comment, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'driver_rating', $7, $8, 'reviewed', $9)`,
+      [
+        feedbackId,
+        userId,
+        user.name || 'User',
+        user.phone || '',
+        user.email || '',
+        userRole || 'passenger',
+        ratingNum,
+        comment ? comment.trim() : `Ride rating: ${ratingNum} stars`,
+        now,
+      ]
+    );
+
+    // If passenger is rating driver, recalculate driver average rating
+    if (userRole === 'passenger' && targetDriverId) {
+      const allRatingsRes = await query(
+        `SELECT AVG(rating)::numeric(3,2) as avg_rating FROM feedbacks WHERE category = 'driver_rating' AND comment LIKE '%' || $1 || '%' OR user_id = $2`,
+        [targetDriverId, userId]
+      );
+      if (allRatingsRes.rows.length > 0 && allRatingsRes.rows[0].avg_rating) {
+        const newAvg = parseFloat(allRatingsRes.rows[0].avg_rating);
+        await query('UPDATE drivers SET rating = $1 WHERE driver_id = $2', [newAvg, targetDriverId]);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Rating submitted successfully',
+      rating: ratingNum,
+    });
+  } catch (error) {
+    console.error('Submit ride rating error:', error);
+    res.status(500).json({ error: 'Failed to submit rating' });
+  }
+});
+
 // Fetch active ride for passenger or driver
 router.get('/active', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
@@ -149,7 +328,14 @@ router.get('/active', authenticateToken, async (req: AuthRequest, res: Response)
 
     const column = role === 'driver' ? 'driver_id' : 'passenger_id';
     const result = await query(
-      `SELECT * FROM rides WHERE ${column} = $1 AND status IN ('requested', 'negotiating', 'accepted', 'arrived', 'in_progress') ORDER BY created_at DESC LIMIT 1`,
+      `SELECT ride_id, passenger_id, driver_id, status, vehicle_category,
+              pickup_lat, pickup_lng, pickup_label,
+              dropoff_lat, dropoff_lng, dropoff_label,
+              distance_km, duration_min, estimated_fare, offered_fare, final_fare,
+              polyline, created_at, updated_at
+       FROM rides
+       WHERE ${column} = $1 AND status IN ('requested', 'negotiating', 'accepted', 'arrived', 'in_progress', 'enroute')
+       ORDER BY created_at DESC LIMIT 1`,
       [userId]
     );
 

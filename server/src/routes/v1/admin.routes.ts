@@ -423,7 +423,7 @@ router.get('/rides/live', authenticateToken, requireAdmin, async (_req: Request,
        FROM rides r
        JOIN users pu ON r.passenger_id = pu.id
        LEFT JOIN users du ON r.driver_id = du.id
-       WHERE r.status IN ('requested', 'negotiating', 'accepted', 'arrived', 'in_progress')
+       WHERE r.status IN ('requested', 'negotiating', 'accepted', 'arrived', 'in_progress', 'enroute')
        ORDER BY r.created_at DESC`
     );
     res.status(200).json({ liveRides: result.rows });

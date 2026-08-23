@@ -147,6 +147,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
             Authorization: `Bearer ${state.token}`,
           },
           body: JSON.stringify({
+            rideId,
             vehicleCategory: selectedCategory.id,
             pickup,
             destination,

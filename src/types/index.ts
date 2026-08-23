@@ -121,6 +121,7 @@ export type RideStatus =
   | 'boarded'
   | 'started'
   | 'enroute'
+  | 'in_progress'
   | 'completed'
   | 'cancelled';
 

@@ -338,31 +338,24 @@ export default function App() {
     };
   }, []);
 
-  const handleAdminLogin = async (e) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoggingIn(true);
-    try {
-      const data = await adminApi.login(loginEmail, loginPassword);
-      setToken(data.token);
-      setAuthToken(data.token);
-      addToast('Login successful!', 'success');
-    } catch (err) {
-      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-        setLoginError(`Cannot connect to backend server. Ensure the backend is running and accessible.`);
-      } else {
-        setLoginError(err.message);
-        addToast(err.message, 'error');
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
   const handleLogout = () => {
     clearAuthToken();
     setToken('');
     addToast('Logged out successfully', 'info');
+  };
+
+  // Helper function to get action color for audit logs
+  const getActionColor = (action: string) => {
+    const actionColors: Record<string, string> = {
+      'APPROVE_DRIVER': '#10B981',
+      'REJECT_DRIVER': '#EF4444',
+      'BLOCK_DRIVER': '#F59E0B',
+      'UNBLOCK_DRIVER': '#10B981',
+      'BLOCK_PASSENGER': '#F59E0B',
+      'UNBLOCK_PASSENGER': '#10B981',
+      'UPDATE_SETTINGS': '#3B82F6',
+    };
+    return actionColors[action] || '#7E8299';
   };
 
   const executeVerifyDriver = async (driverId, approve, reason) => {

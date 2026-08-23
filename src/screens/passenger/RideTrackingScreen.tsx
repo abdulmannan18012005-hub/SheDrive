@@ -117,6 +117,21 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
           try {
             const rideRef = doc(db, 'rides', rideId);
             await updateDoc(rideRef, { status: 'cancelled' });
+
+            // Sync cancellation with backend PostgreSQL
+            try {
+              await fetch(`${getApiBaseUrl()}/rides/${rideId}/status`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${state.token}`,
+                },
+                body: JSON.stringify({ status: 'cancelled' }),
+              });
+            } catch (backendErr) {
+              console.warn('Backend cancel sync warning:', backendErr);
+            }
+
             navigation.navigate('PassengerHome');
           } catch (err) {
             Alert.alert('Cancel Failed', 'Could not cancel request. Please try again.');
@@ -135,6 +150,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         throw new Error('Driver profile details not found.');
       }
       const driverData = driverSnap.data() as DriverProfile;
+      const vehicleDetails = `${driverData.vehicleInfo.color} ${driverData.vehicleInfo.make} ${driverData.vehicleInfo.model} (${driverData.vehicleInfo.plate})`;
 
       const rideRef = doc(db, 'rides', rideId);
       await updateDoc(rideRef, {
@@ -142,10 +158,31 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         driverId,
         driverName: driverData.name,
         driverPhone: driverData.phone,
-        driverVehicle: `${driverData.vehicleInfo.color} ${driverData.vehicleInfo.make} ${driverData.vehicleInfo.model} (${driverData.vehicleInfo.plate})`,
+        driverVehicle: vehicleDetails,
         currentFare: amount,
         updatedAt: Date.now(),
       });
+
+      // Sync accepted status with backend PostgreSQL
+      try {
+        await fetch(`${getApiBaseUrl()}/rides/${rideId}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${state.token}`,
+          },
+          body: JSON.stringify({
+            status: 'accepted',
+            driverId,
+            driverName: driverData.name,
+            driverPhone: driverData.phone,
+            driverVehicle: vehicleDetails,
+            currentFare: amount,
+          }),
+        });
+      } catch (backendErr) {
+        console.warn('Backend accept bid sync warning:', backendErr);
+      }
 
       Alert.alert('Offer Accepted', `You have accepted the offer from ${driverData.name}.`);
     } catch (error) {
@@ -189,7 +226,24 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         createdAt: Date.now(),
       });
 
-      // Fetch driver profile to update their rating statistics
+      // Sync rating with backend PostgreSQL
+      try {
+        await fetch(`${getApiBaseUrl()}/rides/${ride.rideId}/rating`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${state.token}`,
+          },
+          body: JSON.stringify({
+            rating: ratingVal,
+            comment: ratingComment,
+          }),
+        });
+      } catch (backendErr) {
+        console.warn('Backend rating sync warning:', backendErr);
+      }
+
+      // Fetch driver profile to update their rating statistics in Firestore
       if (ride.driverId) {
         const driverDocRef = doc(db, 'drivers', ride.driverId);
         const driverSnap = await getDoc(driverDocRef);

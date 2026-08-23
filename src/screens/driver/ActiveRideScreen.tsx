@@ -23,6 +23,7 @@ import { formatCurrency } from '../../utils/helpers';
 import { LeafletMap, LeafletMapRef, MapMarker } from '../../components/LeafletMap';
 import { triggerEmergencySOS } from '../../utils/safety';
 import { useApp } from '../../contexts/AppContext';
+import { getApiBaseUrl } from '../../config/apiConfig';
 
 type ActiveRideScreenNavigationProp = StackNavigationProp<DriverStackParamList, 'ActiveRide'>;
 type ActiveRideScreenRouteProp = RouteProp<DriverStackParamList, 'ActiveRide'>;
@@ -160,6 +161,24 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         updatedAt: Date.now(),
       });
 
+      // Sync status with backend PostgreSQL
+      try {
+        await fetch(`${getApiBaseUrl()}/rides/${rideId}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${state.token}`,
+          },
+          body: JSON.stringify({
+            status: nextStatus,
+            driverId: ride.driverId,
+            currentFare: ride.currentFare,
+          }),
+        });
+      } catch (backendErr) {
+        console.warn('Backend ride status sync warning:', backendErr);
+      }
+
       Alert.alert(statusAlertTitle, statusAlertMsg);
 
       // If ride is completed, open rating review modal
@@ -189,6 +208,23 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         createdAt: Date.now(),
       });
 
+      // Sync rating with backend PostgreSQL
+      try {
+        await fetch(`${getApiBaseUrl()}/rides/${ride.rideId}/rating`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${state.token}`,
+          },
+          body: JSON.stringify({
+            rating: ratingVal,
+            comment: ratingComment,
+          }),
+        });
+      } catch (backendErr) {
+        console.warn('Backend rating sync warning:', backendErr);
+      }
+
       Alert.alert('Success', 'Rating submitted.');
       setShowRatingModal(false);
       navigation.navigate('DriverHome');
@@ -205,6 +241,15 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
     if (!ride?.passengerPhone) return;
     Linking.openURL(`tel:${ride.passengerPhone}`).catch(() => {
       Alert.alert('Calling Failed', 'Device dialer cannot be launched.');
+    });
+  };
+
+  const handleLaunchNavigation = () => {
+    if (!ride) return;
+    const dest = ride.status === 'accepted' ? ride.pickup : ride.dropoff;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.latitude},${dest.longitude}&travelmode=driving`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Navigation Error', 'Could not open Google Maps navigation.');
     });
   };
 
@@ -319,6 +364,18 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
 
         {/* Actions Button */}
         <View style={styles.actionsContainer}>
+          {(ride.status === 'accepted' || ride.status === 'enroute' || ride.status === 'in_progress') && (
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={handleLaunchNavigation}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.navButtonText}>
+                {ride.status === 'accepted' ? '🗺️ Navigate to Pickup' : '🗺️ Navigate to Destination'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[styles.actionButton, isUpdatingStatus && styles.actionButtonDisabled]}
             onPress={handleAdvanceStatus}
@@ -535,6 +592,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 30,
     gap: 12,
+  },
+  navButton: {
+    backgroundColor: '#1E88E5',
+    paddingVertical: 16,
+    borderRadius: 18,
+    alignItems: 'center',
+    shadowColor: '#1E88E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  navButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   actionButton: {
     backgroundColor: Colors.light.primary,
