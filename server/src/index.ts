@@ -20,6 +20,7 @@ import paymentRoutes from './routes/v1/payment.routes';
 import userRoutes from './routes/v1/user.routes';
 import notificationRoutes from './routes/v1/notification.routes';
 import appRoutes from './routes/v1/app.routes';
+import safetyRoutes from './routes/v1/safety.routes';
 
 dotenv.config();
 
@@ -70,6 +71,7 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/driver', driverRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/safety', safetyRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 
 // Real-Time Socket.io Connection Handler

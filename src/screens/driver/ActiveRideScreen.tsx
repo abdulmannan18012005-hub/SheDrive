@@ -400,6 +400,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
                   userRole: 'driver',
                   coords: driverCoords,
                   activeRideId: ride.rideId,
+                  token: state.token,
                 });
               }
             }}

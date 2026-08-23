@@ -93,6 +93,8 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditLogsSearchQuery, setAuditLogsSearchQuery] = useState('');
   const [auditLogsFilterAction, setAuditLogsFilterAction] = useState('all');
+  const [sosAlerts, setSOSAlerts] = useState([]);
+  const [showSOSBanner, setShowSOSBanner] = useState(false);
   const [settings, setSettings] = useState({
     commission_pct: 5.0,
     sos_hotline: '+92 42 111 743 374',
@@ -261,6 +263,13 @@ export default function App() {
             }));
           }
           break;
+
+        case 'sosAlerts':
+          const sosData = await adminApi.getSOSAlerts({ limit: 20 });
+          setSOSAlerts(sosData.alerts || []);
+          const activeSOS = sosData.alerts && sosData.alerts.filter(a => a.status === 'active').length > 0;
+          setShowSOSBanner(activeSOS);
+          break;
       }
     } catch (err) {
       console.error('Admin API fetch error:', err);
@@ -345,8 +354,8 @@ export default function App() {
   };
 
   // Helper function to get action color for audit logs
-  const getActionColor = (action: string) => {
-    const actionColors: Record<string, string> = {
+  const getActionColor = (action) => {
+    const actionColors = {
       'APPROVE_DRIVER': '#10B981',
       'REJECT_DRIVER': '#EF4444',
       'BLOCK_DRIVER': '#F59E0B',
@@ -699,16 +708,22 @@ export default function App() {
             💳 Monthly Payments {paymentSummary.pendingSubmissionsCount > 0 ? `(${paymentSummary.pendingSubmissionsCount})` : ''}
           </button>
           <button
-            style={activeTab === 'feedback' ? styles.navItemActive : styles.navItem}
-            onClick={() => setActiveTab('feedback')}
+            style={activeTab === 'sosAlerts' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('sosAlerts')}
           >
-            💬 Feedbacks & Ideas ({feedbackStats.total_feedback || feedbacks.length})
+            🚨 SOS Alerts {showSOSBanner ? '(ACTIVE)' : ''}
           </button>
           <button
             style={activeTab === 'auditLogs' ? styles.navItemActive : styles.navItem}
             onClick={() => setActiveTab('auditLogs')}
           >
             📋 Audit Logs
+          </button>
+          <button
+            style={activeTab === 'feedback' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('feedback')}
+          >
+            💬 Feedback ({feedbackStats.total_feedback})
           </button>
           <button
             style={activeTab === 'settings' ? styles.navItemActive : styles.navItem}
@@ -738,7 +753,10 @@ export default function App() {
               {activeTab === 'passengers' && 'Registered Passenger Directory'}
               {activeTab === 'rides' && 'Live Ride Dispatch Monitor'}
               {activeTab === 'payments' && 'Monthly 7% Platform Fee & Payment Approvals'}
-              {activeTab === 'settings' && 'Category Base Fare & Platform Controls'}
+              {activeTab === 'sosAlerts' && 'Emergency SOS Alerts'}
+              {activeTab === 'auditLogs' && 'Admin Audit Logs'}
+              {activeTab === 'feedback' && 'User Feedback & Reviews'}
+              {activeTab === 'settings' && 'System Configuration'}
             </h2>
             <p style={styles.headerSub}>SheDrive Operating Network | 100% Real Database Connected</p>
           </div>
@@ -1910,6 +1928,121 @@ export default function App() {
               limit={pagination.auditLogs.limit}
               onPageChange={(p) => setPagination(prev => ({ ...prev, auditLogs: { ...prev.auditLogs, page: p } }))}
             />
+          </div>
+        )}
+
+        {/* SOS Alerts Tab */}
+        {activeTab === 'sosAlerts' && (
+          <div>
+            <div style={styles.pageHeader}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#181C32' }}>Emergency SOS Alerts</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#7E8299' }}>
+                Real-time emergency alerts from passengers and drivers
+              </p>
+            </div>
+
+            {sosAlerts.length === 0 ? (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🚨</div>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '700', color: '#3F4254' }}>No Active SOS Alerts</h3>
+                <p style={{ margin: 0, fontSize: '14px', color: '#7E8299' }}>
+                  Emergency alerts will appear here when users trigger SOS.
+                </p>
+              </div>
+            ) : (
+              <div style={styles.tableContainer}>
+                <table style={styles.dataTable}>
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>User</th>
+                      <th>Role</th>
+                      <th>Location</th>
+                      <th>Ride ID</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sosAlerts.map((alert) => (
+                      <tr key={alert.id} style={alert.status === 'active' ? { backgroundColor: '#FEF2F2' } : {}}>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#7E8299' }}>
+                            {alert.created_at ? new Date(Number(alert.created_at)).toLocaleString() : 'Recent'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#181C32' }}>{alert.user_name || 'Unknown'}</strong>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor: alert.user_role === 'driver' ? '#E3F2FD' : '#FCE4EC',
+                            color: alert.user_role === 'driver' ? '#1565C0' : '#C2185B',
+                          }}>
+                            {alert.user_role || 'passenger'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#3F4254' }}>
+                            {alert.latitude?.toFixed(4)}, {alert.longitude?.toFixed(4)}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#7E8299' }}>
+                            {alert.ride_id || 'None'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor: alert.status === 'active' ? '#FEE2E2' : '#D1FAE5',
+                            color: alert.status === 'active' ? '#DC2626' : '#059669',
+                          }}>
+                            {alert.status}
+                          </span>
+                        </td>
+                        <td>
+                          {alert.status === 'active' && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await adminApi.resolveSOSAlert(alert.id);
+                                  addToast('SOS alert resolved', 'success');
+                                  fetchTabData(false);
+                                } catch (err) {
+                                  addToast('Failed to resolve SOS alert', 'error');
+                                }
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#059669',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Resolve
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </main>

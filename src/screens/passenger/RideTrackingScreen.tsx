@@ -473,6 +473,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                       userRole: 'passenger',
                       coords: { latitude: ride.pickup.latitude, longitude: ride.pickup.longitude },
                       activeRideId: ride.rideId,
+                      token: state.token,
                     });
                   }
                 }}

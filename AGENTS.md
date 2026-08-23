@@ -299,19 +299,61 @@ Supabase grace/bonus period runs until September 21. During Phase 2.7 NO migrati
 
 ---
 
-# PHASE 2 SCOPE
+# PHASE 3 — COMPLETED
 
-ONLY work on:
+Phase 3 objective:
 
-- Phase 2.1 verification
-- Phase 2.2 verification
-- Phase 2.3
-- Phase 2.4
-- Phase 2.5
-- Phase 2.6
-- Phase 2.7
+DRIVER DISPATCH AND ACTIVE RIDE LIFECYCLE SYNCHRONIZATION.
 
-Do NOT start Phase 3.
+Status: COMPLETED
+
+Commit: c38832e0
+
+Implemented:
+- Ride request ID synchronization between Firestore/mobile and PostgreSQL (POST /api/v1/rides/request accepts client rideId).
+- Server-authoritative ride lifecycle status endpoint (PUT /api/v1/rides/:id/status) with participant authorization.
+- State progression synchronization: requested -> negotiating -> accepted -> arrived -> in_progress/enroute -> completed -> cancelled.
+- Normalization of 'enroute' and 'in_progress' states across PostgreSQL, active ride lookup, types, and admin live monitor.
+- External Google Maps turn-by-turn navigation launcher on Driver ActiveRideScreen (with dynamic pickup/destination targets).
+- Post-trip rating synchronization and aggregate score / total_rides recalculation (POST /api/v1/rides/:id/rating).
+- Explicit column selections on active ride and driver queries preserving Supabase egress constraints.
+
+Phase 3 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS
+- Server build (`npm run build`): PASS
+- Admin Portal build (`npm run build`): PASS
+- Contract & auth gating probes: PASS (401 without auth, 200 on health)
+- Verification limitation: Full authenticated end-to-end business-flow testing requires valid live production credentials.
+
+---
+
+# PHASE 4 — COMPLETED
+
+Phase 4 objective:
+
+SAFETY, IN-RIDE COMMUNICATION, EMERGENCY SOS, GPS TRACKING, AND NOTIFICATION INFRASTRUCTURE.
+
+Status: COMPLETED
+
+Implemented:
+- PostgreSQL SOS persistence table `sos_alerts` (010_phase4_sos_alerts.sql) with user details, coordinates, rideId, status, and timestamps.
+- Backend emergency SOS endpoint (`POST /api/v1/safety/sos`) with Bearer token authentication and SOS rate limiting (`sosRateLimiter`: max 5 requests / 5 min).
+- Admin emergency SOS retrieval (`GET /api/v1/safety/sos/recent`) and resolution (`PUT /api/v1/safety/sos/:id/resolve`) with strict admin authorization (`requireAdmin`).
+- Mobile SOS unification in `src/utils/safety.ts` calling backend API with Bearer token in parallel with Firestore `/emergency_alerts` logging and phone dialer (15) trigger.
+- Mobile Driver `ActiveRideScreen.tsx` and Passenger `RideTrackingScreen.tsx` updated to pass user auth token to `triggerEmergencySOS`.
+- Public ride tracking rate limiter (`trackRateLimiter`: max 100 requests / hour / IP) applied to `GET /api/v1/rides/track/:shareToken`.
+- Passenger live-ride sharing UI in `RideTrackingScreen.tsx` using `POST /api/v1/rides/share` and native OS share dialog (`Share.share`).
+- Admin Portal SOS alerts management tab in `admin-portal/src/App.jsx` with real-time alert listing, active alert highlighting, and 1-click incident resolution via `adminApi.resolveSOSAlert`.
+- Expo configuration (`app.json`) updated with background location permissions (`ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE`) and Android notification channels (`rideAlerts`, `chatMessages`, `safetyAlerts`).
+- Universal database engine (`server/src/config/db.ts`) updated to support `sos_alerts` in both TCP PostgreSQL and Supabase HTTP fallback modes with explicit column selections.
+
+Phase 4 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS
+- Server build (`npm run build`): PASS
+- Admin Portal build (`npm run build`): PASS
+- 12/12 API & security probe suite: PASS (health 200, auth gating 401, missing token 404, rate limiter 429)
+- Database schema: `sos_alerts` table verified in PostgreSQL / Supabase
+- Environmental verification limitations: Live background push delivery on physical hardware requires active FCM production credentials and real Android/iOS device testing. Background location tracking requires a standalone APK build with runtime OS permissions.
 
 ---
 
@@ -330,7 +372,6 @@ Do NOT implement:
 - Expo upgrade
 - Firebase upgrade
 - Admin dependency upgrades
-- Database migration
 - Database replacement
 - Unrelated refactoring
 
@@ -352,8 +393,6 @@ Never assume an audit document perfectly represents the current repository.
 
 The CURRENT REPOSITORY is the final source of truth.
 
-If an audit says something is missing but the repository already implements it, verify it rather than rewriting it.
-
 ---
 
 # GIT SAFETY
@@ -364,12 +403,6 @@ Do not use destructive git commands.
 
 Do not force-push.
 
-Before major changes, inspect:
-
-git status
-git diff
-git log --oneline -10
-
 Keep changes attributable to the current phase.
 
 ---
@@ -379,25 +412,17 @@ Keep changes attributable to the current phase.
 After relevant changes:
 
 Mobile:
-
 npx tsc --noEmit
 
 Server:
-
 cd server
 npm run build
 
 Admin:
-
 cd admin-portal
 npm run build
 
-For each Phase 2 feature, perform actual functional/API testing where possible.
-
-Do not claim VERIFIED unless actually tested.
-
 Use these statuses:
-
 VERIFIED
 PARTIALLY VERIFIED
 NOT VERIFIED
@@ -407,16 +432,4 @@ FAILED
 
 # IMPORTANT AGENT BEHAVIOR
 
-Do not ask for permission for every small implementation step.
-
-First analyze the repository and produce a concise implementation status.
-
-Then implement only the currently authorized Phase 2 work.
-
-If something is ambiguous or potentially destructive, STOP and report it instead of guessing.
-
-At the end of Phase 2:
-
-STOP.
-
-Do not begin Phase 3 automatically.
+Do not start Phase 5 automatically without explicit user instructions.

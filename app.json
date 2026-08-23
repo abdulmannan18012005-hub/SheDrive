@@ -38,8 +38,33 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES",
-        "POST_NOTIFICATIONS"
-      ]
+        "POST_NOTIFICATIONS",
+        "ACCESS_BACKGROUND_LOCATION"
+      ],
+      "notification": {
+        "channel": {
+          "rideAlerts": {
+            "name": "Ride Alerts",
+            "description": "Notifications for ride updates and driver dispatch",
+            "importance": "high",
+            "sound": true,
+            "vibrate": true
+          },
+          "chatMessages": {
+            "name": "Chat Messages",
+            "description": "Notifications for in-ride chat messages",
+            "importance": "default",
+            "sound": true
+          },
+          "safetyAlerts": {
+            "name": "Safety Alerts",
+            "description": "Emergency SOS and safety notifications",
+            "importance": "high",
+            "sound": true,
+            "vibrate": true
+          }
+        }
+      }
     },
     "updates": {
       "url": "https://u.expo.dev/984107313094"

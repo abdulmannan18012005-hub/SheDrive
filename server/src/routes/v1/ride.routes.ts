@@ -1,9 +1,17 @@
 import { Router, Response } from 'express';
-import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { query } from '../../config/db';
-import { notifyNearbyDrivers, sendPushNotification } from '../../services/notificationService';
+import { authenticateToken, AuthRequest } from '../../middleware/auth';
+import { sendPushNotification, notifyNearbyDrivers } from '../../services/notificationService';
+import { createRateLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
+
+// Rate limiter for public tracking endpoint (100 requests per hour per IP)
+const trackRateLimiter = createRateLimiter(
+  100, // 100 requests
+  60 * 60 * 1000, // per hour
+  (req) => req.ip || 'unknown'
+);
 
 /**
  * POST /api/v1/rides/calculate-fare
@@ -126,7 +134,7 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
       pickup.label || 'Lahore Pickup',
       offeredFare || estimatedFare || 0,
       rideId
-    ).catch(err => console.warn('[FCM] Dispatch to drivers warning:', err));
+    ).catch((err: any) => console.warn('[FCM] Dispatch to drivers warning:', err));
 
     res.status(201).json({
       rideId,
@@ -424,7 +432,7 @@ router.post('/share', authenticateToken, async (req: AuthRequest, res: Response)
  * GET /api/v1/rides/track/:shareToken
  * Description: Public endpoint to track a shared ride (no authentication required)
  */
-router.get('/track/:shareToken', async (req: any, res: Response) => {
+router.get('/track/:shareToken', trackRateLimiter, async (req: any, res: Response) => {
   try {
     const { shareToken } = req.params;
 

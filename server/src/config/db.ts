@@ -493,6 +493,18 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
     return { rows: data || [], rowCount: data ? data.length : 0 };
   }
 
+  // L. SELECT FROM SOS_ALERTS
+  if (lowerSql.startsWith('select') && lowerSql.includes('from sos_alerts')) {
+    let queryBuilder = supabaseClient.from('sos_alerts').select('id, user_id, user_name, user_role, ride_id, latitude, longitude, status, created_at, resolved_at');
+    queryBuilder = queryBuilder.order('created_at', { ascending: false });
+    if (params && params[0] && typeof params[0] === 'number') {
+      queryBuilder = queryBuilder.limit(params[0]);
+    }
+    const { data, error } = await queryBuilder;
+    if (error) throw new Error(error.message);
+    return { rows: data || [], rowCount: data ? data.length : 0 };
+  }
+
   // K. INSERT STATEMENT HANDLER
   if (lowerSql.startsWith('insert into')) {
     let tableName = '';
@@ -509,6 +521,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
     else if (lowerSql.includes('insert into support_tickets')) tableName = 'support_tickets';
     else if (lowerSql.includes('insert into audit_logs')) tableName = 'audit_logs';
     else if (lowerSql.includes('insert into admin_settings')) tableName = 'admin_settings';
+    else if (lowerSql.includes('insert into sos_alerts')) tableName = 'sos_alerts';
 
     if (tableName) {
       // Strip ON CONFLICT clause before parsing columns (used by upsert queries)
@@ -662,6 +675,17 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
         if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
         else {
           console.error(`[Supabase Update Error] Table: monthly_payments`, error.message);
+          throw new Error(error.message);
+        }
+      }
+    } else if (lowerSql.includes('update sos_alerts')) {
+      const updateObj: any = { status: 'resolved', resolved_at: Date.now() };
+      const targetId = params ? params[params.length - 1] : null;
+      if (targetId) {
+        const { data, error } = await supabaseClient.from('sos_alerts').update(updateObj).eq('id', targetId).select();
+        if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
+        else {
+          console.error(`[Supabase Update Error] Table: sos_alerts`, error.message);
           throw new Error(error.message);
         }
       }

@@ -2,6 +2,7 @@ import { Linking, Platform, Alert } from 'react-native';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../config/firebaseConfig';
 import { Coordinates } from '../types';
+import { getApiBaseUrl } from '../config/apiConfig';
 
 interface TriggerEmergencyParams {
   userId: string;
@@ -9,6 +10,7 @@ interface TriggerEmergencyParams {
   userRole: 'passenger' | 'driver';
   coords: Coordinates | null;
   activeRideId?: string | null;
+  token?: string | null;
 }
 
 /**
@@ -16,6 +18,8 @@ interface TriggerEmergencyParams {
  * 1. Launches a phone call to Lahore emergency services (15).
  * 2. Attempts to open the system SMS composer containing pre-filled location info.
  * 3. Log a Firestore alert record under '/emergency_alerts' for central monitoring.
+ * 4. Persist to PostgreSQL backend for admin monitoring.
+ * 5. Emit Socket.IO event for real-time admin alerts.
  */
 export async function triggerEmergencySOS({
   userId,
@@ -23,6 +27,7 @@ export async function triggerEmergencySOS({
   userRole,
   coords,
   activeRideId = null,
+  token = null,
 }: TriggerEmergencyParams): Promise<void> {
   const currentCoordsStr = coords
     ? `Coordinates: Latitude ${coords.latitude.toFixed(6)}, Longitude ${coords.longitude.toFixed(6)}`
@@ -46,7 +51,25 @@ export async function triggerEmergencySOS({
     console.warn('Failed to upload emergency alert to Firestore:', error);
   }
 
-  // 2. Alert dialogue prompt
+  // 2. Persist to PostgreSQL backend (non-blocking, doesn't block emergency call)
+  if (token && coords) {
+    fetch(`${getApiBaseUrl()}/safety/sos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        rideId: activeRideId,
+      }),
+    }).catch((err) => {
+      console.warn('Backend SOS persistence failed (non-critical):', err);
+    });
+  }
+
+  // 3. Alert dialogue prompt
   Alert.alert(
     '🚨 EMERGENCY SOS TRIGGERED',
     'Calling Lahore Police (15) and preparing location coordinates text message.',

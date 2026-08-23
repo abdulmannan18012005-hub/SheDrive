@@ -297,6 +297,20 @@ export const adminApi = {
     const endpoint = queryString ? `/admin/audit-logs?${queryString}` : '/admin/audit-logs';
     return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
   },
+
+  // SOS alerts with pagination
+  getSOSAlerts: async (params: { limit?: number } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/safety/sos/recent?${queryString}` : '/safety/sos/recent';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.SHORT);
+  },
+
+  // Resolve SOS alert
+  resolveSOSAlert: async (id: string) => {
+    return fetchWithErrorHandling(`/safety/sos/${id}/resolve`, { method: 'PUT' }, 0);
+  },
 };
 
 export default adminApi;
