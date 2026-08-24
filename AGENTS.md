@@ -525,6 +525,51 @@ Phase 7 verification:
 
 ---
 
+# PHASE 8 — COMPLETED
+
+Phase 8 objective:
+
+ADVANCED ANALYTICS, REPORTING & OPERATIONAL INTELLIGENCE.
+
+Status: COMPLETED
+
+Commit: 2e37dece
+
+Implemented:
+1. **Server-Authoritative Analytics Backend Engine:**
+   - `server/src/routes/v1/analytics.routes.ts`:
+     - `GET /api/v1/admin/analytics/overview`: Executive KPI cards, gross revenue, platform commission (dynamic from `admin_settings`), net driver earnings, completion rates, active fleet counts, previous period comparisons ($\Delta\%$), and time-series daily/weekly/monthly revenue and ride volume trend data.
+     - `GET /api/v1/admin/analytics/revenue`: Vehicle tier revenue breakdown (Mini, Sedan, Bike, Comfort, Premium, Family) and monthly platform fee collection accounting.
+     - `GET /api/v1/admin/analytics/rides`: 24-hour peak demand histogram (0–23h), ride status distributions, averages (distance, duration, fare), top route corridors, and cancellation reason analysis.
+     - `GET /api/v1/admin/analytics/drivers`: Paginated & sortable driver performance leaderboard (completed rides, cancellation rate %, gross earnings, net payouts, ratings).
+     - `GET /api/v1/admin/analytics/safety-support`: SOS incident metrics, average resolution duration in minutes, support ticket category distributions, and 1–5 star customer/driver rating analysis.
+2. **RFC 4180 CSV Report Export Engine:**
+   - `GET /api/v1/admin/analytics/export`: Downloads formatted CSV attachments for Financials, Rides, Drivers, and Safety/Support reports with CSV formula injection sanitization (`=`, `+`, `-`, `@`) and audit logging (`EXPORT_ANALYTICS_REPORT`).
+3. **Zero-Dependency SVG Charting Suite:**
+   - `admin-portal/src/components/analytics/SvgCharts.jsx`:
+     - `SvgLineChart`: Smooth multi-series SVG line chart with dynamic scaling, gridlines, data points, hover tooltips, and legends.
+     - `SvgBarChart`: Categorical and 24-hour demand histogram bar chart with value callouts.
+     - `SvgDonutChart`: SVG stroke-dasharray donut chart with percentage labels and color legends.
+     - `KpiDeltaCard`: Metric cards with period-over-period delta badges ($\uparrow +12.4\%$ / $\downarrow -3.2\%$).
+4. **Admin Portal UI Integration:**
+   - `admin-portal/src/components/analytics/AnalyticsTab.jsx`: Master view with 5 sub-tabs (Executive Overview, Financials & Revenue, Rides & Demand, Driver Performance, Safety & Support), printable summary stylesheet (`@media print`), and CSV export modal.
+   - `admin-portal/src/components/analytics/DateRangeSelector.jsx`: Quick presets (Today, 7D, 30D, This Month, 90D, Custom) synchronized across analytics queries.
+   - `admin-portal/src/App.jsx`: Dedicated **📈 Operational Intelligence** sidebar navigation button.
+5. **Security & Supabase Egress Hardening:**
+   - All analytics endpoints protected with `authenticateToken` + `requireAdmin` (401 unauth, 403 non-admin).
+   - Server-side SQL aggregations prevent client-side raw data downloads, keeping network payloads $<5\text{ KB}$.
+   - Sensitive credentials (passwords, CNIC, payment tokens) strictly excluded.
+   - Zero SQL migrations required (100% existing Supabase schema utilized).
+
+Phase 8 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build`): PASS (0 errors)
+- Admin Portal build (`npm run build`): PASS (0 errors)
+- Local express route test suite: 10/10 PASS
+- Live production endpoint probes (`https://shedrive.onrender.com/api/v1`): 12/12 PASS (health 200, all analytics and admin endpoints protected with 401 unauth)
+
+---
+
 # FROZEN / OUT OF SCOPE
 
 Do NOT implement:
@@ -534,7 +579,7 @@ Do NOT implement:
 - Wallet
 - New payment gateway
 - Major mobile redesign
-- Website redesign (Deferred to Phase 8)
+- Website redesign (Deferred to Phase 9)
 - New ride architecture
 - React Native upgrade
 - Expo upgrade
@@ -600,4 +645,4 @@ FAILED
 
 # IMPORTANT AGENT BEHAVIOR
 
-Do not start Phase 8 automatically without explicit user instructions.
+Do not start Phase 9 automatically without explicit user instructions.
