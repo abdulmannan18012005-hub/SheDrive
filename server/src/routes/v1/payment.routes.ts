@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { query } from '../../config/db';
+import { sendPushNotification } from '../../services/notificationService';
+import { requireAdmin } from '../v1/admin.routes';
 
 const router = Router();
 
@@ -47,7 +49,11 @@ router.get('/driver/monthly', authenticateToken, async (req: AuthRequest, res: R
 
     const totalRides = parseInt(ridesRes.rows[0].total_rides || '0', 10);
     const totalEarnings = parseFloat(ridesRes.rows[0].total_earnings || '0');
-    const platformFee = Math.round(totalEarnings * 0.07 * 100) / 100; // 7% fee
+
+    // Fetch dynamic commission rate from admin_settings
+    const settingsRes = await query('SELECT commission_pct FROM admin_settings WHERE id = 1');
+    const commissionPct = parseFloat(settingsRes.rows[0]?.commission_pct || '7.0') / 100;
+    const platformFee = Math.round(totalEarnings * commissionPct * 100) / 100;
 
     // Due date calculation: 4th of the following month
     const [yearStr, monthStr] = requestedMonthYear.split('-');
@@ -165,10 +171,10 @@ router.post('/driver/submit', authenticateToken, async (req: AuthRequest, res: R
 
     const cleanTxId = (transactionId || `TX_${Date.now()}`).trim();
 
-    // Check duplicate transaction ID across other submissions if custom txId supplied
+    // Check duplicate transaction ID across other submissions if custom txId supplied (case-insensitive)
     if (transactionId && transactionId.trim()) {
       const dupCheck = await query(
-        'SELECT id FROM monthly_payments WHERE transaction_id = $1 AND driver_id != $2',
+        'SELECT id FROM monthly_payments WHERE LOWER(transaction_id) = LOWER($1) AND driver_id != $2',
         [cleanTxId, userId]
       );
 
@@ -294,7 +300,7 @@ router.get('/admin/payments', authenticateToken, async (req: AuthRequest, res: R
  * Body: { status: 'paid' | 'rejected', adminNotes?: string }
  * Description: Admin approves or rejects driver monthly fee payment.
  */
-router.put('/admin/payments/:id/review', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/admin/payments/:id/review', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { status, adminNotes } = req.body;
@@ -323,6 +329,44 @@ router.put('/admin/payments/:id/review', authenticateToken, async (req: AuthRequ
     if (status === 'paid') {
       await query('UPDATE drivers SET is_fee_suspended = false WHERE driver_id = $1', [payment.driver_id]);
     }
+
+    // Send push notification to driver
+    if (status === 'paid') {
+      await sendPushNotification({
+        userId: payment.driver_id,
+        title: 'Payment Approved ✓',
+        body: `Your platform fee payment for ${payment.month_year} has been verified and approved. You can now go online.`,
+        data: { type: 'PAYMENT_APPROVED', monthYear: payment.month_year }
+      }).catch(err => console.warn('Payment approval notification failed:', err));
+    } else if (status === 'rejected') {
+      await sendPushNotification({
+        userId: payment.driver_id,
+        title: 'Payment Rejected ❌',
+        body: `Your platform fee payment for ${payment.month_year} was rejected. ${adminNotes ? 'Reason: ' + adminNotes : 'Please re-submit with correct details.'}`,
+        data: { type: 'PAYMENT_REJECTED', monthYear: payment.month_year }
+      }).catch(err => console.warn('Payment rejection notification failed:', err));
+    }
+
+    // Create in-app notification for driver
+    const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const notificationTitle = status === 'paid' ? 'Payment Approved' : 'Payment Rejected';
+    const notificationMessage = status === 'paid'
+      ? `Your platform fee payment for ${payment.month_year} has been verified and approved.`
+      : `Your platform fee payment for ${payment.month_year} was rejected. ${adminNotes ? 'Reason: ' + adminNotes : ''}`;
+    await query(
+      `INSERT INTO user_notifications (id, user_id, title, message, category, is_read, created_at)
+       VALUES ($1, $2, $3, $4, 'payment', false, $5)`,
+      [notificationId, payment.driver_id, notificationTitle, notificationMessage, now]
+    ).catch(err => console.warn('Payment review in-app notification failed:', err));
+
+    // Audit log entry
+    const auditId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const auditAction = status === 'paid' ? 'APPROVE_PAYMENT' : 'REJECT_PAYMENT';
+    const auditDetails = `${auditAction} payment ${id} for driver ${payment.driver_id} month ${payment.month_year}. ${adminNotes ? 'Notes: ' + adminNotes : ''}`;
+    await query(
+      'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
+      [auditId, (req as any).user.id, auditAction, auditDetails, now]
+    ).catch((e: any) => console.warn('Audit log write failed (non-critical):', e?.message));
 
     res.status(200).json({
       success: true,

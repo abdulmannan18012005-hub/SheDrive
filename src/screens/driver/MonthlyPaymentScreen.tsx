@@ -222,7 +222,7 @@ export default function MonthlyPaymentScreen(): React.JSX.Element {
         </View>
         <Text style={styles.headerTitle}>Monthly Platform Fee</Text>
         <Text style={styles.headerSubtitle}>
-          SheDrive operates on a flat 7% platform fee calculated on your completed monthly rides.
+          SheDrive operates on a platform fee calculated on your completed monthly rides.
         </Text>
       </View>
 
@@ -310,7 +310,7 @@ export default function MonthlyPaymentScreen(): React.JSX.Element {
             <View style={[styles.metricCard, styles.metricCardPrimary]}>
               <Text style={styles.metricIcon}>📊</Text>
               <Text style={styles.metricValuePrimary}>PKR {platformFee.toLocaleString()}</Text>
-              <Text style={styles.metricLabelPrimary}>7% Platform Fee</Text>
+              <Text style={styles.metricLabelPrimary}>Platform Fee</Text>
             </View>
           </View>
 
