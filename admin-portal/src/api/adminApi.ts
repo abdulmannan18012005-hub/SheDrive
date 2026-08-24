@@ -311,6 +311,56 @@ export const adminApi = {
   resolveSOSAlert: async (id: string) => {
     return fetchWithErrorHandling(`/safety/sos/${id}/resolve`, { method: 'PUT' }, 0);
   },
+
+  // Support tickets with pagination
+  getSupportTickets: async (params: { page?: number; limit?: number; search?: string; status?: string } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/support/tickets?${queryString}` : '/admin/support/tickets';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Update support ticket status
+  updateTicketStatus: async (id: string, status: 'open' | 'in_progress' | 'resolved') => {
+    invalidateCache('/admin/support/tickets');
+    return fetchWithErrorHandling(`/admin/support/tickets/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }, 0);
+  },
+
+  // Deactivated accounts with pagination
+  getDeactivatedAccounts: async (params: { page?: number; limit?: number; search?: string } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/users/deactivated?${queryString}` : '/admin/users/deactivated';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.LONG);
+  },
+
+  // Reactivate account
+  reactivateAccount: async (id: string) => {
+    invalidateCache('/admin/users/deactivated');
+    return fetchWithErrorHandling(`/admin/users/${id}/reactivate`, { method: 'PUT' }, 0);
+  },
+
+  // Ride history with pagination and filters
+  getRideHistory: async (params: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/rides/history?${queryString}` : '/admin/rides/history';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Send admin notification
+  sendAdminNotification: async (title: string, body: string, target: 'all' | 'drivers' | 'passengers' | 'specific', userId?: string) => {
+    return fetchWithErrorHandling('/admin/notifications/send', {
+      method: 'POST',
+      body: JSON.stringify({ title, body, target, userId }),
+    }, 0);
+  },
 };
 
 export default adminApi;

@@ -756,5 +756,385 @@ router.get('/audit-logs', authenticateToken, requireAdmin, async (req: Request, 
   }
 });
 
+/**
+ * GET /api/v1/admin/support/tickets
+ * Query: page?, limit?, search?, status?
+ * Description: Retrieves paginated support tickets with search and filter support.
+ */
+router.get('/support/tickets', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string || '').trim();
+    const status = req.query.status as string;
+
+    const offset = (page - 1) * limit;
+
+    let queryStr = `
+      SELECT st.*, u.name as user_name, u.phone as user_phone, u.email as user_email
+       FROM support_tickets st
+       LEFT JOIN users u ON st.user_id = u.id
+       WHERE 1=1`;
+
+    const params: any[] = [];
+
+    if (status && status !== 'all') {
+      params.push(status);
+      queryStr += ` AND st.status = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryStr += ` AND (LOWER(st.subject) LIKE $${params.length} OR LOWER(st.category) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length})`;
+    }
+
+    // Get total count for pagination
+    let countQueryStr = `SELECT COUNT(*) as total FROM support_tickets st LEFT JOIN users u ON st.user_id = u.id WHERE 1=1`;
+    const countParams: any[] = [];
+    if (status && status !== 'all') {
+      countParams.push(status);
+      countQueryStr += ` AND st.status = $${countParams.length}`;
+    }
+    if (search) {
+      countParams.push(`%${search.toLowerCase()}%`);
+      countQueryStr += ` AND (LOWER(st.subject) LIKE $${countParams.length} OR LOWER(st.category) LIKE $${countParams.length} OR LOWER(u.name) LIKE $${countParams.length} OR LOWER(u.email) LIKE $${countParams.length})`;
+    }
+    const countResult = await query(countQueryStr, countParams);
+    const total = countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total || '0', 10) : 0;
+
+    // Get paginated data
+    queryStr += ` ORDER BY st.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const ticketsResult = await query(queryStr, params);
+
+    res.status(200).json({
+      tickets: ticketsResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Admin fetch support tickets error:', error);
+    res.status(500).json({ error: 'Failed to fetch support tickets' });
+  }
+});
+
+/**
+ * PUT /api/v1/admin/support/tickets/:id/status
+ * Body: { status: 'open' | 'in_progress' | 'resolved' }
+ * Description: Updates support ticket status.
+ */
+router.put('/support/tickets/:id/status', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['open', 'in_progress', 'resolved'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be open, in_progress, or resolved' });
+    }
+
+    await query('UPDATE support_tickets SET status = $1 WHERE id = $2', [status, id]);
+
+    // If resolved, notify the ticket owner
+    if (status === 'resolved') {
+      try {
+        const ticketRes = await query('SELECT user_id, subject FROM support_tickets WHERE id = $1', [id]);
+        if (ticketRes.rows.length > 0 && ticketRes.rows[0].user_id) {
+          const ticketOwner = ticketRes.rows[0].user_id;
+          const subject = ticketRes.rows[0].subject || 'Support Ticket';
+          const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          
+          query(
+            `INSERT INTO user_notifications (id, user_id, title, message, category, is_read, created_at)
+             VALUES ($1, $2, $3, $4, 'system', false, $5)`,
+            [notifId, ticketOwner, 'Support Ticket Resolved', `Your support ticket regarding "${subject}" has been marked as resolved.`, Date.now()]
+          ).catch((e: any) => console.warn('Ticket resolved notification write failed:', e?.message));
+
+          sendPushNotification({
+            userId: ticketOwner,
+            title: 'Support Ticket Resolved',
+            body: `Your support ticket regarding "${subject}" has been marked as resolved.`,
+            data: { type: 'TICKET_RESOLVED', ticketId: id },
+          }).catch((e: any) => console.warn('Ticket resolved push failed:', e?.message));
+        }
+      } catch (e: any) {
+        console.warn('Ticket notification error (non-critical):', e?.message);
+      }
+    }
+
+    // Audit log entry
+    query(
+      'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
+      [`log_${Date.now()}`, (req as any).user.id, 'UPDATE_TICKET_STATUS', `Updated ticket ${id} status to ${status}`, Date.now()]
+    ).catch((e: any) => console.warn('Audit log write failed (non-critical):', e?.message));
+
+    res.status(200).json({ success: true, message: 'Ticket status updated successfully' });
+  } catch (error) {
+    console.error('Update ticket status error:', error);
+    res.status(500).json({ error: 'Failed to update ticket status' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/users/deactivated
+ * Query: page?, limit?, search?
+ * Description: Retrieves paginated list of deactivated accounts with search support.
+ */
+router.get('/users/deactivated', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string || '').trim();
+
+    const offset = (page - 1) * limit;
+
+    let queryStr = `
+      SELECT u.id, u.name, u.phone, u.email, u.role, u.cnic, u.deactivation_reason, u.deactivated_at, u.created_at
+       FROM users u
+       WHERE u.is_active = false`;
+
+    const params: any[] = [];
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryStr += ` AND (LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.phone) LIKE $${params.length})`;
+    }
+
+    // Get total count for pagination
+    let countQueryStr = `SELECT COUNT(*) as total FROM users u WHERE u.is_active = false`;
+    const countParams: any[] = [];
+    if (search) {
+      countParams.push(`%${search.toLowerCase()}%`);
+      countQueryStr += ` AND (LOWER(u.name) LIKE $${countParams.length} OR LOWER(u.email) LIKE $${countParams.length} OR LOWER(u.phone) LIKE $${countParams.length})`;
+    }
+    const countResult = await query(countQueryStr, countParams);
+    const total = countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total || '0', 10) : 0;
+
+    // Get paginated data
+    queryStr += ` ORDER BY u.deactivated_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await query(queryStr, params);
+
+    res.status(200).json({
+      deactivatedAccounts: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Fetch deactivated accounts error:', error);
+    res.status(500).json({ error: 'Failed to fetch deactivated accounts' });
+  }
+});
+
+/**
+ * PUT /api/v1/admin/users/:id/reactivate
+ * Description: Reactivates a deactivated user account.
+ */
+router.put('/users/:id/reactivate', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const userCheck = await query('SELECT id, role FROM users WHERE id = $1', [id]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await query(
+      'UPDATE users SET is_active = true, deactivation_reason = NULL, deactivated_at = NULL, updated_at = $1 WHERE id = $2',
+      [Date.now(), id]
+    );
+
+    // If driver, ensure they are offline initially
+    await query('UPDATE drivers SET is_online = false, is_available = false WHERE driver_id = $1', [id]).catch(() => {});
+
+    // Audit log entry
+    query(
+      'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
+      [`log_${Date.now()}`, (req as any).user.id, 'REACTIVATE_ACCOUNT', `Reactivated account ${id}`, Date.now()]
+    ).catch((e: any) => console.warn('Audit log write failed (non-critical):', e?.message));
+
+    res.status(200).json({
+      success: true,
+      message: 'Account reactivated successfully',
+    });
+  } catch (error) {
+    console.error('Reactivate account error:', error);
+    res.status(500).json({ error: 'Failed to reactivate account' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/rides/history
+ * Query: page?, limit?, status?, startDate?, endDate?
+ * Description: Retrieves paginated ride history with filters and explicit column projection.
+ */
+router.get('/rides/history', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const status = req.query.status as string;
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+
+    const offset = (page - 1) * limit;
+
+    let queryStr = `
+      SELECT r.ride_id, r.passenger_id, r.driver_id, r.status, r.pickup_latitude, r.pickup_longitude,
+             r.pickup_address, r.dropoff_latitude, r.dropoff_longitude, r.dropoff_address,
+             r.estimated_fare, r.offered_fare, r.final_fare, r.payment_method, r.vehicle_category,
+             r.created_at, r.completed_at, r.cancelled_at, r.cancellation_reason,
+             pu.name as passenger_name, pu.phone as passenger_phone,
+             du.name as driver_name, du.phone as driver_phone
+       FROM rides r
+       JOIN users pu ON r.passenger_id = pu.id
+       LEFT JOIN users du ON r.driver_id = du.id
+       WHERE r.status IN ('completed', 'cancelled')`;
+
+    const params: any[] = [];
+
+    if (status && status !== 'all') {
+      params.push(status);
+      queryStr += ` AND r.status = $${params.length}`;
+    }
+
+    if (startDate) {
+      params.push(parseInt(startDate));
+      queryStr += ` AND r.created_at >= $${params.length}`;
+    }
+
+    if (endDate) {
+      params.push(parseInt(endDate));
+      queryStr += ` AND r.created_at <= $${params.length}`;
+    }
+
+    // Get total count for pagination
+    let countQueryStr = `SELECT COUNT(*) as total FROM rides r WHERE r.status IN ('completed', 'cancelled')`;
+    const countParams: any[] = [];
+    if (status && status !== 'all') {
+      countParams.push(status);
+      countQueryStr += ` AND r.status = $${countParams.length}`;
+    }
+    if (startDate) {
+      countParams.push(parseInt(startDate));
+      countQueryStr += ` AND r.created_at >= $${countParams.length}`;
+    }
+    if (endDate) {
+      countParams.push(parseInt(endDate));
+      countQueryStr += ` AND r.created_at <= $${countParams.length}`;
+    }
+    const countResult = await query(countQueryStr, countParams);
+    const total = countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total || '0', 10) : 0;
+
+    // Get paginated data
+    queryStr += ` ORDER BY r.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const ridesResult = await query(queryStr, params);
+
+    res.status(200).json({
+      rides: ridesResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Fetch ride history error:', error);
+    res.status(500).json({ error: 'Failed to fetch ride history' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/notifications/send
+ * Body: { title: string, body: string, target: 'all' | 'drivers' | 'passengers' | 'specific', userId?: string }
+ * Description: Sends admin notifications to targeted users (push + in-app notification center).
+ */
+router.post('/notifications/send', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { title, body, target, userId } = req.body;
+
+    if (!title || !body || !target) {
+      return res.status(400).json({ error: 'Title, body, and target are required' });
+    }
+
+    if (!['all', 'drivers', 'passengers', 'specific'].includes(target)) {
+      return res.status(400).json({ error: 'Invalid target. Must be all, drivers, passengers, or specific' });
+    }
+
+    if (target === 'specific' && !userId) {
+      return res.status(400).json({ error: 'userId is required when target is specific' });
+    }
+
+    let recipients: string[] = [];
+
+    if (target === 'specific') {
+      recipients = [userId];
+    } else if (target === 'drivers') {
+      const driversRes = await query('SELECT driver_id FROM drivers WHERE is_online = true OR is_available = true LIMIT 500');
+      recipients = driversRes.rows.map((r: any) => r.driver_id);
+    } else if (target === 'passengers') {
+      const passengersRes = await query('SELECT id FROM users WHERE role = \'passenger\' LIMIT 500');
+      recipients = passengersRes.rows.map((r: any) => r.id);
+    } else {
+      // all - fetch both drivers and passengers (limited to avoid spam)
+      const driversRes = await query('SELECT driver_id FROM drivers LIMIT 500');
+      const passengersRes = await query('SELECT id FROM users WHERE role = \'passenger\' LIMIT 500');
+      recipients = [
+        ...driversRes.rows.map((r: any) => r.driver_id),
+        ...passengersRes.rows.map((r: any) => r.id)
+      ];
+    }
+
+    // 1. Send in-app notifications (saved to database for mobile NotificationCenter)
+    const now = Date.now();
+    for (const recipientId of recipients) {
+      const notifId = `notif_${now}_${Math.random().toString(36).substring(2, 7)}`;
+      query(
+        `INSERT INTO user_notifications (id, user_id, title, message, category, is_read, created_at)
+         VALUES ($1, $2, $3, $4, 'system', false, $5)`,
+        [notifId, recipientId, title, body, now]
+      ).catch((e: any) => console.warn('In-app notification write failed:', e?.message));
+    }
+
+    // 2. Send push notifications via FCM (non-blocking, continue even if some fail)
+    const sendPromises = recipients.map((recipientId) =>
+      sendPushNotification({
+        userId: recipientId,
+        title,
+        body,
+        data: { type: 'ADMIN_NOTIFICATION', target },
+      }).catch(err => console.warn(`[FCM] Failed to send to ${recipientId}:`, err))
+    );
+
+    await Promise.allSettled(sendPromises);
+
+    // Audit log entry
+    query(
+      'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
+      [`log_${Date.now()}`, (req as any).user.id, 'SEND_ADMIN_NOTIFICATION', `Sent notification to ${target} (${recipients.length} recipients): ${title}`, Date.now()]
+    ).catch((e: any) => console.warn('Audit log write failed (non-critical):', e?.message));
+
+    res.status(200).json({
+      success: true,
+      message: `Notification sent to ${recipients.length} recipients`,
+      recipientsCount: recipients.length,
+    });
+  } catch (error) {
+    console.error('Send admin notification error:', error);
+    res.status(500).json({ error: 'Failed to send notification' });
+  }
+});
+
 export default router;
 

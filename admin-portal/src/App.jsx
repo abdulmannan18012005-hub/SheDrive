@@ -50,6 +50,9 @@ export default function App() {
     payments: { page: 1, limit: 50, total: 0, totalPages: 1 },
     feedback: { page: 1, limit: 50, total: 0, totalPages: 1 },
     auditLogs: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    supportTickets: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    deactivatedAccounts: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    rideHistory: { page: 1, limit: 50, total: 0, totalPages: 1 },
   });
   const [stats, setStats] = useState({
     onlineDrivers: 0,
@@ -95,6 +98,35 @@ export default function App() {
   const [auditLogsFilterAction, setAuditLogsFilterAction] = useState('all');
   const [sosAlerts, setSOSAlerts] = useState([]);
   const [showSOSBanner, setShowSOSBanner] = useState(false);
+
+  // Phase 7 States
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [supportTicketFilterStatus, setSupportTicketFilterStatus] = useState('all');
+  const [supportTicketSearchQuery, setSupportTicketSearchQuery] = useState('');
+  const [supportTicketScreenshotModal, setSupportTicketScreenshotModal] = useState(null);
+
+  const [rideHistory, setRideHistory] = useState([]);
+  const [rideHistoryFilterStatus, setRideHistoryFilterStatus] = useState('all');
+  const [rideHistoryStartDate, setRideHistoryStartDate] = useState('');
+  const [rideHistoryEndDate, setRideHistoryEndDate] = useState('');
+  const [rideHistorySearchQuery, setRideHistorySearchQuery] = useState('');
+  const [selectedRideDetails, setSelectedRideDetails] = useState(null);
+
+  const [deactivatedAccounts, setDeactivatedAccounts] = useState([]);
+  const [deactivatedSearchQuery, setDeactivatedSearchQuery] = useState('');
+  const [reactivateConfirmModal, setReactivateConfirmModal] = useState(null);
+
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    body: '',
+    target: 'all',
+    userId: '',
+  });
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
+  const [notificationConfirmModal, setNotificationConfirmModal] = useState(false);
+
+  const [verificationDocFilter, setVerificationDocFilter] = useState('all'); // 'all' | 'new' | 're-review'
+
   const [settings, setSettings] = useState({
     commission_pct: 5.0,
     sos_hotline: '+92 42 111 743 374',
@@ -130,6 +162,9 @@ export default function App() {
   const debouncedPaymentSearch = useDebounce(paymentSearchQuery, 300);
   const debouncedFeedbackSearch = useDebounce(feedbackSearchQuery, 300);
   const debouncedAuditLogsSearch = useDebounce(auditLogsSearchQuery, 300);
+  const debouncedSupportTicketSearch = useDebounce(supportTicketSearchQuery, 300);
+  const debouncedRideHistorySearch = useDebounce(rideHistorySearchQuery, 300);
+  const debouncedDeactivatedSearch = useDebounce(deactivatedSearchQuery, 300);
 
   // Fetch data based on active tab
   const fetchTabData = useCallback(async (showSpinner = true) => {
@@ -270,6 +305,54 @@ export default function App() {
           const activeSOS = sosData.alerts && sosData.alerts.filter(a => a.status === 'active').length > 0;
           setShowSOSBanner(activeSOS);
           break;
+
+        case 'supportTickets':
+          const ticketsData = await adminApi.getSupportTickets({
+            page: pagination.supportTickets.page,
+            limit: pagination.supportTickets.limit,
+            search: debouncedSupportTicketSearch,
+            status: supportTicketFilterStatus,
+          });
+          setSupportTickets(ticketsData.tickets || []);
+          if (ticketsData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              supportTickets: ticketsData.pagination,
+            }));
+          }
+          break;
+
+        case 'rideHistory':
+          const historyData = await adminApi.getRideHistory({
+            page: pagination.rideHistory.page,
+            limit: pagination.rideHistory.limit,
+            status: rideHistoryFilterStatus,
+            startDate: rideHistoryStartDate ? new Date(rideHistoryStartDate).getTime().toString() : undefined,
+            endDate: rideHistoryEndDate ? new Date(rideHistoryEndDate + 'T23:59:59').getTime().toString() : undefined,
+          });
+          setRideHistory(historyData.rides || []);
+          if (historyData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              rideHistory: historyData.pagination,
+            }));
+          }
+          break;
+
+        case 'deactivatedAccounts':
+          const deactData = await adminApi.getDeactivatedAccounts({
+            page: pagination.deactivatedAccounts.page,
+            limit: pagination.deactivatedAccounts.limit,
+            search: debouncedDeactivatedSearch,
+          });
+          setDeactivatedAccounts(deactData.deactivatedAccounts || []);
+          if (deactData.pagination) {
+            setPagination(prev => ({
+              ...prev,
+              deactivatedAccounts: deactData.pagination,
+            }));
+          }
+          break;
       }
     } catch (err) {
       console.error('Admin API fetch error:', err);
@@ -277,7 +360,7 @@ export default function App() {
     } finally {
       if (showSpinner) setIsLoadingData(false);
     }
-  }, [token, activeTab, pagination, paymentFilterStatus, feedbackFilterCategory, auditLogsFilterAction, debouncedDriverRosterSearch, debouncedPassengerSearch, debouncedPaymentSearch, debouncedFeedbackSearch, debouncedAuditLogsSearch, addToast]);
+  }, [token, activeTab, pagination, paymentFilterStatus, feedbackFilterCategory, auditLogsFilterAction, supportTicketFilterStatus, rideHistoryFilterStatus, rideHistoryStartDate, rideHistoryEndDate, debouncedDriverRosterSearch, debouncedPassengerSearch, debouncedPaymentSearch, debouncedFeedbackSearch, debouncedAuditLogsSearch, debouncedSupportTicketSearch, debouncedRideHistorySearch, debouncedDeactivatedSearch, addToast]);
 
   // Fetch on mount and tab change
   useEffect(() => {
@@ -339,6 +422,20 @@ export default function App() {
       fetchTabData(false);
     }
   }, [debouncedAuditLogsSearch, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'supportTickets' && debouncedSupportTicketSearch !== supportTicketSearchQuery) {
+      setPagination(prev => ({ ...prev, supportTickets: { ...prev.supportTickets, page: 1 } }));
+      fetchTabData(false);
+    }
+  }, [debouncedSupportTicketSearch, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'deactivatedAccounts' && debouncedDeactivatedSearch !== deactivatedSearchQuery) {
+      setPagination(prev => ({ ...prev, deactivatedAccounts: { ...prev.deactivatedAccounts, page: 1 } }));
+      fetchTabData(false);
+    }
+  }, [debouncedDeactivatedSearch, activeTab]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -726,6 +823,30 @@ export default function App() {
             💬 Feedback ({feedbackStats.total_feedback})
           </button>
           <button
+            style={activeTab === 'supportTickets' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('supportTickets')}
+          >
+            🎫 Support Tickets
+          </button>
+          <button
+            style={activeTab === 'rideHistory' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('rideHistory')}
+          >
+            📜 Ride History
+          </button>
+          <button
+            style={activeTab === 'deactivatedAccounts' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('deactivatedAccounts')}
+          >
+            🔒 Deactivated Accounts
+          </button>
+          <button
+            style={activeTab === 'notifications' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('notifications')}
+          >
+            📢 Send Notifications
+          </button>
+          <button
             style={activeTab === 'settings' ? styles.navItemActive : styles.navItem}
             onClick={() => setActiveTab('settings')}
           >
@@ -752,10 +873,14 @@ export default function App() {
               {activeTab === 'rejected' && 'Rejected Driver Applications'}
               {activeTab === 'passengers' && 'Registered Passenger Directory'}
               {activeTab === 'rides' && 'Live Ride Dispatch Monitor'}
-              {activeTab === 'payments' && 'Monthly 7% Platform Fee & Payment Approvals'}
+              {activeTab === 'payments' && 'Monthly Platform Fee & Payment Approvals'}
               {activeTab === 'sosAlerts' && 'Emergency SOS Alerts'}
               {activeTab === 'auditLogs' && 'Admin Audit Logs'}
               {activeTab === 'feedback' && 'User Feedback & Reviews'}
+              {activeTab === 'supportTickets' && 'Support & Problem Dispute Tickets'}
+              {activeTab === 'rideHistory' && 'Historical Ride Records & Analytics'}
+              {activeTab === 'deactivatedAccounts' && 'Deactivated User Accounts & Reactivation'}
+              {activeTab === 'notifications' && 'Broadcast & Direct User Notifications'}
               {activeTab === 'settings' && 'System Configuration'}
             </h2>
             <p style={styles.headerSub}>SheDrive Operating Network | 100% Real Database Connected</p>
@@ -845,8 +970,57 @@ export default function App() {
         {/* Verification Tab */}
         {activeTab === 'verification' && (
           <div style={styles.cardContainer}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={styles.cardHeader}>Pending Female Driver Applications ({pendingDrivers.length})</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={styles.cardHeader}>Pending Female Driver Applications ({pendingDrivers.length})</h3>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #E4E6EF',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      backgroundColor: verificationDocFilter === 'all' ? '#4A2060' : '#F9F9F9',
+                      color: verificationDocFilter === 'all' ? '#FFFFFF' : '#5E6278',
+                    }}
+                    onClick={() => setVerificationDocFilter('all')}
+                  >
+                    All ({pendingDrivers.length})
+                  </button>
+                  <button
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #E4E6EF',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      backgroundColor: verificationDocFilter === 'new' ? '#4A2060' : '#F9F9F9',
+                      color: verificationDocFilter === 'new' ? '#FFFFFF' : '#5E6278',
+                    }}
+                    onClick={() => setVerificationDocFilter('new')}
+                  >
+                    🆕 New ({pendingDrivers.filter(d => !d.is_verified).length})
+                  </button>
+                  <button
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #E4E6EF',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      backgroundColor: verificationDocFilter === 'rereview' ? '#E83D98' : '#F9F9F9',
+                      color: verificationDocFilter === 'rereview' ? '#FFFFFF' : '#5E6278',
+                    }}
+                    onClick={() => setVerificationDocFilter('rereview')}
+                  >
+                    🔄 Re-Review ({pendingDrivers.filter(d => d.is_verified).length})
+                  </button>
+                </div>
+              </div>
               <input
                 type="text"
                 placeholder="Search by Name, Phone, Email, CNIC, or ID..."
@@ -855,15 +1029,18 @@ export default function App() {
                 style={{ ...styles.input, width: '320px', padding: '8px 14px', borderRadius: '10px' }}
               />
             </div>
-            {pendingDrivers.filter(d => {
-              if (!verificationSearchQuery.trim()) return true;
-              const q = verificationSearchQuery.toLowerCase();
-              return (d.name || '').toLowerCase().includes(q) ||
-                     (d.email || '').toLowerCase().includes(q) ||
-                     (d.phone || '').toLowerCase().includes(q) ||
-                     (d.cnic || '').toLowerCase().includes(q) ||
-                     (d.id || '').toLowerCase().includes(q);
-            }).length === 0 ? (
+            {pendingDrivers
+              .filter(d => {
+                if (verificationDocFilter === 'new' && d.is_verified) return false;
+                if (verificationDocFilter === 'rereview' && !d.is_verified) return false;
+                if (!verificationSearchQuery.trim()) return true;
+                const q = verificationSearchQuery.toLowerCase();
+                return (d.name || '').toLowerCase().includes(q) ||
+                       (d.email || '').toLowerCase().includes(q) ||
+                       (d.phone || '').toLowerCase().includes(q) ||
+                       (d.cnic || '').toLowerCase().includes(q) ||
+                       (d.id || '').toLowerCase().includes(q);
+              }).length === 0 ? (
               <p style={styles.emptyStateText}>No matching pending driver applications found.</p>
             ) : (
               <div className="table-responsive">
@@ -871,6 +1048,7 @@ export default function App() {
                 <thead>
                   <tr>
                     <th>Applicant Name</th>
+                    <th>Type</th>
                     <th>Phone</th>
                     <th>Email</th>
                     <th>Vehicle Tier</th>
@@ -884,6 +1062,8 @@ export default function App() {
                 <tbody>
                   {pendingDrivers
                     .filter(d => {
+                      if (verificationDocFilter === 'new' && d.is_verified) return false;
+                      if (verificationDocFilter === 'rereview' && !d.is_verified) return false;
                       if (!verificationSearchQuery.trim()) return true;
                       const q = verificationSearchQuery.toLowerCase();
                       return (d.name || '').toLowerCase().includes(q) ||
@@ -894,7 +1074,36 @@ export default function App() {
                     })
                     .map((driver) => (
                     <tr key={driver.id}>
-                      <td><strong>{driver.name}</strong></td>
+                      <td>
+                        <strong>{driver.name}</strong>
+                      </td>
+                      <td>
+                        {driver.is_verified ? (
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: '#FDF2F8',
+                            color: '#BE185D',
+                            border: '1px solid #FBCFE8',
+                          }}>
+                            🔄 Re-Review
+                          </span>
+                        ) : (
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: '#EFF6FF',
+                            color: '#1D4ED8',
+                            border: '1px solid #BFDBFE',
+                          }}>
+                            🆕 New
+                          </span>
+                        )}
+                      </td>
                       <td>{driver.phone}</td>
                       <td>{driver.email}</td>
                       <td>{driver.vehicle_category}</td>
@@ -2045,7 +2254,810 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* Phase 7 Tab 1: Support Tickets Tab */}
+        {activeTab === 'supportTickets' && (
+          <div>
+            <div style={styles.pageHeader}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#181C32' }}>Support & Problem Tickets</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#7E8299' }}>
+                Manage user complaints, disputes, safety inquiries, and support tickets
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {['all', 'open', 'in_progress', 'resolved'].map((st) => (
+                  <button
+                    key={st}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #E4E6EF',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      textTransform: 'capitalize',
+                      cursor: 'pointer',
+                      backgroundColor: supportTicketFilterStatus === st ? '#4A2060' : '#FFFFFF',
+                      color: supportTicketFilterStatus === st ? '#FFFFFF' : '#5E6278',
+                    }}
+                    onClick={() => {
+                      setSupportTicketFilterStatus(st);
+                      setPagination(prev => ({ ...prev, supportTickets: { ...prev.supportTickets, page: 1 } }));
+                    }}
+                  >
+                    {st.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder="Search by Subject, Category, User, or Email..."
+                value={supportTicketSearchQuery}
+                onChange={(e) => setSupportTicketSearchQuery(e.target.value)}
+                style={{ ...styles.input, width: '320px', padding: '8px 14px', borderRadius: '10px' }}
+              />
+            </div>
+
+            {supportTickets.length === 0 ? (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎫</div>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '700', color: '#3F4254' }}>No Support Tickets Found</h3>
+                <p style={{ margin: 0, fontSize: '14px', color: '#7E8299' }}>
+                  Support tickets submitted via the mobile app will appear here.
+                </p>
+              </div>
+            ) : (
+              <div style={styles.tableContainer}>
+                <table style={styles.dataTable}>
+                  <thead>
+                    <tr>
+                      <th>Ticket ID</th>
+                      <th>User</th>
+                      <th>Category</th>
+                      <th>Subject & Message</th>
+                      <th>Attachment</th>
+                      <th>Created</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supportTickets.map((ticket) => (
+                      <tr key={ticket.id}>
+                        <td>
+                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#4A2060' }}>
+                            #{ticket.id ? ticket.id.substring(0, 8) : 'TICKET'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#181C32', display: 'block' }}>{ticket.user_name || 'User'}</strong>
+                          <span style={{ fontSize: '11px', color: '#7E8299' }}>{ticket.user_phone || ticket.user_email || ticket.user_id}</span>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: '#F3E8FF',
+                            color: '#7E22CE',
+                          }}>
+                            {ticket.category || 'General'}
+                          </span>
+                        </td>
+                        <td style={{ maxWidth: '280px' }}>
+                          <strong style={{ fontSize: '13px', color: '#181C32', display: 'block', marginBottom: '2px' }}>
+                            {ticket.subject}
+                          </strong>
+                          <p style={{ margin: 0, fontSize: '12px', color: '#5E6278', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {ticket.message}
+                          </p>
+                        </td>
+                        <td>
+                          {ticket.screenshot_url ? (
+                            <button
+                              onClick={() => setSupportTicketScreenshotModal(ticket.screenshot_url)}
+                              style={{
+                                padding: '4px 10px',
+                                backgroundColor: '#EFF6FF',
+                                color: '#2563EB',
+                                border: '1px solid #BFDBFE',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              🖼️ View Image
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '11px', color: '#A1A5B7' }}>None</span>
+                          )}
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#7E8299' }}>
+                            {ticket.created_at ? new Date(Number(ticket.created_at)).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor:
+                              ticket.status === 'resolved' ? '#D1FAE5' :
+                              ticket.status === 'in_progress' ? '#FEF3C7' : '#FEE2E2',
+                            color:
+                              ticket.status === 'resolved' ? '#059669' :
+                              ticket.status === 'in_progress' ? '#D97706' : '#DC2626',
+                          }}>
+                            {ticket.status}
+                          </span>
+                        </td>
+                        <td>
+                          <select
+                            value={ticket.status}
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              try {
+                                await adminApi.updateTicketStatus(ticket.id, newStatus);
+                                addToast(`Ticket status updated to ${newStatus}`, 'success');
+                                fetchTabData(false);
+                              } catch (err) {
+                                addToast(err.message || 'Failed to update ticket status', 'error');
+                              }
+                            }}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #E4E6EF',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <PaginationBar
+                  currentPage={pagination.supportTickets.page}
+                  totalPages={pagination.supportTickets.totalPages}
+                  totalItems={pagination.supportTickets.total}
+                  itemsPerPage={pagination.supportTickets.limit}
+                  onPageChange={(page) => {
+                    setPagination(prev => ({ ...prev, supportTickets: { ...prev.supportTickets, page } }));
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Phase 7 Tab 2: Ride History Tab */}
+        {activeTab === 'rideHistory' && (
+          <div>
+            <div style={styles.pageHeader}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#181C32' }}>Completed & Cancelled Ride Archive</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#7E8299' }}>
+                Search and audit historical passenger trips, completed fares, and cancellation reasons
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {['all', 'completed', 'cancelled'].map((st) => (
+                  <button
+                    key={st}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #E4E6EF',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      textTransform: 'capitalize',
+                      cursor: 'pointer',
+                      backgroundColor: rideHistoryFilterStatus === st ? '#4A2060' : '#FFFFFF',
+                      color: rideHistoryFilterStatus === st ? '#FFFFFF' : '#5E6278',
+                    }}
+                    onClick={() => {
+                      setRideHistoryFilterStatus(st);
+                      setPagination(prev => ({ ...prev, rideHistory: { ...prev.rideHistory, page: 1 } }));
+                    }}
+                  >
+                    {st}
+                  </button>
+                ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#7E8299', fontWeight: '600' }}>From:</span>
+                  <input
+                    type="date"
+                    value={rideHistoryStartDate}
+                    onChange={(e) => setRideHistoryStartDate(e.target.value)}
+                    style={{ ...styles.input, padding: '4px 8px', fontSize: '12px', width: 'auto' }}
+                  />
+                  <span style={{ fontSize: '12px', color: '#7E8299', fontWeight: '600' }}>To:</span>
+                  <input
+                    type="date"
+                    value={rideHistoryEndDate}
+                    onChange={(e) => setRideHistoryEndDate(e.target.value)}
+                    style={{ ...styles.input, padding: '4px 8px', fontSize: '12px', width: 'auto' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {rideHistory.length === 0 ? (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>📜</div>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '700', color: '#3F4254' }}>No Historical Rides Found</h3>
+                <p style={{ margin: 0, fontSize: '14px', color: '#7E8299' }}>
+                  Completed and cancelled rides will be archived here.
+                </p>
+              </div>
+            ) : (
+              <div style={styles.tableContainer}>
+                <table style={styles.dataTable}>
+                  <thead>
+                    <tr>
+                      <th>Ride ID</th>
+                      <th>Passenger</th>
+                      <th>Driver</th>
+                      <th>Tier</th>
+                      <th>Pickup → Destination</th>
+                      <th>Fare</th>
+                      <th>Payment</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rideHistory.map((ride) => (
+                      <tr key={ride.ride_id}>
+                        <td>
+                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#4A2060' }}>
+                            #{ride.ride_id ? ride.ride_id.substring(0, 8) : 'RIDE'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#181C32', display: 'block' }}>{ride.passenger_name || 'Passenger'}</strong>
+                          <span style={{ fontSize: '11px', color: '#7E8299' }}>{ride.passenger_phone || ''}</span>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#181C32', display: 'block' }}>{ride.driver_name || 'Unassigned'}</strong>
+                          <span style={{ fontSize: '11px', color: '#7E8299' }}>{ride.driver_phone || ''}</span>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: '#E0E7FF',
+                            color: '#3730A3',
+                          }}>
+                            {ride.vehicle_category || 'Sedan'}
+                          </span>
+                        </td>
+                        <td style={{ maxWidth: '240px' }}>
+                          <div style={{ fontSize: '12px', color: '#181C32', fontWeight: '600' }}>
+                            📍 {ride.pickup_address || `${ride.pickup_latitude?.toFixed(3)}, ${ride.pickup_longitude?.toFixed(3)}`}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#5E6278' }}>
+                            🎯 {ride.dropoff_address || `${ride.dropoff_latitude?.toFixed(3)}, ${ride.dropoff_longitude?.toFixed(3)}`}
+                          </div>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#10B981', fontSize: '14px' }}>
+                            PKR {ride.final_fare || ride.offered_fare || ride.estimated_fare || 0}
+                          </strong>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: '#FEF3C7',
+                            color: '#B45309',
+                          }}>
+                            {ride.payment_method || 'Cash'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor: ride.status === 'completed' ? '#D1FAE5' : '#FEE2E2',
+                            color: ride.status === 'completed' ? '#059669' : '#DC2626',
+                          }}>
+                            {ride.status}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#7E8299' }}>
+                            {ride.created_at ? new Date(Number(ride.created_at)).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => setSelectedRideDetails(ride)}
+                            style={{
+                              padding: '5px 10px',
+                              backgroundColor: '#F3F4F6',
+                              color: '#374151',
+                              border: '1px solid #D1D5DB',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            👁️ Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <PaginationBar
+                  currentPage={pagination.rideHistory.page}
+                  totalPages={pagination.rideHistory.totalPages}
+                  totalItems={pagination.rideHistory.total}
+                  itemsPerPage={pagination.rideHistory.limit}
+                  onPageChange={(page) => {
+                    setPagination(prev => ({ ...prev, rideHistory: { ...prev.rideHistory, page } }));
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Phase 7 Tab 3: Deactivated Accounts Tab */}
+        {activeTab === 'deactivatedAccounts' && (
+          <div>
+            <div style={styles.pageHeader}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#181C32' }}>Deactivated Accounts & Reactivation</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#7E8299' }}>
+                Review users who deactivated their accounts and restore account access
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <input
+                type="text"
+                placeholder="Search by Name, Email, Phone, or CNIC..."
+                value={deactivatedSearchQuery}
+                onChange={(e) => setDeactivatedSearchQuery(e.target.value)}
+                style={{ ...styles.input, width: '320px', padding: '8px 14px', borderRadius: '10px' }}
+              />
+            </div>
+
+            {deactivatedAccounts.length === 0 ? (
+              <div style={styles.emptyState}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔒</div>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '700', color: '#3F4254' }}>No Deactivated Accounts</h3>
+                <p style={{ margin: 0, fontSize: '14px', color: '#7E8299' }}>
+                  All user accounts are currently active.
+                </p>
+              </div>
+            ) : (
+              <div style={styles.tableContainer}>
+                <table style={styles.dataTable}>
+                  <thead>
+                    <tr>
+                      <th>User ID</th>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th>Contact</th>
+                      <th>CNIC</th>
+                      <th>Deactivation Reason</th>
+                      <th>Deactivated Date</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deactivatedAccounts.map((user) => (
+                      <tr key={user.id}>
+                        <td>
+                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#4A2060' }}>
+                            #{user.id ? user.id.substring(0, 8) : 'USER'}
+                          </span>
+                        </td>
+                        <td>
+                          <strong style={{ color: '#181C32' }}>{user.name}</strong>
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            backgroundColor: user.role === 'driver' ? '#E3F2FD' : '#FCE4EC',
+                            color: user.role === 'driver' ? '#1565C0' : '#C2185B',
+                          }}>
+                            {user.role}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '12px', color: '#181C32' }}>{user.phone || 'N/A'}</div>
+                          <div style={{ fontSize: '11px', color: '#7E8299' }}>{user.email || 'N/A'}</div>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#5E6278' }}>{user.cnic || 'N/A'}</span>
+                        </td>
+                        <td style={{ maxWidth: '240px' }}>
+                          <span style={{ fontSize: '12px', color: '#DC2626', fontStyle: 'italic' }}>
+                            {user.deactivation_reason || 'Self-deactivated by user'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px', color: '#7E8299' }}>
+                            {user.deactivated_at ? new Date(Number(user.deactivated_at)).toLocaleString() : 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => setReactivateConfirmModal({ userId: user.id, userName: user.name })}
+                            style={{
+                              padding: '6px 14px',
+                              backgroundColor: '#10B981',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            🔓 Reactivate
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <PaginationBar
+                  currentPage={pagination.deactivatedAccounts.page}
+                  totalPages={pagination.deactivatedAccounts.totalPages}
+                  totalItems={pagination.deactivatedAccounts.total}
+                  itemsPerPage={pagination.deactivatedAccounts.limit}
+                  onPageChange={(page) => {
+                    setPagination(prev => ({ ...prev, deactivatedAccounts: { ...prev.deactivatedAccounts, page } }));
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Phase 7 Tab 4: Send Notifications Tab */}
+        {activeTab === 'notifications' && (
+          <div>
+            <div style={styles.pageHeader}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#181C32' }}>Broadcast & User Notifications</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#7E8299' }}>
+                Compose and send instant push and in-app system notifications to riders and drivers
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '24px', alignItems: 'start' }}>
+              {/* Compose Form */}
+              <div style={styles.cardContainer}>
+                <h3 style={{ ...styles.cardHeader, marginBottom: '20px' }}>📢 Compose Notification</h3>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!notificationForm.title.trim() || !notificationForm.body.trim()) {
+                      addToast('Please provide both Title and Message body', 'warning');
+                      return;
+                    }
+                    if (notificationForm.target === 'specific' && !notificationForm.userId.trim()) {
+                      addToast('Please provide a specific User ID', 'warning');
+                      return;
+                    }
+                    setNotificationConfirmModal(true);
+                  }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+                >
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#181C32', marginBottom: '8px' }}>
+                      Target Audience *
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {[
+                        { id: 'all', label: '👥 All Users (Riders & Drivers)' },
+                        { id: 'drivers', label: '🚘 Drivers Only' },
+                        { id: 'passengers', label: '👩 Passengers Only' },
+                        { id: 'specific', label: '🎯 Specific User ID' },
+                      ].map((t) => (
+                        <label
+                          key={t.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            border: `2px solid ${notificationForm.target === t.id ? '#4A2060' : '#E4E6EF'}`,
+                            backgroundColor: notificationForm.target === t.id ? '#FBF7FC' : '#FFFFFF',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="target"
+                            checked={notificationForm.target === t.id}
+                            onChange={() => setNotificationForm(prev => ({ ...prev, target: t.id }))}
+                          />
+                          {t.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {notificationForm.target === 'specific' && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#181C32', marginBottom: '6px' }}>
+                        Target User ID *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. usr_1787518952630_lclx"
+                        value={notificationForm.userId}
+                        onChange={(e) => setNotificationForm(prev => ({ ...prev, userId: e.target.value }))}
+                        style={styles.input}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#181C32' }}>
+                        Notification Title *
+                      </label>
+                      <span style={{ fontSize: '11px', color: '#7E8299' }}>{notificationForm.title.length}/100</span>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={100}
+                      placeholder="e.g. Special Weekend Fare Discount or Safety Advisory"
+                      value={notificationForm.title}
+                      onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
+                      style={styles.input}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '13px', fontWeight: '700', color: '#181C32' }}>
+                        Message Body *
+                      </label>
+                      <span style={{ fontSize: '11px', color: '#7E8299' }}>{notificationForm.body.length}/500</span>
+                    </div>
+                    <textarea
+                      maxLength={500}
+                      rows={5}
+                      placeholder="Type the message body that will be sent to users' notifications..."
+                      value={notificationForm.body}
+                      onChange={(e) => setNotificationForm(prev => ({ ...prev, body: e.target.value }))}
+                      style={{ ...styles.input, minHeight: '120px', resize: 'vertical' }}
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSendingNotification}
+                    style={{
+                      ...styles.btnSave,
+                      backgroundColor: '#E83D98',
+                      color: '#FFFFFF',
+                      padding: '14px',
+                      fontSize: '15px',
+                      fontWeight: '800',
+                    }}
+                  >
+                    {isSendingNotification ? 'Broadcasting Notification...' : '🚀 Review & Send Broadcast'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Mobile Push Preview Card */}
+              <div>
+                <div style={styles.cardContainer}>
+                  <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: '800', color: '#181C32' }}>
+                    📱 Mobile Push Preview
+                  </h4>
+                  <div style={{
+                    backgroundColor: '#1E1B4B',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    color: '#FFFFFF',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <span style={{ fontSize: '18px' }}>🚗</span>
+                      <strong style={{ fontSize: '13px', fontWeight: '800', color: '#F472B6' }}>SheDrive</strong>
+                      <span style={{ fontSize: '10px', color: '#9CA3AF', marginLeft: 'auto' }}>now</span>
+                    </div>
+                    <h5 style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: '700', color: '#FFFFFF' }}>
+                      {notificationForm.title || 'Notification Title'}
+                    </h5>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#D1D5DB', lineHeight: 1.4 }}>
+                      {notificationForm.body || 'Your broadcast message preview will appear here in real-time as you type.'}
+                    </p>
+                  </div>
+
+                  <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
+                      ℹ️ Delivery Channels:
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '11px', color: '#64748B', lineHeight: 1.6 }}>
+                      <li>Firebase Cloud Messaging (FCM) Push Alert</li>
+                      <li>In-App Mobile Notification Center</li>
+                      <li>Logged to SheDrive Admin Audit Trail</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Support Ticket Screenshot Modal */}
+      {supportTicketScreenshotModal && (
+        <div style={styles.modalOverlay} onClick={() => setSupportTicketScreenshotModal(null)}>
+          <div style={{ ...styles.modalContent, width: '600px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '800' }}>Support Ticket Attachment</h3>
+            <img
+              src={supportTicketScreenshotModal}
+              alt="Support Attachment"
+              style={{ maxWidth: '100%', maxHeight: '480px', borderRadius: '8px', objectFit: 'contain' }}
+            />
+            <div style={{ marginTop: '16px', textAlign: 'right' }}>
+              <button style={styles.btnSecondary} onClick={() => setSupportTicketScreenshotModal(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ride Details Modal */}
+      {selectedRideDetails && (
+        <div style={styles.modalOverlay} onClick={() => setSelectedRideDetails(null)}>
+          <div style={{ ...styles.modalContent, width: '560px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '800', color: '#181C32' }}>
+              Ride Details #{selectedRideDetails.ride_id?.substring(0, 8)}
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px', marginBottom: '16px' }}>
+              <div><strong>Passenger:</strong> {selectedRideDetails.passenger_name} ({selectedRideDetails.passenger_phone || 'N/A'})</div>
+              <div><strong>Driver:</strong> {selectedRideDetails.driver_name || 'Unassigned'} ({selectedRideDetails.driver_phone || 'N/A'})</div>
+              <div><strong>Vehicle Tier:</strong> {selectedRideDetails.vehicle_category}</div>
+              <div><strong>Status:</strong> <span style={{ textTransform: 'uppercase', fontWeight: '700' }}>{selectedRideDetails.status}</span></div>
+              <div><strong>Final Fare:</strong> PKR {selectedRideDetails.final_fare || selectedRideDetails.offered_fare || 0}</div>
+              <div><strong>Payment Method:</strong> {selectedRideDetails.payment_method || 'Cash'}</div>
+              <div><strong>Created:</strong> {selectedRideDetails.created_at ? new Date(Number(selectedRideDetails.created_at)).toLocaleString() : 'N/A'}</div>
+              <div><strong>Completed:</strong> {selectedRideDetails.completed_at ? new Date(Number(selectedRideDetails.completed_at)).toLocaleString() : 'N/A'}</div>
+            </div>
+            {selectedRideDetails.cancellation_reason && (
+              <div style={{ padding: '10px', backgroundColor: '#FEF2F2', borderRadius: '8px', color: '#DC2626', fontSize: '12px', marginBottom: '16px' }}>
+                <strong>Cancellation Reason:</strong> {selectedRideDetails.cancellation_reason}
+              </div>
+            )}
+            <div style={{ padding: '10px', backgroundColor: '#F8FAFC', borderRadius: '8px', fontSize: '12px', marginBottom: '16px' }}>
+              <div><strong>Pickup:</strong> {selectedRideDetails.pickup_address || `${selectedRideDetails.pickup_latitude}, ${selectedRideDetails.pickup_longitude}`}</div>
+              <div style={{ marginTop: '4px' }}><strong>Dropoff:</strong> {selectedRideDetails.dropoff_address || `${selectedRideDetails.dropoff_latitude}, ${selectedRideDetails.dropoff_longitude}`}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <button style={styles.btnSecondary} onClick={() => setSelectedRideDetails(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivated Account Reactivate Modal */}
+      {reactivateConfirmModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalContent, width: '420px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', fontWeight: '800' }}>
+              Reactivate Account
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#5E6278', lineHeight: 1.5 }}>
+              Are you sure you want to reactivate the account for <strong>{reactivateConfirmModal.userName}</strong>? They will be able to log in and use SheDrive immediately.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button style={styles.btnCancel} onClick={() => setReactivateConfirmModal(null)}>
+                Cancel
+              </button>
+              <button
+                style={styles.btnApprove}
+                onClick={async () => {
+                  try {
+                    await adminApi.reactivateAccount(reactivateConfirmModal.userId);
+                    addToast(`Account for ${reactivateConfirmModal.userName} reactivated!`, 'success');
+                    setReactivateConfirmModal(null);
+                    fetchTabData(false);
+                  } catch (err) {
+                    addToast(err.message || 'Failed to reactivate account', 'error');
+                  }
+                }}
+              >
+                Confirm Reactivate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Notification Confirmation Modal */}
+      {notificationConfirmModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalContent, width: '480px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', fontWeight: '800' }}>
+              Confirm Broadcast Notification
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#5E6278', lineHeight: 1.5 }}>
+              Are you sure you want to broadcast this notification to <strong>{notificationForm.target.toUpperCase()}</strong>?
+            </p>
+            <div style={{ padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#181C32', marginBottom: '4px' }}>{notificationForm.title}</div>
+              <div style={{ fontSize: '12px', color: '#5E6278' }}>{notificationForm.body}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button style={styles.btnCancel} onClick={() => setNotificationConfirmModal(false)}>
+                Cancel
+              </button>
+              <button
+                style={{ ...styles.btnSave, backgroundColor: '#E83D98', color: '#FFFFFF', padding: '8px 18px' }}
+                onClick={async () => {
+                  setIsSendingNotification(true);
+                  try {
+                    const res = await adminApi.sendAdminNotification(
+                      notificationForm.title,
+                      notificationForm.body,
+                      notificationForm.target,
+                      notificationForm.target === 'specific' ? notificationForm.userId : undefined
+                    );
+                    addToast(res.message || 'Broadcast notification sent successfully!', 'success');
+                    setNotificationConfirmModal(false);
+                    setNotificationForm({ title: '', body: '', target: 'all', userId: '' });
+                  } catch (err) {
+                    addToast(err.message || 'Failed to send notification', 'error');
+                  } finally {
+                    setIsSendingNotification(false);
+                  }
+                }}
+              >
+                Send Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Popup Modal */}
       {confirmModal && (
