@@ -570,6 +570,61 @@ Phase 8 verification:
 
 ---
 
+# PHASE 9 — COMPLETED
+
+Phase 9 objective:
+
+OPERATIONAL RELIABILITY, COMPLIANCE MONITORING, DISPUTE RESOLUTION & SYSTEM HEALTH.
+
+Status: COMPLETED
+
+Commit: 4b4eee1c
+
+Implemented:
+1. **Deep System Health & Diagnostics Engine:**
+   - Backend: `GET /api/v1/admin/system/health-deep` (`authenticateToken` $\to$ `requireAdmin`), measuring DB latency safely with lightweight ping, memory utilization (`heapUsedMb`, `heapTotalMb`, `rssMb`), server uptime, and gateway readiness checks (Firebase FCM, Gmail SMTP, Cloudinary).
+   - Admin Portal: Dedicated **🩺 System Health** tab (`SystemHealthTab.jsx`) with live diagnostics cards, latency health indicators, memory gauges, uptime counters, and one-click refresh.
+2. **Driver Document Expiry & Compliance Monitoring:**
+   - Backend: `server/src/routes/v1/compliance.routes.ts`:
+     - `GET /api/v1/admin/compliance/expiries` (filter by `status`: `all`, `expired`, `expiring_soon`, pagination, joins `drivers`, `document_expiry_tracking`, and `users`).
+     - `POST /api/v1/admin/compliance/scan` (batch scans active approved drivers, flags documents expired or expiring within 30 days, generates in-app `user_notifications` of category `document_expiry`, triggers FCM push reminders with 7-day duplicate suppression, and writes `SCAN_COMPLIANCE` to `audit_logs`).
+   - Admin Portal: Dedicated **📋 Driver Compliance** tab (`ComplianceTab.jsx`) with document expiry table, days remaining indicators, and "Run Compliance Scan" trigger button.
+3. **Ride Dispute & Fare Adjustment Workflow:**
+   - Backend: `server/src/routes/v1/dispute.routes.ts`:
+     - `GET /api/v1/admin/disputes` (paginated list of user complaints with ride details, fares, pickup/dropoff, and status filters: `pending`, `resolved`, `rejected`).
+     - `PUT /api/v1/admin/disputes/:id/resolve` (atomic dispute transition, input validation, resolution notes, optional fare adjustment, automated in-app + push notification to complainant, and `RESOLVE_DISPUTE` audit logging).
+   - Admin Portal: Dedicated **⚖️ Ride Disputes** tab (`DisputesTab.jsx`) with dispute review cards, action selector (Dismiss / Issue Warning / Fare Adjustment), and audit notes modal.
+4. **Enhanced Emergency SOS Incident Investigation:**
+   - Backend: `PUT /api/v1/safety/sos/:id/investigate` (`authenticateToken` $\to$ `requireAdmin`, validates severity `'low' | 'medium' | 'high' | 'critical'`, police involvement flag, case resolution notes, updates `sos_alerts`, and writes `INVESTIGATE_SOS_ALERT` to `audit_logs`).
+   - Admin Portal: Enhanced SOS Alerts table with "🔍 Investigate" case modal capturing severity levels, police contact toggle, and detailed case notes.
+5. **Policy Enforcement & Official User Warnings:**
+   - Backend: `POST /api/v1/admin/users/:id/warn` (`authenticateToken` $\to$ `requireAdmin`, supports categories `'cancellation_rate'`, `'policy_violation'`, `'behavior'`, dispatches in-app `user_notifications` of category `'safety'`, sends FCM push alert, and logs `ISSUE_USER_WARNING` to `audit_logs`).
+   - Admin Portal: Added "⚠️ Warn" action button across Approved Drivers and Passengers rosters with warning dispatch modal.
+6. **Security & Zero Schema Migrations:**
+   - 100% of Phase 9 endpoints strictly protected by `authenticateToken` + `requireAdmin`.
+   - Parameterized SQL used exclusively across all queries.
+   - Zero SQL migrations required (100% existing PostgreSQL / Supabase schema utilized).
+
+Phase 9 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build`): PASS (0 errors)
+- Admin Portal build (`npm run build`): PASS (0 errors)
+- Local express route & security test suite: 19/19 PASS (health 200, 401 unauthenticated, 403 non-admin, 400 validation, 200 admin)
+- Live production endpoint probes (`https://shedrive.onrender.com/api/v1`): 17/17 PASS (health 200, all Phase 9 and Phase 1-8 endpoints protected with 401 unauth)
+
+---
+
+# PHASE 10 — NOT IMPLEMENTED (EXPLICIT BOUNDARY)
+
+Phase 10 is STRICTLY UNTOUCHED and OUT OF SCOPE for Phase 9:
+- Multi-stop ride routing
+- Scheduled booking algorithms
+- Complete public marketing website redesign
+- Third-party payment gateway replacements (JazzCash / EasyPaisa)
+- Machine learning pricing or matching engines
+
+---
+
 # FROZEN / OUT OF SCOPE
 
 Do NOT implement:
