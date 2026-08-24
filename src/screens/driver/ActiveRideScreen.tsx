@@ -244,13 +244,56 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
     });
   };
 
+  const nextIncompleteStop = (ride?.stops || []).find((s) => !s.completed);
+
   const handleLaunchNavigation = () => {
     if (!ride) return;
-    const dest = ride.status === 'accepted' ? ride.pickup : ride.dropoff;
+    let dest = ride.dropoff;
+    if (ride.status === 'accepted') {
+      dest = ride.pickup;
+    } else if ((ride.status === 'enroute' || ride.status === 'in_progress') && nextIncompleteStop) {
+      dest = { latitude: nextIncompleteStop.latitude, longitude: nextIncompleteStop.longitude, label: nextIncompleteStop.label };
+    }
     const url = `https://www.google.com/maps/dir/?api=1&destination=${dest.latitude},${dest.longitude}&travelmode=driving`;
     Linking.openURL(url).catch(() => {
       Alert.alert('Navigation Error', 'Could not open Google Maps navigation.');
     });
+  };
+
+  const handleCompleteStop = async () => {
+    if (!ride || !nextIncompleteStop) return;
+    try {
+      setIsUpdatingStatus(true);
+      const updatedStops = (ride.stops || []).map((s) => {
+        if (s.stopOrder === nextIncompleteStop.stopOrder) {
+          return { ...s, completed: true, completedAt: Date.now() };
+        }
+        return s;
+      });
+
+      const rideRef = doc(db, 'rides', rideId);
+      await updateDoc(rideRef, {
+        stops: updatedStops,
+        updatedAt: Date.now(),
+      });
+
+      if (nextIncompleteStop.id) {
+        await fetch(`${getApiBaseUrl()}/rides/${rideId}/stops/${nextIncompleteStop.id}/complete`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${state.token}`,
+          },
+        }).catch((e) => console.warn('Backend stop completion notice:', e));
+      }
+
+      Alert.alert('Waypoint Completed', `Arrived and completed stop: ${nextIncompleteStop.label}`);
+    } catch (err) {
+      console.error('Complete stop error:', err);
+      Alert.alert('Error', 'Could not mark stop as completed.');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
   // Convert polyline string coordinates back to Leaflet-compatible array
@@ -268,6 +311,14 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
     if (!ride) return [];
     const markers: MapMarker[] = [
       { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '📍', title: 'Pickup point', isCustomer: true },
+      ...(ride.stops || []).map((s, idx) => ({
+        id: `stop_${idx}`,
+        lat: s.latitude,
+        lng: s.longitude,
+        emoji: s.completed ? '✅' : '🟡',
+        title: `Stop #${idx + 1}: ${s.label} (${s.completed ? 'Completed' : 'Pending'})`,
+        isCustomer: false,
+      })),
       { id: 'destination', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🏁', title: 'Dropoff point', isDestination: true },
     ];
 
@@ -293,7 +344,8 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
       case 'arrived':
         return 'Start Ride';
       case 'enroute':
-        return 'Complete Ride';
+      case 'in_progress':
+        return nextIncompleteStop ? 'Finish All Stops to Complete' : 'Complete Ride';
       default:
         return '';
     }
@@ -334,12 +386,20 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
           </Text>
         </View>
 
-        {/* Passenger Information */}
+        {/* Passenger & Trip Information */}
         <View style={styles.passengerCard}>
           <View style={styles.passengerRow}>
             <View style={styles.passengerMeta}>
               <Text style={styles.passengerName}>Passenger: {ride.passengerName}</Text>
               <Text style={styles.routeText} numberOfLines={1}>🟢 {ride.pickup.label}</Text>
+              
+              {/* Intermediate Stops Display */}
+              {ride.stops && ride.stops.length > 0 && ride.stops.map((s, idx) => (
+                <Text key={s.id || `stop-${idx}`} style={[styles.routeText, { color: s.completed ? '#10B981' : '#F59E0B' }]} numberOfLines={1}>
+                  {s.completed ? '✅' : '🟡'} Stop #{idx + 1}: {s.label}
+                </Text>
+              ))}
+
               <Text style={styles.routeText} numberOfLines={1}>🔴 {ride.dropoff.label}</Text>
             </View>
             <View style={styles.actionButtonsRow}>
@@ -357,7 +417,12 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
           </View>
 
           <View style={styles.fareRow}>
-            <Text style={styles.fareLabel}>Trip Fare</Text>
+            <View>
+              <Text style={styles.fareLabel}>Trip Fare</Text>
+              <Text style={{ fontSize: 11, color: Colors.light.textSecondary }}>
+                Method: {ride.paymentMethod === 'jazzcash' ? '💳 JazzCash' : ride.paymentMethod === 'easypaisa' ? '💳 Easypaisa' : '💵 Cash'}
+              </Text>
+            </View>
             <Text style={styles.fareValue}>{formatCurrency(ride.currentFare)}</Text>
           </View>
         </View>
@@ -371,15 +436,36 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
               activeOpacity={0.85}
             >
               <Text style={styles.navButtonText}>
-                {ride.status === 'accepted' ? '🗺️ Navigate to Pickup' : '🗺️ Navigate to Destination'}
+                {ride.status === 'accepted' 
+                  ? '🗺️ Navigate to Pickup' 
+                  : nextIncompleteStop 
+                    ? `🗺️ Navigate to Stop #${nextIncompleteStop.stopOrder}` 
+                    : '🗺️ Navigate to Destination'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Intermediate Stop Completion Button */}
+          {(ride.status === 'enroute' || ride.status === 'in_progress') && nextIncompleteStop && (
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#10B981', marginBottom: 10 }]}
+              onPress={handleCompleteStop}
+              disabled={isUpdatingStatus}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionButtonText}>
+                ✅ Complete Stop #{nextIncompleteStop.stopOrder}: {nextIncompleteStop.label}
               </Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity
-            style={[styles.actionButton, isUpdatingStatus && styles.actionButtonDisabled]}
+            style={[
+              styles.actionButton, 
+              (isUpdatingStatus || ((ride.status === 'enroute' || ride.status === 'in_progress') && nextIncompleteStop)) && styles.actionButtonDisabled
+            ]}
             onPress={handleAdvanceStatus}
-            disabled={isUpdatingStatus}
+            disabled={isUpdatingStatus || Boolean((ride.status === 'enroute' || ride.status === 'in_progress') && nextIncompleteStop)}
             activeOpacity={0.8}
           >
             {isUpdatingStatus ? (

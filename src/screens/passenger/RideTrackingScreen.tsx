@@ -291,6 +291,14 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
     if (!ride) return [];
     const markers: MapMarker[] = [
       { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '📍', title: 'Pickup', isCustomer: true },
+      ...(ride.stops || []).map((s, idx) => ({
+        id: `stop_${idx}`,
+        lat: s.latitude,
+        lng: s.longitude,
+        emoji: s.completed ? '✅' : '🟡',
+        title: `Stop #${idx + 1}: ${s.label} (${s.completed ? 'Completed' : 'Pending'})`,
+        isCustomer: false,
+      })),
       { id: 'dropoff', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🏁', title: 'Destination', isDestination: true },
     ];
 
@@ -339,6 +347,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         {/* State Banner */}
         <View style={styles.statusBanner}>
           <Text style={styles.statusLabel}>
+            {ride.status === 'scheduled' && `🕒 Scheduled Ride: Departure at ${ride.scheduledFor ? new Date(ride.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'set time'}`}
             {ride.status === 'pending' && '🔍 Searching for nearby verified drivers...'}
             {ride.status === 'negotiating' && '💬 Negotiating fare...'}
             {ride.status === 'accepted' && '🚗 Driver is navigating to pickup point...'}
@@ -348,6 +357,33 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
             {ride.status === 'enroute' && '🌟 Ride in progress...'}
           </Text>
         </View>
+
+        {/* Multi-Stop Progress Indicator (Phase 10) */}
+        {ride.stops && ride.stops.length > 0 && (
+          <View style={{ marginHorizontal: 24, padding: 14, backgroundColor: Colors.light.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontWeight: '800', color: Colors.light.textSecondary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+              🗺️ Multi-Stop Route Progress
+            </Text>
+            <View style={{ gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ fontSize: 14 }}>🟢</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.light.text, flex: 1 }} numberOfLines={1}>Pickup: {ride.pickup.label}</Text>
+              </View>
+              {ride.stops.map((s, idx) => (
+                <View key={s.id || `stop-${idx}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={{ fontSize: 14 }}>{s.completed ? '✅' : '🟡'}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: s.completed ? '#10B981' : Colors.light.text, flex: 1 }} numberOfLines={1}>
+                    Stop #{idx + 1}: {s.label} ({s.completed ? 'Completed' : 'Next'})
+                  </Text>
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ fontSize: 14 }}>🔴</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.light.text, flex: 1 }} numberOfLines={1}>Destination: {ride.dropoff.label}</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* 4-Digit Ride Verification PIN Card */}
         {(ride.status === 'accepted' || ride.status === 'arrived') && (

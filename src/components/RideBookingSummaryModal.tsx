@@ -9,7 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import Colors from '../constants/Colors';
-import { LocationPoint, VehicleCategory } from '../types';
+import { LocationPoint, VehicleCategory, RideStop } from '../types';
 import { formatCurrency } from '../utils/helpers';
 
 interface Props {
@@ -21,6 +21,9 @@ interface Props {
   durationMin: number;
   estimatedFare: number;
   offeredFare: number;
+  stops?: RideStop[];
+  isScheduled?: boolean;
+  scheduledFor?: number | null;
   paymentMethod?: string;
   onConfirm: () => void;
   onCancel: () => void;
@@ -36,6 +39,9 @@ export const RideBookingSummaryModal: React.FC<Props> = ({
   durationMin,
   estimatedFare,
   offeredFare,
+  stops = [],
+  isScheduled = false,
+  scheduledFor = null,
   paymentMethod = 'Cash on Arrival',
   onConfirm,
   onCancel,
@@ -47,6 +53,17 @@ export const RideBookingSummaryModal: React.FC<Props> = ({
         <SafeAreaView style={styles.modalContent}>
           <ScrollView contentContainerStyle={styles.scrollBody}>
             <Text style={styles.modalTitle}>Confirm Booking Summary</Text>
+
+            {/* Scheduled Booking Banner */}
+            {isScheduled && scheduledFor && (
+              <View style={{ backgroundColor: '#EEF2FF', padding: 12, borderRadius: 12, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#C7D2FE' }}>
+                <Text style={{ fontSize: 20 }}>🕒</Text>
+                <View>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#4338CA', textTransform: 'uppercase' }}>Scheduled Departure</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E1B4B' }}>{new Date(scheduledFor).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
+                </View>
+              </View>
+            )}
 
             {/* Vehicle Tier Badge */}
             <View style={styles.categoryBadge}>
@@ -66,6 +83,21 @@ export const RideBookingSummaryModal: React.FC<Props> = ({
                   <Text style={styles.locationValue} numberOfLines={1}>{pickup.label}</Text>
                 </View>
               </View>
+
+              {/* Intermediate Stops */}
+              {stops && stops.length > 0 && stops.map((stop, idx) => (
+                <React.Fragment key={stop.id || `stop-${idx}`}>
+                  <View style={styles.locationDivider} />
+                  <View style={styles.locationRow}>
+                    <Text style={styles.dot}>🟡</Text>
+                    <View style={styles.locationTextContainer}>
+                      <Text style={styles.locationLabel}>STOP #{idx + 1}</Text>
+                      <Text style={styles.locationValue} numberOfLines={1}>{stop.label}</Text>
+                    </View>
+                  </View>
+                </React.Fragment>
+              ))}
+
               <View style={styles.locationDivider} />
               <View style={styles.locationRow}>
                 <Text style={styles.dot}>🔴</Text>

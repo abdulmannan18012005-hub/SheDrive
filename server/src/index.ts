@@ -73,6 +73,7 @@ app.use('/api/v1/support', supportRoutes);
 app.use('/api/v1/admin/analytics', analyticsRoutes);
 app.use('/api/v1/admin/compliance', complianceRoutes);
 app.use('/api/v1/admin/disputes', disputeRoutes);
+app.use('/api/v1/admin/payments', paymentRoutes); // Alias: admin portal calls /admin/payments/transactions
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/driver', driverRoutes);
 app.use('/api/v1/payments', paymentRoutes);

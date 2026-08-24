@@ -15,13 +15,13 @@ import {
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { PassengerStackParamList, LocationPoint } from '../../types';
+import { PassengerStackParamList, LocationPoint, RideStop } from '../../types';
 import Colors from '../../constants/Colors';
 import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction } from '../../services/googlePlaces';
 import { searchAddress, reverseGeocode } from '../../services/nominatim';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useLocation } from '../../hooks/useLocation';
-import { getRoute } from '../../services/osrm';
+import { getRoute, getMultiStopRoute } from '../../services/osrm';
 import { SkeletonLoader } from '../../components/SkeletonLoader';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
@@ -62,6 +62,10 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
+
+  // Intermediate stops state (Phase 10: Multi-stop rides, max 3 intermediate stops)
+  const [intermediateStops, setIntermediateStops] = useState<LocationPoint[]>([]);
+  const [editingStopIndex, setEditingStopIndex] = useState<number | null>(null);
 
   // Debounced inputs for geocoder query (300ms fast response)
   const debouncedPickup = useDebounce(pickupText, 300);
@@ -241,23 +245,45 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
 
     try {
       setIsCalculatingRoute(true);
-      // Calculate routing details using OSRM
-      const osrmRoute = await getRoute(
-        pickupPoint.latitude,
-        pickupPoint.longitude,
-        destPoint.latitude,
-        destPoint.longitude
-      );
+
+      let osrmRoute;
+
+      if (intermediateStops.length > 0) {
+        // Build ordered waypoints: pickup -> stops -> destination
+        const waypoints = [
+          pickupPoint,
+          ...intermediateStops,
+          destPoint,
+        ];
+        osrmRoute = await getMultiStopRoute(waypoints);
+      } else {
+        // Standard point-to-point routing
+        osrmRoute = await getRoute(
+          pickupPoint.latitude,
+          pickupPoint.longitude,
+          destPoint.latitude,
+          destPoint.longitude
+        );
+      }
 
       if (!osrmRoute) {
         throw new Error('Could not calculate a viable driving route.');
       }
+
+      // Build stops for navigation
+      const rideStops: RideStop[] = intermediateStops.map((s, i) => ({
+        latitude: s.latitude,
+        longitude: s.longitude,
+        label: s.label,
+        stopOrder: i + 1,
+      }));
 
       // Navigate to Bidding screen (FareBid)
       navigation.navigate('FareBid', {
         pickup: pickupPoint,
         destination: destPoint,
         route: osrmRoute,
+        stops: rideStops.length > 0 ? rideStops : undefined,
       });
     } catch (error) {
       Alert.alert('Route Error', 'Unable to calculate route. Please try again.');

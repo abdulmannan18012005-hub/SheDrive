@@ -33,7 +33,7 @@ interface Props {
 }
 
 export default function FareBidScreen({ navigation, route }: Props): React.JSX.Element {
-  const { pickup, destination, route: routeData } = route.params;
+  const { pickup, destination, route: routeData, stops = [], isScheduled: initScheduled = false, scheduledFor: initScheduledFor = null } = route.params;
   const { state, dispatch } = useApp();
   const user = state.user;
 
@@ -52,6 +52,15 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
   const [bidInput, setBidInput] = useState<string>(estimatedFare.toString());
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSummaryVisible, setIsSummaryVisible] = useState<boolean>(false);
+
+  // Payment Method Selection (Phase 10: Cash, JazzCash Sandbox, Easypaisa Sandbox)
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'jazzcash' | 'easypaisa'>('cash');
+  const [mobileAccountNo, setMobileAccountNo] = useState<string>(user?.phone || '');
+
+  // Scheduled Booking State (Phase 10: Book in advance)
+  const [isScheduled, setIsScheduled] = useState<boolean>(Boolean(initScheduled));
+  const [scheduledHoursAdvance, setScheduledHoursAdvance] = useState<number>(1);
+  const scheduledTimestamp = Date.now() + scheduledHoursAdvance * 60 * 60 * 1000;
 
   // Switch Vehicle Category
   const handleSelectCategory = (category: VehicleCategory) => {
@@ -89,6 +98,11 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       return;
     }
 
+    if ((paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') && !mobileAccountNo.trim()) {
+      Alert.alert('Mobile Account Required', `Please enter your 11-digit ${paymentMethod === 'jazzcash' ? 'JazzCash' : 'Easypaisa'} mobile wallet number.`);
+      return;
+    }
+
     setIsSummaryVisible(true);
   };
 
@@ -101,6 +115,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       const rideId = rideDocRef.id;
 
       const polylineString = JSON.stringify(routeData.geometry.coordinates);
+      const effectiveScheduledFor = isScheduled ? scheduledTimestamp : null;
 
       const rideRequest: RideRequest = {
         rideId,
@@ -110,11 +125,12 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
         passengerPhone: user!.phone,
         pickup,
         dropoff: destination,
+        stops: stops.length > 0 ? stops : undefined,
         distanceKm,
         durationMin,
         initialBid: bidAmount,
         currentFare: bidAmount,
-        status: 'pending',
+        status: isScheduled ? 'scheduled' : 'pending',
         driverId: null,
         driverName: null,
         driverPhone: null,
@@ -129,6 +145,9 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           },
         ],
         polyline: polylineString,
+        paymentMethod,
+        isScheduled,
+        scheduledFor: effectiveScheduledFor,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -138,7 +157,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
         serverCreatedAt: serverTimestamp(),
       });
 
-      // Sync to Node.js / PostgreSQL backend server for analytics & admin monitoring
+      // Sync to Node.js / PostgreSQL backend server
       try {
         await fetch(`${getApiBaseUrl()}/rides/request`, {
           method: 'POST',
@@ -151,13 +170,36 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
             vehicleCategory: selectedCategory.id,
             pickup,
             destination,
+            stops: stops.length > 0 ? stops : undefined,
             distanceKm,
             durationMin,
             estimatedFare,
             offeredFare: bidAmount,
             polyline: polylineString,
+            paymentMethod,
+            isScheduled,
+            scheduledFor: effectiveScheduledFor,
           }),
         });
+
+        // If digital payment selected, initiate transaction
+        if (paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') {
+          await fetch(`${getApiBaseUrl()}/payments/passenger/initiate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${state.token}`,
+            },
+            body: JSON.stringify({
+              rideId,
+              provider: paymentMethod,
+              amount: bidAmount,
+              mobileAccountNo,
+              customerEmail: user?.email,
+              idempotencyKey: `idemp_${rideId}_${paymentMethod}`,
+            }),
+          });
+        }
       } catch (backendErr) {
         console.warn('Backend ride request sync warning:', backendErr);
       }
@@ -180,6 +222,14 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
 
   const mapMarkers = [
     { id: 'pickup', lat: pickup.latitude, lng: pickup.longitude, emoji: '📍', title: 'Pickup point', isCustomer: true },
+    ...(stops || []).map((s, idx) => ({
+      id: `stop_${idx}`,
+      lat: s.latitude,
+      lng: s.longitude,
+      emoji: '🟡',
+      title: `Stop #${idx + 1}: ${s.label}`,
+      isCustomer: false,
+    })),
     { id: 'destination', lat: destination.latitude, lng: destination.longitude, emoji: '🏁', title: 'Destination', isDestination: true },
   ];
 
@@ -288,6 +338,122 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           </View>
         </View>
 
+        {/* Scheduled Booking Options (Phase 10) */}
+        <View style={styles.sectionContainer}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={styles.sectionTitle}>Departure Time</Text>
+            <TouchableOpacity 
+              onPress={() => setIsScheduled(!isScheduled)}
+              style={{ backgroundColor: isScheduled ? Colors.light.primary : Colors.light.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: isScheduled ? Colors.light.primary : Colors.light.border }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: isScheduled ? Colors.light.textOnPrimary : Colors.light.text }}>
+                {isScheduled ? '🕒 Scheduled' : '⚡ Ride Now'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {isScheduled && (
+            <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.light.border, gap: 10 }}>
+              <Text style={{ fontSize: 13, color: Colors.light.textSecondary }}>Select advance booking window:</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {[
+                  { label: '+1 Hour', hours: 1 },
+                  { label: '+2 Hours', hours: 2 },
+                  { label: '+4 Hours', hours: 4 },
+                  { label: 'Tomorrow', hours: 24 },
+                ].map((preset) => {
+                  const isPresetActive = scheduledHoursAdvance === preset.hours;
+                  return (
+                    <TouchableOpacity
+                      key={preset.label}
+                      onPress={() => setScheduledHoursAdvance(preset.hours)}
+                      style={{
+                        backgroundColor: isPresetActive ? Colors.light.primary : Colors.light.background,
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: isPresetActive ? Colors.light.primary : Colors.light.border,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: isPresetActive ? Colors.light.textOnPrimary : Colors.light.text }}>
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.light.primary, marginTop: 4 }}>
+                🕒 Scheduled for: {new Date(scheduledTimestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Payment Method Selector (Phase 10: Cash, JazzCash, Easypaisa) */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+            {[
+              { id: 'cash' as const, label: '💵 Cash', badge: 'Default' },
+              { id: 'jazzcash' as const, label: '💳 JazzCash', badge: 'Sandbox' },
+              { id: 'easypaisa' as const, label: '💳 Easypaisa', badge: 'Sandbox' },
+            ].map((p) => {
+              const isSelected = paymentMethod === p.id;
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => setPaymentMethod(p.id)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: isSelected ? Colors.light.primaryGhost : Colors.light.surface,
+                    borderColor: isSelected ? Colors.light.primary : Colors.light.border,
+                    borderWidth: 1.5,
+                    borderRadius: 14,
+                    padding: 10,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: isSelected ? Colors.light.primary : Colors.light.text }}>
+                    {p.label}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: isSelected ? Colors.light.primary : Colors.light.textSecondary, marginTop: 2 }}>
+                    {p.badge}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {(paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') && (
+            <View style={{ backgroundColor: Colors.light.surface, borderRadius: 14, padding: 12, marginTop: 10, borderWidth: 1, borderColor: Colors.light.border }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.light.textSecondary, marginBottom: 6 }}>
+                {paymentMethod === 'jazzcash' ? 'JazzCash' : 'Easypaisa'} Mobile Account Number:
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: Colors.light.background,
+                  borderRadius: 10,
+                  padding: 10,
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: Colors.light.text,
+                  borderWidth: 1,
+                  borderColor: Colors.light.border,
+                }}
+                placeholder="03001234567"
+                placeholderTextColor={Colors.light.textTertiary}
+                value={mobileAccountNo}
+                onChangeText={setMobileAccountNo}
+                keyboardType="phone-pad"
+              />
+              <Text style={{ fontSize: 11, color: Colors.light.textSecondary, marginTop: 6 }}>
+                ⚡ Sandbox Mode: Test payments simulate mobile wallet authentication.
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Action confirmation button */}
         <View style={styles.actionContainer}>
           <TouchableOpacity
@@ -303,7 +469,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
               <ActivityIndicator color={Colors.light.textOnPrimary} />
             ) : (
               <Text style={styles.requestButtonText}>
-                Review {selectedCategory.name} Request ({formatCurrency(bidAmount)})
+                {isScheduled ? 'Schedule' : 'Request'} {selectedCategory.name} ({formatCurrency(bidAmount)})
               </Text>
             )}
           </TouchableOpacity>
@@ -315,6 +481,10 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
         visible={isSummaryVisible}
         pickup={pickup}
         destination={destination}
+        stops={stops}
+        isScheduled={isScheduled}
+        scheduledFor={isScheduled ? scheduledTimestamp : null}
+        paymentMethod={paymentMethod === 'cash' ? 'Cash on Arrival' : paymentMethod === 'jazzcash' ? 'JazzCash MWALLET' : 'Easypaisa MA'}
         category={selectedCategory}
         distanceKm={distanceKm}
         durationMin={durationMin}

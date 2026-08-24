@@ -115,6 +115,7 @@ export interface FareOffer {
 // ─── Ride Status ───────────────────────────────────────────
 export type RideStatus =
   | 'pending'
+  | 'scheduled'
   | 'negotiating'
   | 'accepted'
   | 'arrived'
@@ -125,6 +126,17 @@ export type RideStatus =
   | 'completed'
   | 'cancelled';
 
+// ─── Ride Stop Waypoint ────────────────────────────────────
+export interface RideStop {
+  id?: string;
+  latitude: number;
+  longitude: number;
+  label: string;
+  stopOrder: number;
+  completed?: boolean;
+  completedAt?: number | null;
+}
+
 // ─── Ride Request ──────────────────────────────────────────
 export interface RideRequest {
   rideId: string;
@@ -134,6 +146,7 @@ export interface RideRequest {
   passengerPhone: string;
   pickup: LocationPoint;
   dropoff: LocationPoint;
+  stops?: RideStop[];
   distanceKm: number;
   durationMin: number;
   initialBid: number;
@@ -146,6 +159,9 @@ export interface RideRequest {
   driverCoords: Coordinates | null;
   offers: FareOffer[];
   polyline: string;
+  paymentMethod?: 'cash' | 'jazzcash' | 'easypaisa';
+  isScheduled?: boolean;
+  scheduledFor?: number | null;
   verificationPin?: string;
   createdAt: number;
   updatedAt: number;
@@ -248,7 +264,7 @@ export type AuthStackParamList = {
 export type PassengerStackParamList = {
   PassengerHome: undefined;
   Search: undefined;
-  FareBid: { pickup: LocationPoint; destination: LocationPoint; route: OSRMRoute };
+  FareBid: { pickup: LocationPoint; destination: LocationPoint; route: OSRMRoute; stops?: RideStop[]; isScheduled?: boolean; scheduledFor?: number };
   RideTracking: { rideId: string };
   RideHistory: undefined;
   Profile: undefined;

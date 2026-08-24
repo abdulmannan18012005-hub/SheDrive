@@ -421,4 +421,291 @@ router.get('/admin/payments/summary', authenticateToken, async (req: AuthRequest
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// Phase 10: Passenger Payment Gateways (Cash, JazzCash, Easypaisa)
+// ─────────────────────────────────────────────────────────────
+
+import { getPaymentGateway, PaymentProvider } from '../../services/payments/paymentGateway';
+
+/**
+ * POST /api/v1/payments/passenger/initiate
+ * Body: { rideId: string, provider: 'cash' | 'jazzcash' | 'easypaisa', amount: number, mobileAccountNo?: string, customerEmail?: string, idempotencyKey?: string }
+ * Description: Initiates passenger payment via Cash or Digital Wallet (JazzCash / Easypaisa Sandbox)
+ */
+router.post('/passenger/initiate', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { rideId, provider, amount, mobileAccountNo, customerEmail, idempotencyKey } = req.body;
+
+    if (!rideId || !provider || amount === undefined || isNaN(Number(amount)) || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Valid rideId, provider, and positive amount are required' });
+    }
+
+    const validProviders: PaymentProvider[] = ['cash', 'jazzcash', 'easypaisa'];
+    if (!validProviders.includes(provider)) {
+      return res.status(400).json({ error: `Provider must be one of: ${validProviders.join(', ')}` });
+    }
+
+    // Idempotency check
+    if (idempotencyKey) {
+      const existingTxn = await query(
+        'SELECT * FROM payment_transactions WHERE idempotency_key = $1',
+        [idempotencyKey]
+      );
+      if (existingTxn.rows.length > 0) {
+        const txn = existingTxn.rows[0];
+        return res.status(200).json({
+          success: true,
+          transactionId: txn.id,
+          status: txn.status,
+          provider: txn.provider,
+          amount: parseFloat(txn.amount),
+          currency: txn.currency,
+          message: 'Returning existing idempotent transaction',
+          isDuplicate: true,
+        });
+      }
+    }
+
+    // Verify ride exists and belongs to this user or driver
+    const rideRes = await query('SELECT * FROM rides WHERE ride_id = $1', [rideId]);
+    if (rideRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Ride not found' });
+    }
+
+    const gateway = getPaymentGateway(provider);
+    const result = await gateway.initiatePayment({
+      rideId,
+      userId,
+      amount: Number(amount),
+      provider,
+      mobileAccountNo,
+      customerEmail,
+      idempotencyKey,
+    });
+
+    // Update ride payment_method in rides table
+    await query(
+      'UPDATE rides SET payment_method = $1, updated_at = $2 WHERE ride_id = $3',
+      [provider, Date.now(), rideId]
+    ).catch(e => console.warn('Update ride payment_method notice:', e?.message));
+
+    // Audit log
+    const auditId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    query(
+      'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
+      [auditId, userId, 'INITIATE_PAYMENT', `Initiated ${provider} payment for Ride ${rideId} (Amount: Rs. ${amount}, Status: ${result.status})`, Date.now()]
+    ).catch(e => console.warn('Audit log write error:', e?.message));
+
+    res.status(201).json(result);
+  } catch (error: any) {
+    console.error('Initiate passenger payment error:', error);
+    res.status(500).json({ error: 'Failed to initiate passenger payment transaction' });
+  }
+});
+
+/**
+ * GET /api/v1/payments/passenger/transactions/:id
+ * Description: Verifies and returns status of a specific payment transaction.
+ */
+router.get('/passenger/transactions/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    const resTxn = await query('SELECT * FROM payment_transactions WHERE id = $1', [id]);
+    if (resTxn.rows.length === 0) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    const txn = resTxn.rows[0];
+    if (userRole !== 'admin' && txn.user_id !== userId) {
+      return res.status(403).json({ error: 'Forbidden. You cannot view other users payment transactions.' });
+    }
+
+    res.status(200).json({
+      transactionId: txn.id,
+      rideId: txn.ride_id,
+      userId: txn.user_id,
+      provider: txn.provider,
+      amount: parseFloat(txn.amount),
+      currency: txn.currency,
+      status: txn.status,
+      transactionRef: txn.transaction_ref,
+      createdAt: parseInt(txn.created_at, 10),
+      updatedAt: parseInt(txn.updated_at, 10),
+    });
+  } catch (error: any) {
+    console.error('Fetch transaction error:', error);
+    res.status(500).json({ error: 'Failed to fetch transaction details' });
+  }
+});
+
+/**
+ * POST /api/v1/payments/callbacks/jazzcash
+ * Description: Webhook IPN handler for JazzCash callbacks with HMAC signature verification.
+ */
+router.post('/callbacks/jazzcash', async (req: Request, res: Response) => {
+  try {
+    const gateway = getPaymentGateway('jazzcash');
+    const result = await gateway.handleWebhook(req.body, req.headers);
+
+    if (result.success && result.status === 'success') {
+      // Find associated ride and notify participants
+      const txnRes = await query('SELECT ride_id, user_id, amount FROM payment_transactions WHERE id = $1 OR transaction_ref = $1', [result.transactionId]);
+      if (txnRes.rows.length > 0) {
+        const txn = txnRes.rows[0];
+        sendPushNotification({
+          userId: txn.user_id,
+          title: '💳 Payment Successful',
+          body: `Your JazzCash payment of Rs. ${txn.amount} has been verified successfully.`,
+          data: { type: 'PAYMENT_SUCCESS', rideId: txn.ride_id, provider: 'jazzcash' },
+        }).catch(err => console.warn('[FCM] JazzCash success push error:', err?.message));
+      }
+    }
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error('JazzCash callback error:', error);
+    res.status(400).json({ error: 'Webhook processing error', details: error?.message });
+  }
+});
+
+/**
+ * POST /api/v1/payments/callbacks/easypaisa
+ * Description: Webhook IPN handler for Easypaisa callbacks with SHA-256 signature verification.
+ */
+router.post('/callbacks/easypaisa', async (req: Request, res: Response) => {
+  try {
+    const gateway = getPaymentGateway('easypaisa');
+    const result = await gateway.handleWebhook(req.body, req.headers);
+
+    if (result.success && result.status === 'success') {
+      const txnRes = await query('SELECT ride_id, user_id, amount FROM payment_transactions WHERE id = $1 OR transaction_ref = $1', [result.transactionId]);
+      if (txnRes.rows.length > 0) {
+        const txn = txnRes.rows[0];
+        sendPushNotification({
+          userId: txn.user_id,
+          title: '💳 Payment Successful',
+          body: `Your Easypaisa payment of Rs. ${txn.amount} has been verified successfully.`,
+          data: { type: 'PAYMENT_SUCCESS', rideId: txn.ride_id, provider: 'easypaisa' },
+        }).catch(err => console.warn('[FCM] Easypaisa success push error:', err?.message));
+      }
+    }
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error('Easypaisa callback error:', error);
+    res.status(400).json({ error: 'Webhook processing error', details: error?.message });
+  }
+});
+
+/**
+ * GET /api/v1/payments/admin/transactions and GET /api/v1/admin/payments/transactions
+ * Query: provider? ('all'|'cash'|'jazzcash'|'easypaisa'), status? ('all'|'pending'|'success'|'failed'), page, limit
+ * Description: Admin management endpoint to inspect all passenger digital & cash transactions.
+ */
+const handleAdminTransactions = async (req: Request, res: Response) => {
+  try {
+    const provider = (req.query.provider as string) || 'all';
+    const status = (req.query.status as string) || 'all';
+    const page = Math.max(1, parseInt(req.query.page as string || '1', 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string || '20', 10)));
+    const offset = (page - 1) * limit;
+
+    let filterSql = 'WHERE 1=1';
+    const params: any[] = [];
+
+    if (provider !== 'all') {
+      params.push(provider);
+      filterSql += ` AND pt.provider = $${params.length}`;
+    }
+
+    if (status !== 'all') {
+      params.push(status);
+      filterSql += ` AND pt.status = $${params.length}`;
+    }
+
+    const dataParams = [...params, limit, offset];
+    const dataQuery = `
+      SELECT 
+        pt.id as transaction_id,
+        pt.ride_id,
+        pt.user_id,
+        u.name as user_name,
+        u.phone as user_phone,
+        pt.provider,
+        pt.amount,
+        pt.currency,
+        pt.transaction_ref,
+        pt.status,
+        pt.gateway_response,
+        pt.created_at,
+        pt.updated_at,
+        r.pickup_label,
+        r.dropoff_label,
+        r.vehicle_category
+      FROM payment_transactions pt
+      LEFT JOIN users u ON pt.user_id = u.id
+      LEFT JOIN rides r ON pt.ride_id = r.ride_id
+      ${filterSql}
+      ORDER BY pt.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM payment_transactions pt
+      ${filterSql}
+    `;
+
+    const [rowsRes, countRes] = await Promise.all([
+      query(dataQuery, dataParams),
+      query(countQuery, params),
+    ]);
+
+    const total = parseInt(countRes.rows[0]?.total || '0', 10);
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    res.status(200).json({
+      transactions: rowsRes.rows.map((r: any) => ({
+        id: r.transaction_id,
+        rideId: r.ride_id,
+        userId: r.user_id,
+        userName: r.user_name || 'Community Rider',
+        userPhone: r.user_phone || 'N/A',
+        provider: r.provider,
+        amount: parseFloat(r.amount || '0'),
+        currency: r.currency || 'PKR',
+        transactionRef: r.transaction_ref,
+        status: r.status,
+        createdAt: parseInt(r.created_at, 10),
+        updatedAt: parseInt(r.updated_at, 10),
+        pickup: r.pickup_label || 'N/A',
+        dropoff: r.dropoff_label || 'N/A',
+        vehicleTier: r.vehicle_category || 'standard',
+        isSandbox: r.gateway_response?.isSandbox ?? true,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
+  } catch (error: any) {
+    console.error('Fetch admin transactions error:', error);
+    res.status(500).json({ error: 'Failed to fetch payment transactions' });
+  }
+};
+
+router.get('/admin/transactions', authenticateToken, requireAdmin, handleAdminTransactions);
+router.get('/admin/payments/transactions', authenticateToken, requireAdmin, handleAdminTransactions);
+
 export default router;
+

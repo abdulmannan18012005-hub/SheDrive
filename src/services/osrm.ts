@@ -100,3 +100,66 @@ export async function getRouteWithAlternatives(
     return [];
   }
 }
+
+/**
+ * Calculates an ordered multi-stop driving route between 2 or more coordinates (e.g. Pickup -> Stop 1 -> Stop 2 -> Dropoff).
+ * Returns cumulative distance, duration, and GeoJSON geometry.
+ *
+ * @param waypoints - Array of { latitude, longitude } points in visitation order
+ * @returns OSRMRoute object or null on failure
+ */
+export async function getMultiStopRoute(
+  waypoints: Array<{ latitude: number; longitude: number }>
+): Promise<OSRMRoute | null> {
+  if (!waypoints || waypoints.length < 2) {
+    return null;
+  }
+
+  if (waypoints.length === 2) {
+    return getRoute(
+      waypoints[0].latitude,
+      waypoints[0].longitude,
+      waypoints[1].latitude,
+      waypoints[1].longitude
+    );
+  }
+
+  try {
+    const coordsParam = waypoints
+      .map((p) => `${p.longitude},${p.latitude}`)
+      .join(';');
+
+    const url =
+      `${OSRM_BASE_URL}/route/v1/driving/${coordsParam}` +
+      `?overview=full&geometries=geojson&alternatives=false`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`OSRM API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+      console.error('OSRM returned no multi-stop route:', data.code);
+      return null;
+    }
+
+    const route = data.routes[0];
+
+    return {
+      distance: route.distance,
+      duration: route.duration,
+      geometry: route.geometry,
+    };
+  } catch (error) {
+    console.error('Multi-stop route calculation failed:', error);
+    return null;
+  }
+}
+

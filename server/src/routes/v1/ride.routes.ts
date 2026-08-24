@@ -75,7 +75,7 @@ router.post('/calculate-fare', authenticateToken, async (req: AuthRequest, res: 
   }
 });
 
-// Create new ride request
+// Create new ride request (supports multi-stop & scheduled bookings)
 router.post('/request', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const {
@@ -83,34 +83,88 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
       vehicleCategory,
       pickup,
       destination,
+      stops,
       distanceKm,
       durationMin,
       estimatedFare,
       offeredFare,
       polyline,
+      paymentMethod,
+      isScheduled,
+      scheduledFor,
     } = req.body;
 
     const passengerId = req.user?.id;
     if (!passengerId || !pickup || !destination) {
-      return res.status(400).json({ error: 'Missing ride parameters' });
+      return res.status(400).json({ error: 'Missing ride parameters (pickup and destination are required)' });
+    }
+
+    const now = Date.now();
+
+    // Validate scheduled ride parameters
+    let isScheduledRide = Boolean(isScheduled);
+    let scheduledForTimestamp: number | null = null;
+    let initialStatus = 'requested';
+
+    if (isScheduledRide) {
+      if (!scheduledFor || isNaN(Number(scheduledFor))) {
+        return res.status(400).json({ error: 'Valid future scheduledFor timestamp is required for scheduled rides' });
+      }
+
+      scheduledForTimestamp = Number(scheduledFor);
+      const minAdvanceMs = 30 * 60 * 1000; // 30 mins
+      const maxAdvanceMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+      if (scheduledForTimestamp < now + minAdvanceMs) {
+        return res.status(400).json({ error: 'Scheduled ride must be booked at least 30 minutes in advance' });
+      }
+
+      if (scheduledForTimestamp > now + maxAdvanceMs) {
+        return res.status(400).json({ error: 'Scheduled ride cannot be booked more than 7 days in advance' });
+      }
+
+      initialStatus = 'scheduled';
+    }
+
+    // Validate intermediate stops (maximum 3 intermediate stops)
+    const validStops: Array<{ latitude: number; longitude: number; label: string; stopOrder: number }> = [];
+    if (Array.isArray(stops) && stops.length > 0) {
+      if (stops.length > 3) {
+        return res.status(400).json({ error: 'Maximum 3 intermediate stops allowed per ride' });
+      }
+
+      for (let i = 0; i < stops.length; i++) {
+        const s = stops[i];
+        if (!s || typeof s.latitude !== 'number' || typeof s.longitude !== 'number') {
+          return res.status(400).json({ error: `Invalid coordinates for stop #${i + 1}` });
+        }
+        validStops.push({
+          latitude: s.latitude,
+          longitude: s.longitude,
+          label: s.label || `Intermediate Stop ${i + 1}`,
+          stopOrder: i + 1,
+        });
+      }
     }
 
     const rideId = clientRideId && typeof clientRideId === 'string' && clientRideId.trim()
       ? clientRideId.trim()
-      : `ride_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const now = Date.now();
+      : `ride_${now}_${Math.random().toString(36).substring(2, 7)}`;
 
+    // 1. Insert ride record
     await query(
       `INSERT INTO rides (
         ride_id, passenger_id, status, vehicle_category,
         pickup_lat, pickup_lng, pickup_label,
         dropoff_lat, dropoff_lng, dropoff_label,
         distance_km, duration_min, estimated_fare, offered_fare, polyline,
+        payment_method, is_scheduled, scheduled_for,
         created_at, updated_at
-      ) VALUES ($1, $2, 'requested', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
       [
         rideId,
         passengerId,
+        initialStatus,
         vehicleCategory || 'mini',
         pickup.latitude,
         pickup.longitude,
@@ -123,28 +177,47 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
         estimatedFare || 0,
         offeredFare || estimatedFare || 0,
         polyline || '',
+        paymentMethod || 'cash',
+        isScheduledRide,
+        scheduledForTimestamp,
         now,
         now,
       ]
     );
 
-    // Dispatch push notification to nearby online verified female drivers (non-blocking)
-    notifyNearbyDrivers(
-      vehicleCategory || 'mini',
-      pickup.label || 'Lahore Pickup',
-      offeredFare || estimatedFare || 0,
-      rideId
-    ).catch((err: any) => console.warn('[FCM] Dispatch to drivers warning:', err));
+    // 2. Insert intermediate waypoints into ride_stops
+    for (const stop of validStops) {
+      const stopId = `stop_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      await query(
+        `INSERT INTO ride_stops (id, ride_id, stop_order, latitude, longitude, label, completed, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, false, $7)`,
+        [stopId, rideId, stop.stopOrder, stop.latitude, stop.longitude, stop.label, now]
+      );
+    }
+
+    // 3. Dispatch push notifications to nearby online verified drivers only for immediate rides
+    if (!isScheduledRide) {
+      notifyNearbyDrivers(
+        vehicleCategory || 'mini',
+        pickup.label || 'Lahore Pickup',
+        offeredFare || estimatedFare || 0,
+        rideId
+      ).catch((err: any) => console.warn('[FCM] Dispatch to drivers warning:', err));
+    }
 
     res.status(201).json({
       rideId,
       passengerId,
-      status: 'requested',
+      status: initialStatus,
       vehicleCategory,
       pickup,
       destination,
+      stops: validStops,
+      isScheduled: isScheduledRide,
+      scheduledFor: scheduledForTimestamp,
       estimatedFare,
       offeredFare,
+      paymentMethod: paymentMethod || 'cash',
     });
   } catch (error) {
     console.error('Create ride error:', error);
@@ -545,14 +618,227 @@ router.post('/:id/chat-notify', authenticateToken, async (req: AuthRequest, res:
     if (sent) {
       res.status(200).json({ success: true, message: 'Chat notification sent' });
     } else {
-      // Don't fail the request if notification fails - chat should still work
       res.status(200).json({ success: false, message: 'Notification not sent (no FCM token)' });
     }
   } catch (error) {
     console.error('Chat notify error:', error);
-    // Don't fail the chat if notification fails
     res.status(200).json({ success: false, message: 'Notification failed' });
   }
 });
 
+/**
+ * GET /api/v1/rides/scheduled
+ * Description: Fetches scheduled rides for the authenticated passenger, driver, or admin.
+ */
+router.get('/scheduled', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    let filterSql = 'WHERE r.is_scheduled = true';
+    const params: any[] = [];
+
+    if (role === 'passenger') {
+      params.push(userId);
+      filterSql += ` AND r.passenger_id = $${params.length}`;
+    } else if (role === 'driver') {
+      params.push(userId);
+      filterSql += ` AND (r.driver_id = $${params.length} OR r.status = 'scheduled')`;
+    }
+
+    const ridesRes = await query(
+      `SELECT 
+        r.ride_id, r.passenger_id, r.driver_id, r.status, r.vehicle_category,
+        r.pickup_lat, r.pickup_lng, r.pickup_label,
+        r.dropoff_lat, r.dropoff_lng, r.dropoff_label,
+        r.distance_km, r.duration_min, r.estimated_fare, r.offered_fare, r.final_fare,
+        r.payment_method, r.is_scheduled, r.scheduled_for, r.created_at, r.updated_at,
+        u.name as passenger_name, u.phone as passenger_phone,
+        d.name as driver_name, d.phone as driver_phone
+       FROM rides r
+       LEFT JOIN users u ON r.passenger_id = u.id
+       LEFT JOIN users d ON r.driver_id = d.id
+       ${filterSql}
+       ORDER BY r.scheduled_for ASC NULLS LAST, r.created_at DESC`,
+      params
+    );
+
+    const rideIds = ridesRes.rows.map((r: any) => r.ride_id);
+    let stopsMap: Record<string, any[]> = {};
+
+    if (rideIds.length > 0) {
+      const stopsRes = await query(
+        `SELECT id, ride_id, stop_order, latitude, longitude, label, completed, completed_at
+         FROM ride_stops
+         WHERE ride_id = ANY($1::text[])
+         ORDER BY ride_id, stop_order ASC`,
+        [rideIds]
+      );
+      stopsRes.rows.forEach((s: any) => {
+        if (!stopsMap[s.ride_id]) stopsMap[s.ride_id] = [];
+        stopsMap[s.ride_id].push({
+          id: s.id,
+          stopOrder: s.stop_order,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          label: s.label,
+          completed: s.completed,
+          completedAt: s.completed_at ? parseInt(s.completed_at, 10) : null,
+        });
+      });
+    }
+
+    const rides = ridesRes.rows.map((r: any) => ({
+      rideId: r.ride_id,
+      passengerId: r.passenger_id,
+      passengerName: r.passenger_name || 'Passenger',
+      passengerPhone: r.passenger_phone || '',
+      driverId: r.driver_id,
+      driverName: r.driver_name || null,
+      driverPhone: r.driver_phone || null,
+      status: r.status,
+      vehicleCategory: r.vehicle_category,
+      pickup: {
+        latitude: r.pickup_lat,
+        longitude: r.pickup_lng,
+        label: r.pickup_label,
+      },
+      dropoff: {
+        latitude: r.dropoff_lat,
+        longitude: r.dropoff_lng,
+        label: r.dropoff_label,
+      },
+      stops: stopsMap[r.ride_id] || [],
+      distanceKm: parseFloat(r.distance_km || '0'),
+      durationMin: parseInt(r.duration_min || '0', 10),
+      estimatedFare: parseFloat(r.estimated_fare || '0'),
+      offeredFare: parseFloat(r.offered_fare || '0'),
+      finalFare: r.final_fare ? parseFloat(r.final_fare) : null,
+      paymentMethod: r.payment_method || 'cash',
+      isScheduled: Boolean(r.is_scheduled),
+      scheduledFor: r.scheduled_for ? parseInt(r.scheduled_for, 10) : null,
+      createdAt: parseInt(r.created_at, 10),
+      updatedAt: parseInt(r.updated_at, 10),
+    }));
+
+    res.status(200).json({ rides });
+  } catch (error: any) {
+    console.error('Fetch scheduled rides error:', error);
+    res.status(500).json({ error: 'Failed to fetch scheduled rides' });
+  }
+});
+
+/**
+ * PUT /api/v1/rides/:id/stops/:stopId/complete
+ * Description: Marks an intermediate waypoint as completed and returns next target.
+ */
+router.put('/:id/stops/:stopId/complete', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: rideId, stopId } = req.params;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    // Verify ride
+    const rideRes = await query('SELECT ride_id, passenger_id, driver_id, dropoff_lat, dropoff_lng, dropoff_label FROM rides WHERE ride_id = $1', [rideId]);
+    if (rideRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Ride not found' });
+    }
+
+    const ride = rideRes.rows[0];
+    if (userRole !== 'admin' && userId !== ride.driver_id && userId !== ride.passenger_id) {
+      return res.status(403).json({ error: 'Only ride participants can complete waypoints' });
+    }
+
+    const now = Date.now();
+    const updateStopRes = await query(
+      `UPDATE ride_stops 
+       SET completed = true, completed_at = $1 
+       WHERE id = $2 AND ride_id = $3
+       RETURNING *`,
+      [now, stopId, rideId]
+    );
+
+    if (updateStopRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Stop not found in this ride' });
+    }
+
+    // Fetch remaining incomplete stops
+    const remainingRes = await query(
+      `SELECT id, stop_order, latitude, longitude, label, completed
+       FROM ride_stops
+       WHERE ride_id = $1 AND completed = false
+       ORDER BY stop_order ASC`,
+      [rideId]
+    );
+
+    const nextTarget = remainingRes.rows.length > 0 ? {
+      isStop: true,
+      stopId: remainingRes.rows[0].id,
+      stopOrder: remainingRes.rows[0].stop_order,
+      latitude: remainingRes.rows[0].latitude,
+      longitude: remainingRes.rows[0].longitude,
+      label: remainingRes.rows[0].label,
+    } : {
+      isStop: false,
+      stopId: null,
+      stopOrder: null,
+      latitude: ride.dropoff_lat,
+      longitude: ride.dropoff_lng,
+      label: ride.dropoff_label,
+    };
+
+    res.status(200).json({
+      success: true,
+      completedStopId: stopId,
+      completedAt: now,
+      remainingStopsCount: remainingRes.rows.length,
+      nextTarget,
+    });
+  } catch (error: any) {
+    console.error('Complete stop error:', error);
+    res.status(500).json({ error: 'Failed to complete stop progression' });
+  }
+});
+
+/**
+ * Scheduled Rides Background Auto-Dispatcher
+ * Periodically checks for scheduled rides within 20 minutes of departure and transitions them to 'negotiating'.
+ */
+export async function checkAndDispatchScheduledRides() {
+  try {
+    const now = Date.now();
+    const dispatchWindow = now + (20 * 60 * 1000); // 20 minutes from now
+
+    const dueRidesRes = await query(
+      `SELECT ride_id, vehicle_category, pickup_label, offered_fare, estimated_fare, scheduled_for
+       FROM rides
+       WHERE is_scheduled = true 
+         AND status = 'scheduled'
+         AND scheduled_for <= $1`,
+      [dispatchWindow]
+    );
+
+    for (const r of dueRidesRes.rows) {
+      await query(
+        `UPDATE rides SET status = 'negotiating', scheduled_dispatch_at = $1, updated_at = $1 WHERE ride_id = $2`,
+        [now, r.ride_id]
+      );
+
+      // Dispatch push broadcast to nearby online verified drivers
+      notifyNearbyDrivers(
+        r.vehicle_category || 'mini',
+        `[Scheduled] ${r.pickup_label || 'Lahore'}`,
+        r.offered_fare || r.estimated_fare || 0,
+        r.ride_id
+      ).catch((err: any) => console.warn('[FCM] Scheduled dispatch error:', err));
+    }
+  } catch (e: any) {
+    console.warn('Scheduled dispatch runner notice:', e?.message);
+  }
+}
+
+// Run scheduled dispatch checker every 60 seconds
+setInterval(checkAndDispatchScheduledRides, 60000);
+
 export default router;
+

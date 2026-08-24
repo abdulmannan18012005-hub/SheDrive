@@ -9,6 +9,7 @@ import { AnalyticsTab } from './components/analytics/AnalyticsTab';
 import { SystemHealthTab } from './components/health/SystemHealthTab';
 import { ComplianceTab } from './components/compliance/ComplianceTab';
 import { DisputesTab } from './components/disputes/DisputesTab';
+import { PassengerTransactionsTab } from './components/payments/PassengerTransactionsTab';
 
 // Maps an admin audit-log action to a badge background color
 const getActionColor = (action) => {
@@ -837,6 +838,12 @@ export default function App() {
             onClick={() => setActiveTab('payments')}
           >
             💳 Monthly Payments {paymentSummary.pendingSubmissionsCount > 0 ? `(${paymentSummary.pendingSubmissionsCount})` : ''}
+          </button>
+          <button
+            style={activeTab === 'passengerTransactions' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('passengerTransactions')}
+          >
+            💳 Passenger Payments
           </button>
           <button
             style={activeTab === 'sosAlerts' ? styles.navItemActive : styles.navItem}
@@ -3049,6 +3056,11 @@ export default function App() {
         {activeTab === 'disputes' && (
           <DisputesTab onShowToast={addToast} />
         )}
+
+        {/* Phase 10: Passenger Digital & Cash Transactions Tab */}
+        {activeTab === 'passengerTransactions' && (
+          <PassengerTransactionsTab onShowToast={addToast} />
+        )}
       </main>
 
       {/* Support Ticket Screenshot Modal */}
@@ -3087,6 +3099,11 @@ export default function App() {
               <div><strong>Created:</strong> {selectedRideDetails.created_at ? new Date(Number(selectedRideDetails.created_at)).toLocaleString() : 'N/A'}</div>
               <div><strong>Completed:</strong> {selectedRideDetails.completed_at ? new Date(Number(selectedRideDetails.completed_at)).toLocaleString() : 'N/A'}</div>
             </div>
+            {selectedRideDetails.is_scheduled && selectedRideDetails.scheduled_for && (
+              <div style={{ padding: '10px 14px', backgroundColor: '#EEF2FF', borderRadius: '8px', color: '#4338CA', fontSize: '12px', marginBottom: '16px', fontWeight: '600' }}>
+                🕒 Scheduled Departure: {new Date(Number(selectedRideDetails.scheduled_for)).toLocaleString()}
+              </div>
+            )}
             {selectedRideDetails.cancellation_reason && (
               <div style={{ padding: '10px', backgroundColor: '#FEF2F2', borderRadius: '8px', color: '#DC2626', fontSize: '12px', marginBottom: '16px' }}>
                 <strong>Cancellation Reason:</strong> {selectedRideDetails.cancellation_reason}
@@ -3094,6 +3111,11 @@ export default function App() {
             )}
             <div style={{ padding: '10px', backgroundColor: '#F8FAFC', borderRadius: '8px', fontSize: '12px', marginBottom: '16px' }}>
               <div><strong>Pickup:</strong> {selectedRideDetails.pickup_address || `${selectedRideDetails.pickup_latitude}, ${selectedRideDetails.pickup_longitude}`}</div>
+              {selectedRideDetails.stops && selectedRideDetails.stops.length > 0 && selectedRideDetails.stops.map((s, idx) => (
+                <div key={s.id || idx} style={{ marginTop: '4px', color: s.completed ? '#059669' : '#D97706' }}>
+                  <strong>Stop #{s.stopOrder || idx + 1}:</strong> {s.label} ({s.completed ? 'Completed' : 'Pending'})
+                </div>
+              ))}
               <div style={{ marginTop: '4px' }}><strong>Dropoff:</strong> {selectedRideDetails.dropoff_address || `${selectedRideDetails.dropoff_latitude}, ${selectedRideDetails.dropoff_longitude}`}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
