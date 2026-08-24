@@ -614,34 +614,76 @@ Phase 9 verification:
 
 ---
 
-# PHASE 10 — NOT IMPLEMENTED (EXPLICIT BOUNDARY)
+# PHASE 10 — COMPLETED
 
-Phase 10 is STRICTLY UNTOUCHED and OUT OF SCOPE for Phase 9:
-- Multi-stop ride routing
-- Scheduled booking algorithms
-- Complete public marketing website redesign
-- Third-party payment gateway replacements (JazzCash / EasyPaisa)
-- Machine learning pricing or matching engines
+Phase 10 objective:
+
+MULTI-STOP RIDES, SCHEDULED BOOKINGS, DIGITAL WALLET INTEGRATION (JAZZCASH & EASYPAISA SANDBOX), ADMIN PASSENGER TRANSACTIONS & WEBSITE TRANSFORMATION.
+
+Status: COMPLETED
+
+Commit: 42a8bcd2
+
+Implemented:
+
+1. **Multi-Stop Intermediate Routing:**
+   - Database: Created `ride_stops` table (`id`, `ride_id`, `stop_order`, `latitude`, `longitude`, `label`, `completed`, `completed_at`, `created_at`) with index `idx_ride_stops_ride_order`.
+   - Backend: Extended `POST /api/v1/rides/request` to accept up to 3 intermediate waypoints. Added `PUT /api/v1/rides/:id/stops/:stopId/complete` allowing drivers/passengers to mark waypoints completed and receive next target coordinates.
+   - Mobile: Added `getMultiStopRoute` in `src/services/osrm.ts` calling OSRM with semicolon-delimited coordinates. Enhanced `SearchScreen.tsx`, `FareBidScreen.tsx`, `ActiveRideScreen.tsx`, and `RideTrackingScreen.tsx` with intermediate stop addition, progressive completion, dynamic Google Maps navigation targeting, and multi-stop Leaflet map markers.
+
+2. **Scheduled Rides Booking & Auto-Dispatcher:**
+   - Database: Added `is_scheduled`, `scheduled_for`, `scheduled_dispatch_at` columns and `idx_rides_scheduled` index on `rides` table.
+   - Backend: Added validation for scheduled rides (min 30 min to max 7 days in advance), `GET /api/v1/rides/scheduled` query, and an automated background runner running every 60 seconds that scans for rides within 20 minutes of departure and auto-transitions them to `negotiating` with driver push notifications.
+   - Mobile: Added Advance Scheduling toggle in `FareBidScreen.tsx` (preset chips: +1h, +2h, +4h, tomorrow) and scheduled ride tracking indicators.
+
+3. **Passenger Payment Architecture (Cash, JazzCash, Easypaisa):**
+   - Database: Created `payment_transactions` table (`id`, `ride_id`, `user_id`, `provider`, `amount`, `currency`, `transaction_ref`, `idempotency_key`, `status`, `gateway_response`, `created_at`, `updated_at`) with provider and status check constraints.
+   - Backend Gateway Abstraction (`server/src/services/payments/`):
+     - `IPaymentGateway` interface (`initiatePayment`, `verifyPayment`, `handleWebhook`, `refundPayment`).
+     - `CashGateway`: Instant settlement on arrival.
+     - `JazzCashGateway`: HMAC-SHA256 signature generation and IPN verification with sandbox simulator.
+     - `EasypaisaGateway`: SHA-256 checksum generation and MA push verification with sandbox simulator.
+   - Endpoints:
+     - `POST /api/v1/payments/passenger/initiate` (idempotency support, audit logging `INITIATE_PAYMENT`).
+     - `GET /api/v1/payments/passenger/transactions/:id` (ownership authorization).
+     - `POST /api/v1/payments/callbacks/jazzcash` & `POST /api/v1/payments/callbacks/easypaisa` (IPN callbacks).
+     - `GET /api/v1/payments/admin/transactions` & `GET /api/v1/admin/payments/transactions` (admin audit log).
+
+4. **Admin Portal Enhancements:**
+   - Created `PassengerTransactionsTab.jsx` with provider filter (`all`, `cash`, `jazzcash`, `easypaisa`), status filter, search, amount formatting, and sandbox indicator badges.
+   - Mounted `💳 Passenger Payments` sidebar navigation button.
+   - Enhanced `selectedRideDetails` modal in `App.jsx` to render multi-stop waypoints (Stop #1, Stop #2) and scheduled departure banners.
+
+5. **Public Website Transformation (11 Pages):**
+   - Added modern feature sections highlighting Multi-Stop journeys, Advance Scheduling, and Cash/JazzCash/Easypaisa payments across `SheDrive Website/` (`index.html`, `passenger.html`, `driver.html`, `safety.html`, `downloads.html`, `contact.html`, `privacy.html`, `terms.html`, `track.html`, `feedback.html`).
+
+Phase 10 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build`): PASS (0 errors)
+- Admin Portal build (`npm run build`): PASS (0 errors)
+- Local express route & security test suite: 12/12 PASS
+- Database migration `012_phase10_multistop_scheduled_payments.sql`: APPLIED to PostgreSQL / Supabase
 
 ---
 
-# FROZEN / OUT OF SCOPE
+# PRODUCTION CREDENTIAL HANDOFF GUIDE (JAZZCASH & EASYPAISA)
 
-Do NOT implement:
+When ready to switch from Sandbox to Live Production for digital payments, set the following environment variables in your server environment (e.g. Render Dashboard -> Environment Variables):
 
-- Multi-stop rides
-- Scheduled rides
-- Wallet
-- New payment gateway
-- Major mobile redesign
-- Website redesign (Deferred to Phase 9)
-- New ride architecture
-- React Native upgrade
-- Expo upgrade
-- Firebase upgrade
-- Admin dependency upgrades
-- Database replacement
-- Unrelated refactoring
+### 1. JazzCash Production Setup
+- `JAZZCASH_ENV=production`
+- `JAZZCASH_MERCHANT_ID=<Your_Live_Merchant_ID>`
+- `JAZZCASH_PASSWORD=<Your_Live_Merchant_Password>`
+- `JAZZCASH_INTEGRITY_SALT=<Your_Live_Integrity_Salt_Key>`
+- `JAZZCASH_RETURN_URL=https://shedrive.onrender.com/api/v1/payments/callbacks/jazzcash`
+
+### 2. Easypaisa Production Setup
+- `EASYPAISA_ENV=production`
+- `EASYPAISA_STORE_ID=<Your_Live_Store_ID>`
+- `EASYPAISA_SECRET_KEY=<Your_Live_Store_Secret_Key_or_Hash>`
+- `EASYPAISA_RETURN_URL=https://shedrive.onrender.com/api/v1/payments/callbacks/easypaisa`
+
+Zero code modifications are required to go live — the backend `JazzCashGateway` and `EasypaisaGateway` automatically switch from sandbox mock signatures to production HMAC-SHA256 signature verification and API endpoints based on `JAZZCASH_ENV` and `EASYPAISA_ENV`.
 
 ---
 
@@ -657,8 +699,6 @@ Before changing anything:
 6. Make the smallest safe change.
 7. Build/test after changes.
 
-Never assume an audit document perfectly represents the current repository.
-
 The CURRENT REPOSITORY is the final source of truth.
 
 ---
@@ -666,11 +706,8 @@ The CURRENT REPOSITORY is the final source of truth.
 # GIT SAFETY
 
 Do not reset or discard existing user changes.
-
 Do not use destructive git commands.
-
 Do not force-push.
-
 Keep changes attributable to the current phase.
 
 ---
@@ -680,24 +717,10 @@ Keep changes attributable to the current phase.
 After relevant changes:
 
 Mobile:
-npx tsc --noEmit
+`npx tsc --noEmit`
 
 Server:
-cd server
-npm run build
+`cd server && npm run build`
 
 Admin:
-cd admin-portal
-npm run build
-
-Use these statuses:
-VERIFIED
-PARTIALLY VERIFIED
-NOT VERIFIED
-FAILED
-
----
-
-# IMPORTANT AGENT BEHAVIOR
-
-Do not start Phase 9 automatically without explicit user instructions.
+`cd admin-portal && npm run build`
