@@ -448,6 +448,83 @@ Verification:
 
 ---
 
+---
+
+# PHASE 6 — COMPLETED
+
+Phase 6 objective:
+
+PAYMENTS, MONTHLY PLATFORM FEE SETTLEMENT, AND AUDITABLE FINANCIAL ARCHITECTURE.
+
+Status: COMPLETED
+
+Commit: ba2dc2a3
+
+Implemented:
+1. Dynamic Platform Fee Engine:
+   - `payment.routes.ts` dynamically queries `commission_pct` from `admin_settings` in PostgreSQL rather than hardcoding 7%.
+   - Platform fee calculation: `Math.round(totalEarnings * (commissionPct / 100) * 100) / 100`.
+2. Case-Insensitive Duplicate Transaction ID Checking:
+   - `POST /api/v1/payments/driver/submit` sanitizes and checks `UPPER(transaction_id)` to prevent duplicate bank receipt submissions across drivers.
+3. Financial Audit Logging:
+   - Admin approval/rejection decisions in `PUT /api/v1/payments/admin/payments/:id/review` write immutable `APPROVE_PAYMENT` or `REJECT_PAYMENT` records to `audit_logs`.
+4. Automated Notification Dispatch:
+   - Approving or rejecting a monthly payment immediately dispatches a push notification and writes to `user_notifications` for the driver.
+5. Suspension Lifecycle Management:
+   - Approving a payment immediately clears `is_fee_suspended = false` on `drivers` table, allowing drivers to go online without manual DB editing.
+6. Cash & Bidding Preservation:
+   - Passenger payments remain direct cash on completion; trip receipts and ride history display agreed final fare and cash payment method.
+7. Zero Schema Migrations:
+   - Reused existing `monthly_payments`, `rides`, and `admin_settings` tables in PostgreSQL / Supabase.
+
+Phase 6 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS
+- Server build (`npm run build`): PASS
+- Admin Portal build (`npm run build`): PASS
+- Security & Auth Gating Probes: PASS (401 without auth, 403 on role violation, 200 on health)
+
+---
+
+# PHASE 7 — COMPLETED
+
+Phase 7 objective:
+
+EXPAND ADMIN PORTAL MANAGEMENT (SUPPORT TICKETS, RIDE HISTORY, DEACTIVATED ACCOUNTS, BROADCAST NOTIFICATIONS, DRIVER RE-REVIEW).
+
+Status: COMPLETED
+
+Commit: 96aaca98
+
+Implemented:
+1. **Support Tickets Management:**
+   - Backend: `GET /api/v1/admin/support/tickets` (pagination, search by subject/user/email, status filter) & `PUT /api/v1/admin/support/tickets/:id/status` (status transition, audit logging, push + in-app notification to ticket owner upon resolution).
+   - Admin Portal: Dedicated **🎫 Support Tickets** tab with status filter chips (`all`, `open`, `in_progress`, `resolved`), search, ticket list table, screenshot preview modal, inline status change dropdown, and pagination.
+2. **Ride History & Analytics Archive:**
+   - Backend: `GET /api/v1/admin/rides/history` (explicit SQL column projection, date range filter `startDate`/`endDate`, status filter `completed`/`cancelled`, search, pagination).
+   - Admin Portal: Dedicated **📜 Ride History** tab with status filters, date pickers, searchable table, passenger/driver contact info, fare & payment method badges, and comprehensive ride details modal.
+3. **Deactivated Account Management:**
+   - Backend: `GET /api/v1/admin/users/deactivated` (lists inactive users with deactivation reason and timestamps) & `PUT /api/v1/admin/users/:id/reactivate` (restores account, sets driver offline initially, and logs `REACTIVATE_ACCOUNT` to `audit_logs`).
+   - Admin Portal: Dedicated **🔒 Deactivated Accounts** tab with user search, reason display, and Reactivate Account button with confirmation dialog (`reactivateConfirmModal`).
+4. **Admin Broadcast & User Notifications:**
+   - Backend: `POST /api/v1/admin/notifications/send` (supports audience targets `all`, `drivers`, `passengers`, `specific`, batch dispatches FCM push alerts, writes to `user_notifications` table for in-app Notification Center, and logs `SEND_ADMIN_NOTIFICATION` to `audit_logs`).
+   - Admin Portal: Dedicated **📢 Send Notifications** tab with audience radio selector, real-time live mobile push preview card, character counters, validation, and confirmation dialog.
+5. **Driver Verification Re-review Center:**
+   - Enhanced **🛡️ Verification Queue** with `All`, `🆕 New Applications`, and `🔄 Re-Review` filter pills and badges, making drivers who updated existing credentials immediately distinguishable.
+6. **Security & Supabase Egress Hardening:**
+   - All 6 endpoints gated with `authenticateToken` + `requireAdmin` (401 unauth, 403 non-admin).
+   - Explicit column projections throughout to prevent Supabase egress spikes.
+   - All state mutations write immutable audit trails to `audit_logs`.
+   - Zero SQL migrations required (100% existing Supabase schema utilized).
+
+Phase 7 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build`): PASS (0 errors)
+- Admin Portal build (`npm run build`): PASS (0 errors)
+- Local express route test suite: 6/6 PASS
+- Live production endpoint probes (`https://shedrive.onrender.com/api/v1`): 10/10 PASS (health 200, auth gating 401 on all endpoints)
+
+---
+
 # FROZEN / OUT OF SCOPE
 
 Do NOT implement:
@@ -457,7 +534,7 @@ Do NOT implement:
 - Wallet
 - New payment gateway
 - Major mobile redesign
-- Website redesign
+- Website redesign (Deferred to Phase 8)
 - New ride architecture
 - React Native upgrade
 - Expo upgrade
@@ -523,4 +600,4 @@ FAILED
 
 # IMPORTANT AGENT BEHAVIOR
 
-Do not start Phase 6 automatically without explicit user instructions.
+Do not start Phase 8 automatically without explicit user instructions.
