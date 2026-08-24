@@ -21,6 +21,7 @@ import userRoutes from './routes/v1/user.routes';
 import notificationRoutes from './routes/v1/notification.routes';
 import appRoutes from './routes/v1/app.routes';
 import safetyRoutes from './routes/v1/safety.routes';
+import analyticsRoutes from './routes/v1/analytics.routes';
 
 dotenv.config();
 
@@ -67,6 +68,7 @@ app.use('/api/v1/vehicles', vehiclesRoutes);
 app.use('/api/v1/saved-places', savedPlacesRoutes);
 app.use('/api/v1/user/saved-places', savedPlacesRoutes); // Alias: mobile app calls /user/saved-places
 app.use('/api/v1/support', supportRoutes);
+app.use('/api/v1/admin/analytics', analyticsRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/driver', driverRoutes);
 app.use('/api/v1/payments', paymentRoutes);

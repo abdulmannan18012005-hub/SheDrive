@@ -5,6 +5,7 @@ import { LoadingSpinner } from './components/LoadingSpinner';
 import { PaginationBar } from './components/PaginationBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { useDebounce } from './hooks/useDebounce';
+import { AnalyticsTab } from './components/analytics/AnalyticsTab';
 
 // Maps an admin audit-log action to a badge background color
 const getActionColor = (action) => {
@@ -766,7 +767,13 @@ export default function App() {
             style={activeTab === 'dashboard' ? styles.navItemActive : styles.navItem}
             onClick={() => setActiveTab('dashboard')}
           >
-            📊 Analytics Dashboard
+            📊 Command Dashboard
+          </button>
+          <button
+            style={activeTab === 'analytics' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('analytics')}
+          >
+            📈 Operational Intelligence
           </button>
           <button
             style={activeTab === 'verification' ? styles.navItemActive : styles.navItem}
@@ -868,6 +875,7 @@ export default function App() {
           <div>
             <h2 style={styles.headerTitle}>
               {activeTab === 'dashboard' && 'Dashboard Overview'}
+              {activeTab === 'analytics' && 'Operational Intelligence & Analytics'}
               {activeTab === 'verification' && 'Driver Document Verification Center'}
               {activeTab === 'drivers' && 'Approved Driver Roster'}
               {activeTab === 'rejected' && 'Rejected Driver Applications'}
@@ -2922,6 +2930,11 @@ export default function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Phase 8: Operational Intelligence & Advanced Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <AnalyticsTab onShowToast={addToast} />
         )}
       </main>
 

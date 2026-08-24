@@ -361,6 +361,83 @@ export const adminApi = {
       body: JSON.stringify({ title, body, target, userId }),
     }, 0);
   },
+
+  // Analytics - Executive Overview
+  getAnalyticsOverview: async (params: { startDate?: number; endDate?: number; interval?: 'day' | 'week' | 'month' } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/analytics/overview?${queryString}` : '/admin/analytics/overview';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Analytics - Revenue Breakdown
+  getRevenueAnalytics: async (params: { startDate?: number; endDate?: number } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/analytics/revenue?${queryString}` : '/admin/analytics/revenue';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Analytics - Rides & Demand
+  getRideAnalytics: async (params: { startDate?: number; endDate?: number; category?: string; status?: string } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/analytics/rides?${queryString}` : '/admin/analytics/rides';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Analytics - Driver Performance
+  getDriverAnalytics: async (params: { startDate?: number; endDate?: number; page?: number; limit?: number; sort?: string } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/analytics/drivers?${queryString}` : '/admin/analytics/drivers';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Analytics - Safety & Support
+  getSafetySupportAnalytics: async (params: { startDate?: number; endDate?: number } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/analytics/safety-support?${queryString}` : '/admin/analytics/safety-support';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Analytics - Download CSV Report
+  downloadReportCSV: async (params: { type: 'financial' | 'rides' | 'drivers' | 'safety'; startDate?: number; endDate?: number }) => {
+    const token = getAuthToken();
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = `${API_BASE_URL}/admin/analytics/export?${queryString}`;
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errJson = await response.json().catch(() => ({}));
+      throw new Error(errJson.error || `HTTP ${response.status}: Failed to download CSV report`);
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shedrive_${params.type}_report_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    return true;
+  },
 };
 
 export default adminApi;
