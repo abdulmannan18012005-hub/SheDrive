@@ -78,7 +78,7 @@ router.get('/sos/recent', authenticateToken, async (req: AuthRequest, res: Respo
 });
 
 /**
- * PUT /api/v1/admin/sos/:id/resolve
+ * PUT /api/v1/safety/sos/:id/resolve
  * Description: Marks an SOS alert as resolved
  */
 router.put('/sos/:id/resolve', authenticateToken, async (req: AuthRequest, res: Response) => {
@@ -98,6 +98,67 @@ router.put('/sos/:id/resolve', authenticateToken, async (req: AuthRequest, res: 
   } catch (error) {
     console.error('Resolve SOS error:', error);
     res.status(500).json({ error: 'Failed to resolve SOS alert' });
+  }
+});
+
+/**
+ * PUT /api/v1/safety/sos/:id/investigate
+ * Body: { resolutionNotes: string, severity: 'low' | 'medium' | 'high' | 'critical', policeContacted: boolean }
+ * Description: Investigates and resolves SOS incident with severity classification, notes, and police involvement tracking.
+ */
+router.put('/sos/:id/investigate', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Access forbidden. Administrator privileges required.' });
+    }
+
+    const { id } = req.params;
+    const { resolutionNotes, severity, policeContacted } = req.body;
+
+    if (!resolutionNotes || !resolutionNotes.trim()) {
+      return res.status(400).json({ error: 'Investigation & resolution notes are required' });
+    }
+
+    const validSeverities = ['low', 'medium', 'high', 'critical'];
+    if (!severity || !validSeverities.includes(severity)) {
+      return res.status(400).json({ error: `Severity must be one of: ${validSeverities.join(', ')}` });
+    }
+
+    // Check alert existence
+    const alertRes = await query('SELECT id, user_id, user_name, user_role, ride_id, status FROM sos_alerts WHERE id = $1', [id]);
+    if (alertRes.rows.length === 0) {
+      return res.status(404).json({ error: 'SOS alert not found' });
+    }
+
+    const alert = alertRes.rows[0];
+    const now = Date.now();
+
+    // Update SOS alert status
+    await query(
+      'UPDATE sos_alerts SET status = $1, resolved_at = $2 WHERE id = $3',
+      ['resolved', now, id]
+    );
+
+    // Audit log entry for case investigation
+    const auditId = `log_${now}_${Math.random().toString(36).substring(2, 7)}`;
+    const auditDetails = `Investigated SOS Alert ${id} for User ${alert.user_name} (${alert.user_id}). Severity: ${severity.toUpperCase()}. Police Contacted: ${policeContacted ? 'YES' : 'NO'}. Notes: ${resolutionNotes.trim()}`;
+
+    await query(
+      'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
+      [auditId, req.user?.id || 'admin', 'INVESTIGATE_SOS_ALERT', auditDetails, now]
+    ).catch((e: any) => console.warn('SOS investigate audit log error:', e?.message));
+
+    res.status(200).json({
+      success: true,
+      message: 'SOS incident investigated and resolved successfully',
+      alertId: id,
+      severity,
+      policeContacted: Boolean(policeContacted),
+      resolvedAt: now,
+    });
+  } catch (error: any) {
+    console.error('Investigate SOS error:', error);
+    res.status(500).json({ error: 'Failed to investigate SOS alert' });
   }
 });
 

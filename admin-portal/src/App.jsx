@@ -6,6 +6,9 @@ import { PaginationBar } from './components/PaginationBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { useDebounce } from './hooks/useDebounce';
 import { AnalyticsTab } from './components/analytics/AnalyticsTab';
+import { SystemHealthTab } from './components/health/SystemHealthTab';
+import { ComplianceTab } from './components/compliance/ComplianceTab';
+import { DisputesTab } from './components/disputes/DisputesTab';
 
 // Maps an admin audit-log action to a badge background color
 const getActionColor = (action) => {
@@ -127,6 +130,12 @@ export default function App() {
   const [notificationConfirmModal, setNotificationConfirmModal] = useState(false);
 
   const [verificationDocFilter, setVerificationDocFilter] = useState('all'); // 'all' | 'new' | 're-review'
+
+  // Phase 9 States
+  const [sosInvestigateModal, setSosInvestigateModal] = useState(null);
+  const [userWarningModal, setUserWarningModal] = useState(null);
+  const [isSubmittingWarning, setIsSubmittingWarning] = useState(false);
+  const [isSubmittingSOS, setIsSubmittingSOS] = useState(false);
 
   const [settings, setSettings] = useState({
     commission_pct: 5.0,
@@ -776,6 +785,24 @@ export default function App() {
             📈 Operational Intelligence
           </button>
           <button
+            style={activeTab === 'systemHealth' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('systemHealth')}
+          >
+            🩺 System Health
+          </button>
+          <button
+            style={activeTab === 'compliance' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('compliance')}
+          >
+            📋 Driver Compliance
+          </button>
+          <button
+            style={activeTab === 'disputes' ? styles.navItemActive : styles.navItem}
+            onClick={() => setActiveTab('disputes')}
+          >
+            ⚖️ Ride Disputes
+          </button>
+          <button
             style={activeTab === 'verification' ? styles.navItemActive : styles.navItem}
             onClick={() => setActiveTab('verification')}
           >
@@ -876,6 +903,9 @@ export default function App() {
             <h2 style={styles.headerTitle}>
               {activeTab === 'dashboard' && 'Dashboard Overview'}
               {activeTab === 'analytics' && 'Operational Intelligence & Analytics'}
+              {activeTab === 'systemHealth' && 'System Health & Infrastructure Diagnostics'}
+              {activeTab === 'compliance' && 'Driver Compliance & Document Expiry'}
+              {activeTab === 'disputes' && 'Ride Dispute & Complaint Resolution'}
               {activeTab === 'verification' && 'Driver Document Verification Center'}
               {activeTab === 'drivers' && 'Approved Driver Roster'}
               {activeTab === 'rejected' && 'Rejected Driver Applications'}
@@ -1238,33 +1268,56 @@ export default function App() {
                         )}
                       </td>
                       <td>
-                        {d.is_blocked ? (
+                        <div style={{ display: 'flex', gap: '6px' }}>
                           <button
-                            style={styles.btnUnblock}
+                            style={{
+                              padding: '6px 10px',
+                              backgroundColor: '#FEF3C7',
+                              color: '#D97706',
+                              border: '1px solid #FDE68A',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
                             onClick={() =>
-                              setConfirmModal({
-                                driverId: d.id,
-                                driverName: d.name,
-                                actionType: 'unblock',
+                              setUserWarningModal({
+                                user: { id: d.id, name: d.name, role: 'driver', phone: d.phone },
+                                warningType: 'cancellation_rate',
+                                message: '',
                               })
                             }
                           >
-                            🔓 Unblock
+                            ⚠️ Warn
                           </button>
-                        ) : (
-                          <button
-                            style={styles.btnBlock}
-                            onClick={() =>
-                              setConfirmModal({
-                                driverId: d.id,
-                                driverName: d.name,
-                                actionType: 'block',
-                              })
-                            }
-                          >
-                            🚫 Block
-                          </button>
-                        )}
+                          {d.is_blocked ? (
+                            <button
+                              style={styles.btnUnblock}
+                              onClick={() =>
+                                setConfirmModal({
+                                  driverId: d.id,
+                                  driverName: d.name,
+                                  actionType: 'unblock',
+                                })
+                              }
+                            >
+                              🔓 Unblock
+                            </button>
+                          ) : (
+                            <button
+                              style={styles.btnBlock}
+                              onClick={() =>
+                                setConfirmModal({
+                                  driverId: d.id,
+                                  driverName: d.name,
+                                  actionType: 'block',
+                                })
+                              }
+                            >
+                              🚫 Block
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1386,33 +1439,56 @@ export default function App() {
                         )}
                       </td>
                       <td>
-                        {p.is_blocked ? (
+                        <div style={{ display: 'flex', gap: '6px' }}>
                           <button
-                            style={styles.btnUnblock}
+                            style={{
+                              padding: '6px 10px',
+                              backgroundColor: '#FEF3C7',
+                              color: '#D97706',
+                              border: '1px solid #FDE68A',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
                             onClick={() =>
-                              setConfirmModal({
-                                passengerId: p.id,
-                                passengerName: p.name,
-                                actionType: 'unblock_passenger',
+                              setUserWarningModal({
+                                user: { id: p.id, name: p.name, role: 'passenger', phone: p.phone },
+                                warningType: 'cancellation_rate',
+                                message: '',
                               })
                             }
                           >
-                            🔓 Unblock
+                            ⚠️ Warn
                           </button>
-                        ) : (
-                          <button
-                            style={styles.btnBlock}
-                            onClick={() =>
-                              setConfirmModal({
-                                passengerId: p.id,
-                                passengerName: p.name,
-                                actionType: 'block_passenger',
-                              })
-                            }
-                          >
-                            🚫 Block
-                          </button>
-                        )}
+                          {p.is_blocked ? (
+                            <button
+                              style={styles.btnUnblock}
+                              onClick={() =>
+                                setConfirmModal({
+                                  passengerId: p.id,
+                                  passengerName: p.name,
+                                  actionType: 'unblock_passenger',
+                                })
+                              }
+                            >
+                              🔓 Unblock
+                            </button>
+                          ) : (
+                            <button
+                              style={styles.btnBlock}
+                              onClick={() =>
+                                setConfirmModal({
+                                  passengerId: p.id,
+                                  passengerName: p.name,
+                                  actionType: 'block_passenger',
+                                })
+                              }
+                            >
+                              🚫 Block
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2229,29 +2305,51 @@ export default function App() {
                         </td>
                         <td>
                           {alert.status === 'active' && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await adminApi.resolveSOSAlert(alert.id);
-                                  addToast('SOS alert resolved', 'success');
-                                  fetchTabData(false);
-                                } catch (err) {
-                                  addToast('Failed to resolve SOS alert', 'error');
-                                }
-                              }}
-                              style={{
-                                padding: '6px 12px',
-                                backgroundColor: '#059669',
-                                color: '#FFFFFF',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Resolve
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                onClick={() => setSosInvestigateModal({
+                                  alert,
+                                  severity: 'medium',
+                                  resolutionNotes: '',
+                                  policeContacted: false,
+                                })}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#7C3AED',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                🔍 Investigate
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await adminApi.resolveSOSAlert(alert.id);
+                                    addToast('SOS alert resolved', 'success');
+                                    fetchTabData(false);
+                                  } catch (err) {
+                                    addToast('Failed to resolve SOS alert', 'error');
+                                  }
+                                }}
+                                style={{
+                                  padding: '6px 10px',
+                                  backgroundColor: '#059669',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Quick Resolve
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -2936,6 +3034,21 @@ export default function App() {
         {activeTab === 'analytics' && (
           <AnalyticsTab onShowToast={addToast} />
         )}
+
+        {/* Phase 9: System Health & Infrastructure Diagnostics Tab */}
+        {activeTab === 'systemHealth' && (
+          <SystemHealthTab onShowToast={addToast} />
+        )}
+
+        {/* Phase 9: Driver Compliance & Document Expiry Tab */}
+        {activeTab === 'compliance' && (
+          <ComplianceTab onShowToast={addToast} />
+        )}
+
+        {/* Phase 9: Ride Dispute & Complaint Resolution Tab */}
+        {activeTab === 'disputes' && (
+          <DisputesTab onShowToast={addToast} />
+        )}
       </main>
 
       {/* Support Ticket Screenshot Modal */}
@@ -3329,6 +3442,164 @@ export default function App() {
               <button style={styles.btnCancel} onClick={() => setSelectedImage(null)}>✕</button>
             </div>
             <img src={selectedImage.url} alt={selectedImage.title} style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Phase 9: SOS Investigation Modal */}
+      {sosInvestigateModal && (
+        <div style={styles.modalOverlay} onClick={() => setSosInvestigateModal(null)}>
+          <div style={{ ...styles.modalContent, width: '520px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '800', color: '#181C32' }}>
+              🚨 Investigate SOS Incident
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#7E8299' }}>
+              Alert for <strong>{sosInvestigateModal.alert.user_name}</strong> ({sosInvestigateModal.alert.user_role})
+            </p>
+
+            <div style={{ padding: '10px 12px', backgroundColor: '#FEF2F2', borderRadius: '8px', marginBottom: '16px', fontSize: '12px', color: '#DC2626' }}>
+              <div><strong>GPS Location:</strong> {sosInvestigateModal.alert.latitude?.toFixed(4)}, {sosInvestigateModal.alert.longitude?.toFixed(4)}</div>
+              <div><strong>Ride ID:</strong> {sosInvestigateModal.alert.ride_id || 'None'}</div>
+              <div><strong>Time:</strong> {sosInvestigateModal.alert.created_at ? new Date(Number(sosInvestigateModal.alert.created_at)).toLocaleString() : 'Recent'}</div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Incident Severity *</label>
+              <select
+                style={{ ...styles.input, backgroundColor: '#FFF' }}
+                value={sosInvestigateModal.severity}
+                onChange={(e) => setSosInvestigateModal(m => ({ ...m, severity: e.target.value }))}
+              >
+                <option value="low">Low — False alarm / Test trigger</option>
+                <option value="medium">Medium — Route deviation / General concern</option>
+                <option value="high">High — Verbal dispute / Urgent assistance</option>
+                <option value="critical">Critical — Immediate danger / Emergency</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                id="policeContacted"
+                checked={sosInvestigateModal.policeContacted}
+                onChange={(e) => setSosInvestigateModal(m => ({ ...m, policeContacted: e.target.checked }))}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <label htmlFor="policeContacted" style={{ fontSize: '13px', fontWeight: '600', color: '#181C32', cursor: 'pointer' }}>
+                Local Police (15) Contacted / Dispatched
+              </label>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={styles.label}>Investigation & Case Resolution Notes *</label>
+              <textarea
+                style={{ ...styles.input, minHeight: '90px', resize: 'vertical' }}
+                placeholder="Detail the investigation findings, rider/driver check-in outcome, and action taken…"
+                value={sosInvestigateModal.resolutionNotes}
+                onChange={(e) => setSosInvestigateModal(m => ({ ...m, resolutionNotes: e.target.value }))}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button style={styles.btnCancel} onClick={() => setSosInvestigateModal(null)} disabled={isSubmittingSOS}>
+                Cancel
+              </button>
+              <button
+                style={{ ...styles.btnSave, backgroundColor: '#7C3AED', color: '#FFF' }}
+                disabled={isSubmittingSOS}
+                onClick={async () => {
+                  if (!sosInvestigateModal.resolutionNotes.trim()) {
+                    addToast('Investigation notes are required', 'error');
+                    return;
+                  }
+                  try {
+                    setIsSubmittingSOS(true);
+                    await adminApi.investigateSOS(sosInvestigateModal.alert.id, {
+                      resolutionNotes: sosInvestigateModal.resolutionNotes.trim(),
+                      severity: sosInvestigateModal.severity,
+                      policeContacted: sosInvestigateModal.policeContacted,
+                    });
+                    addToast('SOS incident investigated and case resolved', 'success');
+                    setSosInvestigateModal(null);
+                    fetchTabData(false);
+                  } catch (err) {
+                    addToast(err?.message || 'Failed to investigate SOS alert', 'error');
+                  } finally {
+                    setIsSubmittingSOS(false);
+                  }
+                }}
+              >
+                {isSubmittingSOS ? 'Saving…' : '✓ Resolve Incident Case'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 9: User Policy Warning Modal */}
+      {userWarningModal && (
+        <div style={styles.modalOverlay} onClick={() => setUserWarningModal(null)}>
+          <div style={{ ...styles.modalContent, width: '480px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '800', color: '#181C32' }}>
+              ⚠️ Issue Official Policy Warning
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#7E8299' }}>
+              Dispatch warning notice to <strong>{userWarningModal.user.name}</strong> ({userWarningModal.user.role})
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Warning Category *</label>
+              <select
+                style={{ ...styles.input, backgroundColor: '#FFF' }}
+                value={userWarningModal.warningType}
+                onChange={(e) => setUserWarningModal(w => ({ ...w, warningType: e.target.value }))}
+              >
+                <option value="cancellation_rate">Excessive Ride Cancellation Rate</option>
+                <option value="behavior">Community Guidelines / Unprofessional Conduct</option>
+                <option value="policy_violation">Safety or Platform Policy Breach</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={styles.label}>Warning Notice Message *</label>
+              <textarea
+                style={{ ...styles.input, minHeight: '90px', resize: 'vertical' }}
+                placeholder="Explain the reason for this warning and expected corrective action…"
+                value={userWarningModal.message}
+                onChange={(e) => setUserWarningModal(w => ({ ...w, message: e.target.value }))}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button style={styles.btnCancel} onClick={() => setUserWarningModal(null)} disabled={isSubmittingWarning}>
+                Cancel
+              </button>
+              <button
+                style={{ ...styles.btnSave, backgroundColor: '#D97706', color: '#FFF' }}
+                disabled={isSubmittingWarning}
+                onClick={async () => {
+                  if (!userWarningModal.message.trim()) {
+                    addToast('Warning message cannot be empty', 'error');
+                    return;
+                  }
+                  try {
+                    setIsSubmittingWarning(true);
+                    await adminApi.issueUserWarning(userWarningModal.user.id, {
+                      warningType: userWarningModal.warningType,
+                      message: userWarningModal.message.trim(),
+                    });
+                    addToast(`Official warning dispatched to ${userWarningModal.user.name}`, 'success');
+                    setUserWarningModal(null);
+                  } catch (err) {
+                    addToast(err?.message || 'Failed to dispatch warning', 'error');
+                  } finally {
+                    setIsSubmittingWarning(false);
+                  }
+                }}
+              >
+                {isSubmittingWarning ? 'Sending…' : '⚠️ Issue Warning Notice'}
+              </button>
+            </div>
           </div>
         </div>
       )}

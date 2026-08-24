@@ -438,6 +438,71 @@ export const adminApi = {
     document.body.removeChild(a);
     return true;
   },
+
+  // ────────── Phase 9: Operational Reliability & Compliance ──────────
+
+  // Deep System Health & Infrastructure Diagnostics
+  getDeepHealth: async () => {
+    return fetchWithErrorHandling('/admin/system/health-deep', {}, CACHE_TTL.SHORT);
+  },
+
+  // Compliance - Expiry List
+  getComplianceExpiries: async (params: { status?: string; page?: number; limit?: number } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/compliance/expiries?${queryString}` : '/admin/compliance/expiries';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.MEDIUM);
+  },
+
+  // Compliance - Scan
+  runComplianceScan: async () => {
+    invalidateCache('/admin/compliance');
+    return fetchWithErrorHandling('/admin/compliance/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+  },
+
+  // Disputes - List
+  getDisputes: async (params: { status?: string; page?: number; limit?: number } = {}) => {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
+    ).toString();
+    const endpoint = queryString ? `/admin/disputes?${queryString}` : '/admin/disputes';
+    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.SHORT);
+  },
+
+  // Disputes - Resolve
+  resolveDispute: async (id: string, body: { resolutionNotes: string; actionTaken: string; adjustmentAmount?: number }) => {
+    invalidateCache('/admin/disputes');
+    return fetchWithErrorHandling(`/admin/disputes/${id}/resolve`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  },
+
+  // SOS Investigation
+  investigateSOS: async (id: string, body: { resolutionNotes: string; severity: string; policeContacted: boolean }) => {
+    invalidateCache('/admin/safety');
+    invalidateCache('/safety');
+    return fetchWithErrorHandling(`/safety/sos/${id}/investigate`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  },
+
+  // Issue User Warning
+  issueUserWarning: async (userId: string, body: { warningType: string; message: string }) => {
+    return fetchWithErrorHandling(`/admin/users/${userId}/warn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 export default adminApi;

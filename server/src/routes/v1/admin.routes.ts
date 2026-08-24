@@ -1136,5 +1136,126 @@ router.post('/notifications/send', authenticateToken, requireAdmin, async (req: 
   }
 });
 
+/**
+ * GET /api/v1/admin/system/health-deep
+ * Description: Retrieves deep diagnostic telemetry including DB latency, memory, uptime, and gateway status.
+ */
+router.get('/system/health-deep', authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const startTime = Date.now();
+    let dbConnected = true;
+    let dbError: string | null = null;
+    let latencyMs = 0;
+
+    try {
+      await query('SELECT 1');
+      latencyMs = Date.now() - startTime;
+    } catch (e: any) {
+      dbConnected = false;
+      dbError = e?.message || 'Database ping failed';
+    }
+
+    const mem = process.memoryUsage();
+    const hasGmail = Boolean(process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN);
+    const hasFCM = Boolean(process.env.FIREBASE_PROJECT_ID || process.env.FIREBASE_CLIENT_EMAIL);
+    const hasCloudinary = Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY);
+
+    res.status(200).json({
+      status: dbConnected ? 'healthy' : 'degraded',
+      uptimeSeconds: Math.round(process.uptime()),
+      timestamp: Date.now(),
+      database: {
+        connected: dbConnected,
+        latencyMs,
+        engine: 'PostgreSQL TCP Pool / Supabase Fallback',
+        error: dbError,
+      },
+      services: {
+        firebaseFCM: hasFCM ? 'configured' : 'mock_fallback',
+        gmailSMTP: hasGmail ? 'configured' : 'unconfigured',
+        cloudinary: hasCloudinary ? 'configured' : 'unconfigured',
+      },
+      memory: {
+        heapUsedMb: Math.round((mem.heapUsed / 1024 / 1024) * 10) / 10,
+        heapTotalMb: Math.round((mem.heapTotal / 1024 / 1024) * 10) / 10,
+        rssMb: Math.round((mem.rss / 1024 / 1024) * 10) / 10,
+      },
+    });
+  } catch (error: any) {
+    console.error('Deep health check error:', error);
+    res.status(500).json({ error: 'Failed to retrieve system health diagnostics' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/users/:id/warn
+ * Body: { warningType: 'cancellation_rate' | 'policy_violation' | 'behavior', message: string }
+ * Description: Issues an official policy warning to a driver or passenger without blocking the account.
+ */
+router.post('/users/:id/warn', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id: targetUserId } = req.params;
+    const { warningType, message } = req.body;
+
+    const validTypes = ['cancellation_rate', 'policy_violation', 'behavior'];
+    if (!warningType || !validTypes.includes(warningType)) {
+      return res.status(400).json({ error: `Warning type must be one of: ${validTypes.join(', ')}` });
+    }
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Warning message is required' });
+    }
+
+    // Verify user existence
+    const userRes = await query('SELECT id, name, role, email, phone FROM users WHERE id = $1', [targetUserId]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userRes.rows[0];
+    const now = Date.now();
+    const warningTitle = warningType === 'cancellation_rate'
+      ? '⚠️ SheDrive Notice: Excessive Cancellation Rate'
+      : (warningType === 'behavior' ? '⚠️ SheDrive Community Guidelines Notice' : '⚠️ SheDrive Official Policy Notice');
+
+    const notifId = `notif_warn_${now}_${Math.random().toString(36).substring(2, 6)}`;
+
+    // 1. In-app notification write
+    await query(
+      `INSERT INTO user_notifications (id, user_id, title, message, category, is_read, created_at)
+       VALUES ($1, $2, $3, $4, 'safety', false, $5)`,
+      [notifId, targetUserId, warningTitle, message.trim(), now]
+    ).catch((e: any) => console.warn('Warning notification DB write error:', e?.message));
+
+    // 2. Push notification
+    sendPushNotification({
+      userId: targetUserId,
+      title: warningTitle,
+      body: message.trim(),
+      data: { type: 'POLICY_WARNING', warningType },
+    }).catch(err => console.warn('[FCM] Warning push error:', err?.message));
+
+    // 3. Audit log entry
+    const auditId = `log_${now}_${Math.random().toString(36).substring(2, 7)}`;
+    const adminUser = (req as any).user;
+    const auditDetails = `Issued official warning (${warningType}) to User ${user.name} (${targetUserId}, ${user.role}). Message: "${message.trim()}"`;
+
+    await query(
+      'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
+      [auditId, adminUser?.id || 'admin', 'ISSUE_USER_WARNING', auditDetails, now]
+    ).catch((e: any) => console.warn('Warning audit log write error:', e?.message));
+
+    res.status(200).json({
+      success: true,
+      message: `Official warning issued to ${user.name}`,
+      userId: targetUserId,
+      warningType,
+    });
+  } catch (error: any) {
+    console.error('Issue user warning error:', error);
+    res.status(500).json({ error: 'Failed to issue user warning' });
+  }
+});
+
 export default router;
 
