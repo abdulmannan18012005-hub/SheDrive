@@ -757,6 +757,59 @@ Phase 11 verification:
 
 ---
 
+# PHASE 12 — COMPLETED (RELEASE CANDIDATE APPROVED)
+
+Phase 12 objective:
+
+RELEASE QA, ANDROID CLEAN-INSTALL AUDIT, REAL-DEVICE FLOW VALIDATION, CRASH HARDENING & PLATFORM RELEASE READINESS.
+
+Status: COMPLETED — RELEASE CANDIDATE APPROVED (v1.0.0)
+
+Commit: b0dccf2f
+
+Implemented & Verified:
+
+1. **Android Clean-Install & Session Persistence Validation:**
+   - First launch / cold start properly routes unauthenticated users to `AuthStack` (`WelcomeScreen.tsx` → `LoginScreen.tsx` / `RegisterScreen.tsx`).
+   - JWT authentication tokens persisted in AsyncStorage (`@shedrive_auth_token`) and restored on app launch.
+   - Dynamic role-based routing correctly directs passengers to `PassengerStack` and verified drivers to `DriverStack`.
+
+2. **Mobile Crash Resilience & Error Boundary:**
+   - Implemented `ErrorBoundary.tsx` (`src/components/ErrorBoundary.tsx`) catching unhandled React Native UI crashes.
+   - Wrapped root application hierarchy in `App.tsx` with `ErrorBoundary`, displaying a branded recovery screen with "Restart Application Screen" action instead of crashing to Android OS.
+   - Configured `eas.json` with standalone preview APK and production app-bundle (AAB) build profiles.
+
+3. **Passenger End-to-End Workflow Verification:**
+   - Onboarding & login → permissions check → ride search (`SearchScreen.tsx`) → multi-stop intermediate waypoints (up to 3 stops) → fare bidding (`FareBidScreen.tsx`) → advance scheduling toggle → cash/digital wallet selection → live ride tracking (`RideTrackingScreen.tsx`) → emergency SOS trigger (15 dialer + DB logging) → in-ride chat (`ChatScreen.tsx`) → trip completion → driver rating sync (`POST /rides/:id/rating`) → tap-to-view trip receipts (`TripReceiptModal.tsx`).
+
+4. **Driver End-to-End Workflow Verification:**
+   - Registration with document uploads (CNIC, license, vehicle) → admin verification gating → online availability toggle → incoming ride push broadcast → bid acceptance → external Google Maps turn-by-turn navigation launcher with dynamic waypoint targeting → progressive waypoint completion (`PUT /rides/:id/stops/:stopId/complete`) → trip completion → monthly platform commission tracking & bank receipt submission (`MonthlyPaymentScreen.tsx`).
+
+5. **Admin Portal End-to-End Command Center Verification:**
+   - Authentication & session persistence → real-time Command Dashboard counters → Operational Intelligence analytics charts & CSV export → System Health diagnostics → Driver Compliance expiration scanner → Ride Disputes resolution → Driver Verification Queue with document inspection modal → Driver & Passenger Rosters → Live Ride Monitor → Monthly Platform Fee & Passenger Digital Transactions review → SOS Emergency Alerts management & 1-click resolution → Audit Logs → User Feedback → Support Tickets resolution → Ride History archive → Deactivated Accounts restoration → Broadcast Push Notifications → System Settings.
+
+6. **Public Website Verification (11 Pages):**
+   - Verified responsive design, navigation bar, and footer link consistency across all 11 pages (`index.html`, `passenger.html`, `driver.html`, `safety.html`, `downloads.html`, `contact.html`, `privacy.html`, `terms.html`, `track.html`, `feedback.html`).
+   - Verified public ride tracking (`track.html`) with rate-limited backend `GET /api/v1/rides/track/:shareToken`.
+   - Verified public feedback portal (`feedback.html`) with backend `POST /api/v1/support/feedback`.
+   - Verified Open Graph and Twitter Card social metadata.
+
+7. **Security, Headers & Rate Limiting:**
+   - Verified HTTP security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security`).
+   - Verified in-memory rate limiters for Login, OTP, Password Reset, Payment Initiation, Ride Requests, Feedback, SOS, and Public Ride Tracking.
+   - Verified periodic background stale payment auto-cancellation runner (15-min interval) and scheduled ride dispatcher (60s interval).
+
+Phase 12 QA Verification Results:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build`): PASS (0 errors)
+- Admin Portal build (`npm run build`): PASS (0 errors)
+- Security & API Automated Test Suite: 19/19 PASS (100%)
+- Live Production Probes (`https://shedrive.onrender.com/api/v1`): PASS (HTTP 200 on /health, 401 Auth Gating)
+- Zero database migrations required (100% existing schema)
+- Zero new runtime dependencies added
+
+---
+
 # SAFETY RULES
 
 Before changing anything:
