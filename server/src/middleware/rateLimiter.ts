@@ -146,3 +146,12 @@ export const feedbackRateLimiter = createRateLimiter(
   (req) => getClientIp(req) // Rate limit by IP for public/authenticated feedback
 );
 
+export const uploadRateLimiter = createRateLimiter(
+  10, // 10 document upload requests
+  5 * 60 * 1000, // per 5 minutes
+  (req) => {
+    const userId = req.user?.id;
+    return userId ? `upload:${userId}` : getClientIp(req);
+  }
+);
+

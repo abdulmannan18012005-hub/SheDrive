@@ -8,6 +8,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
+    "assetBundlePatterns": [
+      "assets/*"
+    ],
     "splash": {
       "image": "./assets/icon.png",
       "backgroundColor": "#E91E63",
