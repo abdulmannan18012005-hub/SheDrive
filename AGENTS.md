@@ -687,6 +687,76 @@ Zero code modifications are required to go live — the backend `JazzCashGateway
 
 ---
 
+# PHASE 11 — COMPLETED
+
+Phase 11 objective:
+
+PRODUCTION HARDENING, PAYMENT COMPLETION, SECURITY, RELIABILITY & END-TO-END PLATFORM QUALITY.
+
+Status: COMPLETED
+
+Commit: 65da2ad3
+
+Implemented:
+
+1. **Server Security Headers Middleware:**
+   - Applied global middleware in `server/src/index.ts` setting: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, and conditional `Strict-Transport-Security` (HTTPS only).
+   - All API responses now include hardened security headers.
+
+2. **Additional Rate Limiters:**
+   - `paymentRateLimiter` (15 requests / 5 min) applied to `POST /api/v1/payments/passenger/initiate`.
+   - `rideRequestRateLimiter` (20 requests / 5 min) applied to `POST /api/v1/rides/request`.
+   - `feedbackRateLimiter` (10 requests / 15 min) applied to `POST /api/v1/support/feedback`.
+   - All timers `.unref()`'d to prevent Node.js event loop blocking.
+
+3. **Authoritative Ride State Machine:**
+   - Enforced strict transition matrix in `PUT /api/v1/rides/:id/status`:
+     - `requested` / `scheduled` → `negotiating`, `accepted`, `cancelled`
+     - `negotiating` → `accepted`, `cancelled`
+     - `accepted` → `arrived`, `cancelled`
+     - `arrived` → `in_progress`, `enroute`, `cancelled`
+     - `in_progress` / `enroute` → `completed`, `cancelled`
+     - `completed` / `cancelled` → Terminal lock (HTTP 400)
+   - Driver ride-stealing prevention: HTTP 409 Conflict if ride already has an assigned driver.
+   - Stop completion restricted to assigned driver only (HTTP 403).
+   - Rating gated to `completed` rides only (HTTP 400).
+   - Minimum fare validation (≥ 50 PKR) and positive distance/duration checks on ride requests.
+   - Ride cancellation synchronizes pending `payment_transactions` to `failed`.
+
+4. **Payment Security & Webhook Idempotency:**
+   - Server-authoritative fare validation in `POST /api/v1/payments/passenger/initiate`: amount cross-checked against `rides.final_fare` / `rides.offered_fare` in PostgreSQL (prevents amount tampering).
+   - Ride participant authorization enforced on payment initiation.
+   - JazzCash and Easypaisa webhook callbacks are idempotent: duplicate `status === 'success'` webhooks do not re-dispatch push notifications.
+
+5. **Process Resilience:**
+   - Global `unhandledRejection` and `uncaughtException` handlers with structured logging.
+   - Graceful shutdown on `SIGTERM` / `SIGINT` with HTTP server drain.
+   - Periodic stale pending payment cleanup runner (every 15 min, `.unref()`'d): auto-fails `pending`/`pending_user_auth` transactions older than 60 minutes.
+
+6. **Public Website Fixes:**
+   - Fixed fatal JavaScript syntax error in `feedback.html` line 261 (template literal).
+   - Fixed backend domain in `track.html` from `shedrive-backend.onrender.com` to `shedrive.onrender.com`.
+   - Added missing `Feedback & Suggestions` footer link in `track.html`.
+   - Added `id="download"` on download sections in `index.html` and `downloads.html`.
+   - Added Open Graph and Twitter Card metadata to `index.html` and `track.html`.
+
+Phase 11 verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build`): PASS (0 errors)
+- Admin Portal build (`npm run build`): PASS (0 errors)
+- Phase 11 automated security test suite: 19/19 PASS
+  - Security headers (5/5): nosniff, DENY, XSS-Protection, Referrer-Policy, health 200
+  - Auth gating (5/5): rides, payments, notifications, SOS, audit — all 401 without token
+  - Input validation (2/2): negative distance, zero fare — both 400
+  - State machine (3/3): non-existent ride transitions/ratings/stops — all 404
+  - Payment security (1/1): non-existent ride payment — 404
+  - Admin diagnostics (2/2): deep health 200 with admin token, 401 without token
+  - Feedback validation (1/1): empty comment — 400
+- Zero database migrations required (100% existing schema)
+- Zero new dependencies added
+
+---
+
 # SAFETY RULES
 
 Before changing anything:
