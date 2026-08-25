@@ -1,9 +1,14 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Live Trip Tracking | SheDrive Pakistan</title>
+  <meta name="description" content="Track your loved one's live SheDrive ride in real-time with verified driver details, vehicle information, and GPS route updates.">
+  <meta property="og:title" content="Live Trip Tracking | SheDrive Pakistan">
+  <meta property="og:description" content="Track your loved one's live SheDrive ride in real-time with verified driver details and GPS route updates.">
+  <meta property="og:image" content="https://shedrive.onrender.com/assets/images/logo.png">
+  <meta property="og:type" content="website">
   <link rel="icon" href="assets/images/favicon.png" type="image/png">
   <link rel="stylesheet" href="assets/css/styles.css">
   <!-- Leaflet CDN for Web Browser Map -->
@@ -240,7 +245,8 @@
             <a href="passenger.html" class="footer-link">For Passengers</a>
             <a href="driver.html" class="footer-link">For Drivers</a>
             <a href="safety.html" class="footer-link">Safety Center</a>
-            <a href="index.html#download" data-download-apk="true" class="footer-link download-apk-btn">Download App</a>
+            <a href="feedback.html" class="footer-link">Feedback & Suggestions</a>
+            <a href="downloads.html" data-download-apk="true" class="footer-link download-apk-btn">Download App</a>
             <a href="contact.html" class="footer-link">Support & Helpline</a>
           </div>
         </div>
@@ -279,7 +285,7 @@
   <script>
     // Live Web Ride Tracking Logic
     (function() {
-      const BACKEND_URL = 'https://shedrive-backend.onrender.com';
+      const BACKEND_URL = 'https://shedrive.onrender.com';
       let map = null;
       let pickupMarker = null;
       let dropoffMarker = null;

@@ -48,6 +48,19 @@ app.use(cors({
   origin: allowedOrigins,
   credentials: true,
 }));
+
+// Phase 11: Production Security Headers Middleware
+app.use((_req: any, res: any, next: any) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.set('etag', false); // Disable ETag to prevent 304 stale data in Admin Portal
@@ -191,6 +204,55 @@ io.on('connection', (socket) => {
 // Global Centralized Error Logger
 app.use(errorLogger);
 
+// Phase 11: Periodic Background Stale Pending Payment Cleanup Runner (every 15 minutes)
+const cleanStalePendingPayments = async () => {
+  try {
+    const staleThreshold = Date.now() - (60 * 60 * 1000); // 60 minutes old
+    const res = await query(
+      `UPDATE payment_transactions 
+       SET status = 'failed', updated_at = $1 
+       WHERE status IN ('pending', 'pending_user_auth') AND created_at < $2`,
+      [Date.now(), staleThreshold]
+    );
+    if (res && res.rowCount && res.rowCount > 0) {
+      console.log(`[PAYMENT CLEANUP] Expired ${res.rowCount} stale pending payment transactions.`);
+    }
+  } catch (err: any) {
+    console.warn('[PAYMENT CLEANUP] Error cleaning stale transactions:', err?.message);
+  }
+};
+const cleanupInterval = setInterval(cleanStalePendingPayments, 15 * 60 * 1000);
+if (cleanupInterval.unref) {
+  cleanupInterval.unref();
+}
+
+// Global Process Resilience Handlers
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  console.error('[FATAL PROCESS] Unhandled Promise Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err: Error) => {
+  console.error('[FATAL PROCESS] Uncaught Exception thrown:', err.message, err.stack);
+});
+
+// Graceful Shutdown
+const gracefulShutdown = (signal: string) => {
+  console.log(`[SHUTDOWN] Received ${signal}. Closing HTTP server gracefully...`);
+  clearInterval(cleanupInterval);
+  server.close(() => {
+    console.log('[SHUTDOWN] HTTP server closed cleanly. Exiting process.');
+    process.exit(0);
+  });
+  // Force shutdown after 10s if hanging
+  setTimeout(() => {
+    console.error('[SHUTDOWN] Forcefully terminating after timeout.');
+    process.exit(1);
+  }, 10000).unref();
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 server.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`===================================================`);
   console.log(`🚀 SheDrive Always-Online Node.js Express API Server`);
@@ -198,3 +260,4 @@ server.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🔗 API Base Version Endpoint: http://localhost:${PORT}/api/v1`);
   console.log(`===================================================`);
 });
+

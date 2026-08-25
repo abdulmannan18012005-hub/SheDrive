@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { query } from '../../config/db';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { sendPushNotification, notifyNearbyDrivers } from '../../services/notificationService';
-import { createRateLimiter } from '../../middleware/rateLimiter';
+import { createRateLimiter, rideRequestRateLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
@@ -76,7 +76,7 @@ router.post('/calculate-fare', authenticateToken, async (req: AuthRequest, res: 
 });
 
 // Create new ride request (supports multi-stop & scheduled bookings)
-router.post('/request', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/request', authenticateToken, rideRequestRateLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const {
       rideId: clientRideId,
@@ -98,6 +98,28 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
     if (!passengerId || !pickup || !destination) {
       return res.status(400).json({ error: 'Missing ride parameters (pickup and destination are required)' });
     }
+
+    if (pickup.latitude === undefined || pickup.longitude === undefined ||
+        destination.latitude === undefined || destination.longitude === undefined) {
+      return res.status(400).json({ error: 'Valid pickup and destination coordinates are required' });
+    }
+
+    const numDistance = Number(distanceKm);
+    const numDuration = Number(durationMin);
+    if ((distanceKm !== undefined && (isNaN(numDistance) || numDistance < 0)) ||
+        (durationMin !== undefined && (isNaN(numDuration) || numDuration < 0))) {
+      return res.status(400).json({ error: 'Distance and duration must be non-negative numbers' });
+    }
+
+    const rawEstimatedFare = Number(estimatedFare);
+    const rawOfferedFare = Number(offeredFare);
+    if ((estimatedFare !== undefined && (isNaN(rawEstimatedFare) || rawEstimatedFare < 50)) ||
+        (offeredFare !== undefined && (isNaN(rawOfferedFare) || rawOfferedFare < 50))) {
+      return res.status(400).json({ error: 'Minimum fare must be at least Rs. 50' });
+    }
+
+    const validatedEstimatedFare = Math.max(50, rawEstimatedFare || 50);
+    const validatedOfferedFare = Math.max(50, rawOfferedFare || validatedEstimatedFare);
 
     const now = Date.now();
 
@@ -151,6 +173,17 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
       ? clientRideId.trim()
       : `ride_${now}_${Math.random().toString(36).substring(2, 7)}`;
 
+    // Check if clientRideId already exists for idempotency
+    const existingRide = await query('SELECT ride_id, status FROM rides WHERE ride_id = $1', [rideId]);
+    if (existingRide.rows.length > 0) {
+      return res.status(200).json({
+        success: true,
+        rideId,
+        status: existingRide.rows[0].status,
+        isDuplicate: true,
+      });
+    }
+
     // 1. Insert ride record
     await query(
       `INSERT INTO rides (
@@ -172,10 +205,10 @@ router.post('/request', authenticateToken, async (req: AuthRequest, res: Respons
         destination.latitude,
         destination.longitude,
         destination.label || '',
-        distanceKm || 0,
-        durationMin || 0,
-        estimatedFare || 0,
-        offeredFare || estimatedFare || 0,
+        numDistance || 0,
+        numDuration || 0,
+        validatedEstimatedFare,
+        validatedOfferedFare,
         polyline || '',
         paymentMethod || 'cash',
         isScheduledRide,
@@ -258,11 +291,45 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res: Respo
       return res.status(403).json({ error: 'You are not authorized to update this ride' });
     }
 
+    // Phase 11: Terminal State Protection
+    if (currentRide.status === 'completed' || currentRide.status === 'cancelled') {
+      return res.status(400).json({
+        error: `Cannot update ride in a terminal state (${currentRide.status})`,
+        currentStatus: currentRide.status,
+      });
+    }
+
     const now = Date.now();
     // Normalize 'enroute' or 'started' to 'in_progress' for database schema compatibility
     const normalizedStatus = (status === 'enroute' || status === 'started') ? 'in_progress' : status;
 
+    // Phase 11: Authoritative State Machine Validation
+    const VALID_TRANSITIONS: Record<string, string[]> = {
+      requested: ['negotiating', 'accepted', 'cancelled'],
+      scheduled: ['negotiating', 'accepted', 'cancelled'],
+      negotiating: ['accepted', 'cancelled'],
+      accepted: ['arrived', 'cancelled'],
+      arrived: ['in_progress', 'cancelled'],
+      in_progress: ['completed', 'cancelled'],
+    };
+
+    if (currentRide.status !== normalizedStatus && userRole !== 'admin') {
+      const allowedNextStates = VALID_TRANSITIONS[currentRide.status] || [];
+      if (!allowedNextStates.includes(normalizedStatus)) {
+        return res.status(400).json({
+          error: `Invalid ride status transition from '${currentRide.status}' to '${normalizedStatus}'`,
+          currentStatus: currentRide.status,
+          allowedTransitions: allowedNextStates,
+        });
+      }
+    }
+
     if (normalizedStatus === 'accepted') {
+      // Phase 11: Prevent Driver Ride Stealing / Overwrites
+      if (currentRide.driver_id && currentRide.driver_id !== userId && userRole !== 'admin') {
+        return res.status(409).json({ error: 'Ride has already been accepted by another driver' });
+      }
+
       const assignedDriverId = driverId || userId;
       await query(
         `UPDATE rides SET
@@ -300,6 +367,14 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res: Respo
     } else if (normalizedStatus === 'cancelled') {
       await query(
         `UPDATE rides SET status = 'cancelled', updated_at = $1 WHERE ride_id = $2`,
+        [now, rideId]
+      );
+
+      // Phase 11: Synchronize ride cancellation with pending payment transactions
+      await query(
+        `UPDATE payment_transactions 
+         SET status = 'failed', updated_at = $1 
+         WHERE ride_id = $2 AND status IN ('pending', 'pending_user_auth')`,
         [now, rideId]
       );
     } else {
@@ -340,7 +415,7 @@ router.post('/:id/rating', authenticateToken, async (req: AuthRequest, res: Resp
 
     // Verify ride
     const rideRes = await query(
-      'SELECT ride_id, passenger_id, driver_id FROM rides WHERE ride_id = $1',
+      'SELECT ride_id, passenger_id, driver_id, status FROM rides WHERE ride_id = $1',
       [rideId]
     );
 
@@ -349,8 +424,12 @@ router.post('/:id/rating', authenticateToken, async (req: AuthRequest, res: Resp
     }
 
     const ride = rideRes.rows[0];
-    if (userId !== ride.passenger_id && userId !== ride.driver_id) {
+    if (userId !== ride.passenger_id && userId !== ride.driver_id && userRole !== 'admin') {
       return res.status(403).json({ error: 'Only ride participants can submit ratings' });
+    }
+
+    if (ride.status !== 'completed') {
+      return res.status(400).json({ error: 'Ratings can only be submitted for completed rides', currentStatus: ride.status });
     }
 
     const now = Date.now();
@@ -745,8 +824,8 @@ router.put('/:id/stops/:stopId/complete', authenticateToken, async (req: AuthReq
     }
 
     const ride = rideRes.rows[0];
-    if (userRole !== 'admin' && userId !== ride.driver_id && userId !== ride.passenger_id) {
-      return res.status(403).json({ error: 'Only ride participants can complete waypoints' });
+    if (userRole !== 'admin' && userId !== ride.driver_id) {
+      return res.status(403).json({ error: 'Only the assigned driver can complete intermediate waypoints' });
     }
 
     const now = Date.now();
@@ -838,7 +917,10 @@ export async function checkAndDispatchScheduledRides() {
 }
 
 // Run scheduled dispatch checker every 60 seconds
-setInterval(checkAndDispatchScheduledRides, 60000);
+const scheduledDispatchTimer = setInterval(checkAndDispatchScheduledRides, 60000);
+if (scheduledDispatchTimer.unref) {
+  scheduledDispatchTimer.unref();
+}
 
 export default router;
 

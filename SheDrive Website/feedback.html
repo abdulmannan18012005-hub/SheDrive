@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -258,7 +258,7 @@
 
     function setRatingValue(val) {
       document.getElementById('selectedRatingInput').value = val;
-      document.getElementById('ratingDescription').innerText = ratingLabels[val] || ${val} Stars;
+      document.getElementById('ratingDescription').innerText = ratingLabels[val] || `${val} Stars`;
       const stars = document.querySelectorAll('#starsContainer .star-btn');
       stars.forEach((btn, idx) => {
         if (idx < val) {

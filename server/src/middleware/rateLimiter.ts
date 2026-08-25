@@ -72,7 +72,7 @@ function getClientIp(req: any): string {
 /**
  * Clean up expired entries periodically (every 5 minutes)
  */
-setInterval(() => {
+const rateTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of rateLimitStore.entries()) {
     if (now > entry.resetAt) {
@@ -80,6 +80,9 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+if (rateTimer.unref) {
+  rateTimer.unref();
+}
 
 /**
  * Pre-configured rate limiters for common use cases
@@ -118,3 +121,28 @@ export const sosRateLimiter = createRateLimiter(
     return userId ? `sos:${userId}` : getClientIp(req);
   }
 );
+
+export const paymentRateLimiter = createRateLimiter(
+  15, // 15 payment requests
+  5 * 60 * 1000, // per 5 minutes
+  (req) => {
+    const userId = req.user?.id;
+    return userId ? `pay:${userId}` : getClientIp(req);
+  }
+);
+
+export const rideRequestRateLimiter = createRateLimiter(
+  20, // 20 ride requests
+  5 * 60 * 1000, // per 5 minutes
+  (req) => {
+    const userId = req.user?.id;
+    return userId ? `ride_req:${userId}` : getClientIp(req);
+  }
+);
+
+export const feedbackRateLimiter = createRateLimiter(
+  10, // 10 feedback submissions
+  15 * 60 * 1000, // per 15 minutes
+  (req) => getClientIp(req) // Rate limit by IP for public/authenticated feedback
+);
+

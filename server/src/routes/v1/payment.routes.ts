@@ -3,6 +3,7 @@ import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { query } from '../../config/db';
 import { sendPushNotification } from '../../services/notificationService';
 import { requireAdmin } from '../v1/admin.routes';
+import { paymentRateLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
@@ -432,9 +433,10 @@ import { getPaymentGateway, PaymentProvider } from '../../services/payments/paym
  * Body: { rideId: string, provider: 'cash' | 'jazzcash' | 'easypaisa', amount: number, mobileAccountNo?: string, customerEmail?: string, idempotencyKey?: string }
  * Description: Initiates passenger payment via Cash or Digital Wallet (JazzCash / Easypaisa Sandbox)
  */
-router.post('/passenger/initiate', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/passenger/initiate', authenticateToken, paymentRateLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+    const userRole = req.user?.role;
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -471,17 +473,38 @@ router.post('/passenger/initiate', authenticateToken, async (req: AuthRequest, r
       }
     }
 
-    // Verify ride exists and belongs to this user or driver
-    const rideRes = await query('SELECT * FROM rides WHERE ride_id = $1', [rideId]);
+    // Verify ride exists and user has authorization to pay
+    const rideRes = await query(
+      'SELECT ride_id, passenger_id, driver_id, final_fare, offered_fare, estimated_fare, status FROM rides WHERE ride_id = $1',
+      [rideId]
+    );
     if (rideRes.rows.length === 0) {
       return res.status(404).json({ error: 'Ride not found' });
     }
+
+    const ride = rideRes.rows[0];
+    if (userRole !== 'admin' && userId !== ride.passenger_id && userId !== ride.driver_id) {
+      return res.status(403).json({ error: 'You are not authorized to pay for this ride' });
+    }
+
+    // Phase 11: Server-Authoritative Amount Enforcement
+    const authoritativeFare = Number(ride.final_fare || ride.offered_fare || ride.estimated_fare || 0);
+    const requestedAmount = Number(amount);
+
+    if (authoritativeFare > 0 && Math.abs(requestedAmount - authoritativeFare) > 1.0) {
+      return res.status(400).json({
+        error: `Payment amount mismatch. Authoritative fare is Rs. ${authoritativeFare}, but requested Rs. ${requestedAmount}`,
+        authoritativeFare,
+      });
+    }
+
+    const effectiveAmount = authoritativeFare > 0 ? authoritativeFare : requestedAmount;
 
     const gateway = getPaymentGateway(provider);
     const result = await gateway.initiatePayment({
       rideId,
       userId,
-      amount: Number(amount),
+      amount: effectiveAmount,
       provider,
       mobileAccountNo,
       customerEmail,
@@ -556,16 +579,19 @@ router.post('/callbacks/jazzcash', async (req: Request, res: Response) => {
     const result = await gateway.handleWebhook(req.body, req.headers);
 
     if (result.success && result.status === 'success') {
-      // Find associated ride and notify participants
-      const txnRes = await query('SELECT ride_id, user_id, amount FROM payment_transactions WHERE id = $1 OR transaction_ref = $1', [result.transactionId]);
+      // Find associated ride and notify participants (idempotent notification)
+      const txnRes = await query('SELECT status, ride_id, user_id, amount FROM payment_transactions WHERE id = $1 OR transaction_ref = $1', [result.transactionId]);
       if (txnRes.rows.length > 0) {
         const txn = txnRes.rows[0];
-        sendPushNotification({
-          userId: txn.user_id,
-          title: '💳 Payment Successful',
-          body: `Your JazzCash payment of Rs. ${txn.amount} has been verified successfully.`,
-          data: { type: 'PAYMENT_SUCCESS', rideId: txn.ride_id, provider: 'jazzcash' },
-        }).catch(err => console.warn('[FCM] JazzCash success push error:', err?.message));
+        // Only dispatch push notification if not already processed as success
+        if (txn.status !== 'success') {
+          sendPushNotification({
+            userId: txn.user_id,
+            title: '💳 Payment Successful',
+            body: `Your JazzCash payment of Rs. ${txn.amount} has been verified successfully.`,
+            data: { type: 'PAYMENT_SUCCESS', rideId: txn.ride_id, provider: 'jazzcash' },
+          }).catch(err => console.warn('[FCM] JazzCash success push error:', err?.message));
+        }
       }
     }
 
@@ -586,15 +612,18 @@ router.post('/callbacks/easypaisa', async (req: Request, res: Response) => {
     const result = await gateway.handleWebhook(req.body, req.headers);
 
     if (result.success && result.status === 'success') {
-      const txnRes = await query('SELECT ride_id, user_id, amount FROM payment_transactions WHERE id = $1 OR transaction_ref = $1', [result.transactionId]);
+      const txnRes = await query('SELECT status, ride_id, user_id, amount FROM payment_transactions WHERE id = $1 OR transaction_ref = $1', [result.transactionId]);
       if (txnRes.rows.length > 0) {
         const txn = txnRes.rows[0];
-        sendPushNotification({
-          userId: txn.user_id,
-          title: '💳 Payment Successful',
-          body: `Your Easypaisa payment of Rs. ${txn.amount} has been verified successfully.`,
-          data: { type: 'PAYMENT_SUCCESS', rideId: txn.ride_id, provider: 'easypaisa' },
-        }).catch(err => console.warn('[FCM] Easypaisa success push error:', err?.message));
+        // Only dispatch push notification if not already processed as success
+        if (txn.status !== 'success') {
+          sendPushNotification({
+            userId: txn.user_id,
+            title: '💳 Payment Successful',
+            body: `Your Easypaisa payment of Rs. ${txn.amount} has been verified successfully.`,
+            data: { type: 'PAYMENT_SUCCESS', rideId: txn.ride_id, provider: 'easypaisa' },
+          }).catch(err => console.warn('[FCM] Easypaisa success push error:', err?.message));
+        }
       }
     }
 

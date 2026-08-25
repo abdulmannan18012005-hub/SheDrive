@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../../config/db';
 import { authenticateToken } from '../../middleware/auth';
+import { feedbackRateLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
@@ -74,7 +75,7 @@ router.post('/tickets', authenticateToken, async (req: Request, res: Response) =
  * Body: { rating: number, category: string, comment: string, name?: string, phone?: string, email?: string, appVersion?: string, deviceInfo?: string }
  * Description: Submits user/driver/website feedback linked to users(id) or guest profile.
  */
-router.post('/feedback', async (req: Request, res: Response) => {
+router.post('/feedback', feedbackRateLimiter, async (req: Request, res: Response) => {
   try {
     const { rating, category, comment, name, phone, email, appVersion, deviceInfo } = req.body;
 
