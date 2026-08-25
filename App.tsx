@@ -6,6 +6,8 @@ import { AppState, View, Text } from 'react-native';
 import { AppProvider } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
+import ErrorBoundary from './src/components/ErrorBoundary';
+
 export default function App(): React.JSX.Element {
   const [isReady, setIsReady] = useState(false);
 
@@ -55,10 +57,12 @@ export default function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
-      <AppProvider>
-        <StatusBar style="light" />
-        <AppNavigator />
-      </AppProvider>
+      <ErrorBoundary>
+        <AppProvider>
+          <StatusBar style="light" />
+          <AppNavigator />
+        </AppProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
