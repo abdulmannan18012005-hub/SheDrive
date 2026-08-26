@@ -11,15 +11,27 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-export function errorLogger(err: any, req: Request, res: Response, next: NextFunction) {
+export function errorLogger(err: any, req: Request, res: Response, _next: NextFunction) {
   console.error(`[SERVER ERROR] ${req.method} ${req.originalUrl}:`, {
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    message: err?.message || err,
+    stack: process.env.NODE_ENV === 'development' ? err?.stack : undefined,
     user: (req as any).user ? (req as any).user.id : 'anonymous',
   });
 
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
+  const statusCode = err.status || err.statusCode || 500;
+  const rawMessage = err.message || 'Internal Server Error';
+  
+  // Sanitize internal database / syntax / connection errors in production
+  let clientMessage = rawMessage;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const containsSensitiveInfo = /syntax error|relation|column|postgresql|connect|econnrefused|password|jwt/i.test(rawMessage);
+  
+  if (isProduction && (statusCode === 500 || containsSensitiveInfo)) {
+    clientMessage = 'An unexpected server error occurred. Please try again later.';
+  }
+
+  res.status(statusCode).json({
+    error: clientMessage,
     timestamp: Date.now(),
   });
 }

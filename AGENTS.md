@@ -930,6 +930,56 @@ Phase 15 Verification Results:
 
 ---
 
+# PHASE 16 — COMPLETED
+
+Phase 16 objective:
+
+FORENSIC FULL-PROJECT AUDIT.
+
+Status: COMPLETED
+
+Implemented:
+1. Complete read-only audit of all 30 project domains across Mobile Apps, Admin Portal, Website, Backend Node.js API, PostgreSQL Database, Security, Workflows, and Navigation.
+2. Verified and documented AUDIT-001 through AUDIT-013 findings matrix.
+3. Created Master Inventory artifact and established stabilization roadmap for Phases 17–21.
+4. Zero code files were modified during Phase 16.
+
+---
+
+# PHASE 17 — COMPLETED
+
+Phase 17 objective:
+
+BACKEND, DATABASE, AND API STABILIZATION.
+
+Status: COMPLETED
+
+Implemented:
+1. **Persistent User Verification Codes Table (`014_phase17_verification_codes_and_integrity.sql`):**
+   - Replaced volatile in-memory Node.js `Map` stores (`registrationOtpStore`, `resetTokensStore`) with persistent database storage (`user_verification_codes` table).
+   - Enforced 10-minute registration OTP expiry and 30-minute password reset token expiry.
+   - Enforced strict one-time-use protection (`used = true` status toggle) preventing code re-use.
+2. **Database Transaction Management (`withTransaction`):**
+   - Added atomic multi-step transaction runner (`withTransaction`) in `server/src/config/db.ts`.
+   - Wrapped user and driver creation in `auth.routes.ts` within atomic `BEGIN` / `COMMIT` / `ROLLBACK` transactions to prevent orphaned user records.
+3. **Socket.io Bidding Authorization & Persistence:**
+   - Hardened `send_fare_bid` event in `server/src/index.ts`.
+   - Validated minimum fare offer (Rs. 50), authoritatively checked ride state (`requested`/`negotiating`), verified driver approval status (`verification_status = 'approved'`), and prevented driver bid overwrites on assigned rides.
+   - Persisted all counter-bids directly into PostgreSQL `bids` table.
+4. **Backend Error Sanitization:**
+   - Sanitized `errorLogger` in `server/src/middleware/logger.ts` to obscure raw SQL details, internal file paths, connection strings, and stack traces in production mode (`process.env.NODE_ENV === 'production'`).
+5. **Database Universal Query Engine Updates (`server/src/config/db.ts`):**
+   - Added `SELECT`, `INSERT`, `UPDATE`, `DELETE` handlers for `user_verification_codes` and `bids` tables in Supabase HTTPS fallback engine.
+
+Phase 17 Verification:
+- Server build (`npm run build` in `server/`): PASS (0 errors)
+- Automated Test Suite (`scratch/test_phase17_suite.js`): 3/3 PASS (100%)
+  - ✅ Database OTP Persistence
+  - ✅ One-Time-Use OTP Protection
+  - ✅ Bids Table Persistence & FK Integrity
+
+---
+
 # SAFETY RULES
 
 Before changing anything:

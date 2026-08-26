@@ -505,6 +505,43 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
     return { rows: data || [], rowCount: data ? data.length : 0 };
   }
 
+  // M. SELECT FROM USER_VERIFICATION_CODES
+  if (lowerSql.startsWith('select') && lowerSql.includes('from user_verification_codes')) {
+    let queryBuilder = supabaseClient.from('user_verification_codes').select('*');
+    if (lowerSql.includes('email = $1') && params[0]) {
+      queryBuilder = queryBuilder.eq('email', params[0]);
+      if (lowerSql.includes('type = $2') && params[1]) {
+        queryBuilder = queryBuilder.eq('type', params[1]);
+      }
+    } else if (lowerSql.includes('code = $1') && params[0]) {
+      queryBuilder = queryBuilder.eq('code', params[0]);
+      if (lowerSql.includes('type = $2') && params[1]) {
+        queryBuilder = queryBuilder.eq('type', params[1]);
+      }
+    }
+    if (lowerSql.includes('used = false')) {
+      queryBuilder = queryBuilder.eq('used', false);
+    }
+    queryBuilder = queryBuilder.order('created_at', { ascending: false });
+    const { data, error } = await queryBuilder;
+    if (error) throw new Error(error.message);
+    return { rows: data || [], rowCount: data ? data.length : 0 };
+  }
+
+  // O. SELECT FROM BIDS
+  if (lowerSql.startsWith('select') && lowerSql.includes('from bids')) {
+    let queryBuilder = supabaseClient.from('bids').select('*');
+    if (lowerSql.includes('id = $1') && params[0]) {
+      queryBuilder = queryBuilder.eq('id', params[0]);
+    } else if (lowerSql.includes('ride_id = $1') && params[0]) {
+      queryBuilder = queryBuilder.eq('ride_id', params[0]);
+    }
+    queryBuilder = queryBuilder.order('timestamp', { ascending: false });
+    const { data, error } = await queryBuilder;
+    if (error) throw new Error(error.message);
+    return { rows: data || [], rowCount: data ? data.length : 0 };
+  }
+
   // K. INSERT STATEMENT HANDLER
   if (lowerSql.startsWith('insert into')) {
     let tableName = '';
@@ -522,6 +559,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
     else if (lowerSql.includes('insert into audit_logs')) tableName = 'audit_logs';
     else if (lowerSql.includes('insert into admin_settings')) tableName = 'admin_settings';
     else if (lowerSql.includes('insert into sos_alerts')) tableName = 'sos_alerts';
+    else if (lowerSql.includes('insert into user_verification_codes')) tableName = 'user_verification_codes';
 
     if (tableName) {
       // Strip ON CONFLICT clause before parsing columns (used by upsert queries)
@@ -689,6 +727,23 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
           throw new Error(error.message);
         }
       }
+    } else if (lowerSql.includes('update user_verification_codes')) {
+      if (lowerSql.includes('used = true')) {
+        const targetId = params ? params[0] : null;
+        if (targetId) {
+          const { data, error } = await supabaseClient.from('user_verification_codes').update({ used: true }).eq('id', targetId).select();
+          if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
+        }
+      } else if (lowerSql.includes('used = true') && lowerSql.includes('email = $1')) {
+        const email = params ? params[0] : null;
+        const type = params ? params[1] : null;
+        if (email) {
+          let builder = supabaseClient.from('user_verification_codes').update({ used: true }).eq('email', email);
+          if (type) builder = builder.eq('type', type);
+          const { data, error } = await builder.select();
+          if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
+        }
+      }
     }
   }
 
@@ -700,6 +755,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
     else if (lowerSql.includes('delete from drivers')) { tableName = 'drivers'; idCol = 'driver_id'; }
     else if (lowerSql.includes('delete from emergency_contacts')) { tableName = 'emergency_contacts'; idCol = 'id'; }
     else if (lowerSql.includes('delete from saved_places')) { tableName = 'saved_places'; idCol = 'id'; }
+    else if (lowerSql.includes('delete from user_verification_codes')) { tableName = 'user_verification_codes'; idCol = 'id'; }
 
     if (tableName && params && params.length > 0) {
       const targetId = params[0];
@@ -707,6 +763,9 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
       // Handle compound WHERE: e.g. DELETE FROM saved_places WHERE id = $1 AND user_id = $2
       if (lowerSql.includes('user_id = $2') && params[1]) {
         deleteBuilder = deleteBuilder.eq('user_id', params[1]);
+      } else if (lowerSql.includes('email = $1') && tableName === 'user_verification_codes') {
+        deleteBuilder = supabaseClient.from('user_verification_codes').delete().eq('email', params[0]);
+        if (params[1]) deleteBuilder = deleteBuilder.eq('type', params[1]);
       }
       const { data, error } = await deleteBuilder.select();
       if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
@@ -748,5 +807,33 @@ export async function query(text: string, params?: any[]) {
   } catch (httpErr: any) {
     console.error(`[Database Error] Query failed: "${text.substring(0, 60)}..."`, httpErr?.message || httpErr);
     throw httpErr;
+  }
+}
+
+/**
+ * Atomic Multi-Step Transaction Wrapper
+ * Executes callback within a BEGIN / COMMIT block on PostgreSQL pool.
+ * Falls back to single query runner if TCP is offline.
+ */
+export async function withTransaction<T>(callback: (client: any) => Promise<T>): Promise<T> {
+  const tcpOk = await checkTcpHealth();
+  if (tcpOk) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } else {
+    const shimClient = {
+      query: (text: string, params?: any[]) => query(text, params),
+    };
+    return await callback(shimClient);
   }
 }

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import { query } from '../../config/db';
+import { query, withTransaction } from '../../config/db';
 import { generateToken, hashPassword, comparePassword, authenticateToken } from '../../middleware/auth';
 import { supabase } from '../../config/supabase';
 import { sendEmail } from '../../services/smtp';
@@ -9,22 +9,58 @@ import { loginRateLimiter, otpRateLimiter, passwordResetRateLimiter } from '../.
 
 const router = Router();
 
-// In-memory store for registration OTPs
-interface RegistrationOtpEntry {
-  otp: string;
-  expiresAt: number;
-  lastSentAt: number;
-  verified: boolean;
+// Helper methods for database-backed verification codes
+async function saveVerificationCode(email: string, code: string, type: string, expiresAt: number) {
+  const now = Date.now();
+  const id = `vc_${now}_${Math.random().toString(36).substring(2, 7)}`;
+  // Invalidate previous unused codes for this email and type
+  await query('UPDATE user_verification_codes SET used = true WHERE email = $1 AND type = $2', [email, type]);
+  await query(
+    `INSERT INTO user_verification_codes (id, email, code, type, expires_at, last_sent_at, used, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [id, email, code, type, expiresAt, now, false, now]
+  );
+  return id;
 }
-const registrationOtpStore = new Map<string, RegistrationOtpEntry>();
 
-// In-memory store for password reset tokens and email throttling
-interface ResetTokenEntry {
-  token: string;
-  expiresAt: number;
-  lastSentAt: number;
+async function getLatestUnusedCode(email: string, type: string) {
+  const now = Date.now();
+  const res = await query(
+    `SELECT * FROM user_verification_codes 
+     WHERE email = $1 AND type = $2 AND used = false AND expires_at > $3 
+     ORDER BY created_at DESC LIMIT 1`,
+    [email, type, now]
+  );
+  return res.rows[0] || null;
 }
-const resetTokensStore = new Map<string, ResetTokenEntry>();
+
+async function getUnusedCodeByValue(code: string, type: string) {
+  const now = Date.now();
+  const res = await query(
+    `SELECT * FROM user_verification_codes 
+     WHERE code = $1 AND type = $2 AND used = false AND expires_at > $3 
+     ORDER BY created_at DESC LIMIT 1`,
+    [code, type, now]
+  );
+  return res.rows[0] || null;
+}
+
+async function getLatestUsedCode(email: string, type: string) {
+  const now = Date.now();
+  // Allowed within 1 hour of verification
+  const oneHourAgo = now - 60 * 60 * 1000;
+  const res = await query(
+    `SELECT * FROM user_verification_codes 
+     WHERE email = $1 AND type = $2 AND used = true AND created_at > $3 
+     ORDER BY created_at DESC LIMIT 1`,
+    [email, type, oneHourAgo]
+  );
+  return res.rows[0] || null;
+}
+
+async function markCodeUsed(id: string) {
+  await query('UPDATE user_verification_codes SET used = true WHERE id = $1', [id]);
+}
 
 /**
  * POST /api/v1/auth/send-registration-otp
@@ -54,9 +90,9 @@ router.post('/send-registration-otp', otpRateLimiter, async (req: Request, res: 
       });
     }
 
-    // Check 60-second resend cooldown timer
-    const existingEntry = registrationOtpStore.get(cleanEmail);
-    if (existingEntry && Date.now() - existingEntry.lastSentAt < 60000) {
+    // Check 60-second resend cooldown timer from database
+    const existingEntry = await getLatestUnusedCode(cleanEmail, 'registration');
+    if (existingEntry && Date.now() - parseInt(existingEntry.last_sent_at, 10) < 60000) {
       return res.status(200).json({
         success: true,
         message: 'Verification code was sent recently. Please check your email or wait 1 minute before resending.',
@@ -67,12 +103,7 @@ router.post('/send-registration-otp', otpRateLimiter, async (req: Request, res: 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000;
 
-    registrationOtpStore.set(cleanEmail, {
-      otp,
-      expiresAt,
-      lastSentAt: Date.now(),
-      verified: false,
-    });
+    await saveVerificationCode(cleanEmail, otp, 'registration', expiresAt);
 
     const emailHtml = buildRegistrationOtpEmailHtml(cleanEmail, otp);
     try {
@@ -122,24 +153,23 @@ router.post('/verify-registration-otp', async (req: Request, res: Response) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = otp.trim();
 
-    const storedEntry = registrationOtpStore.get(cleanEmail);
+    const storedEntry = await getLatestUnusedCode(cleanEmail, 'registration');
 
     if (!storedEntry) {
       return res.status(400).json({ error: 'No verification code request found for this email. Please request a new code.' });
     }
 
-    if (Date.now() > storedEntry.expiresAt) {
-      registrationOtpStore.delete(cleanEmail);
+    if (Date.now() > parseInt(storedEntry.expires_at, 10)) {
+      await markCodeUsed(storedEntry.id);
       return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
     }
 
-    if (storedEntry.otp !== cleanOtp) {
+    if (storedEntry.code !== cleanOtp) {
       return res.status(400).json({ error: 'Invalid verification code. Please check the code sent to your email.' });
     }
 
     // Mark as verified
-    storedEntry.verified = true;
-    registrationOtpStore.set(cleanEmail, storedEntry);
+    await markCodeUsed(storedEntry.id);
 
     res.status(200).json({
       success: true,
@@ -195,8 +225,8 @@ router.post('/register', async (req: Request, res: Response) => {
     const cleanEmail = email.trim().toLowerCase();
 
     // Verify email was validated via OTP before allowing account creation
-    const otpEntry = registrationOtpStore.get(cleanEmail);
-    if (!otpEntry || !otpEntry.verified) {
+    const otpEntry = await getLatestUsedCode(cleanEmail, 'registration');
+    if (!otpEntry) {
       return res.status(400).json({
         error: 'Please verify your email address with the OTP code before completing registration.',
       });
@@ -308,71 +338,73 @@ router.post('/register', async (req: Request, res: Response) => {
     const passHash = await hashPassword(password);
     const now = Date.now();
 
-    await query(
-      `INSERT INTO users (
-        id, email, password_hash, name, phone, role, cnic, cnic_front_url, cnic_back_url, date_of_birth, city,
-        is_verified, accepted_terms, accepted_privacy_policy, accepted_location_consent,
-        accepted_document_consent, accepted_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
-      [
-        userId,
-        cleanEmail,
-        passHash,
-        name.trim(),
-        cleanPhone,
-        role,
-        cnic.trim(),
-        cnicFrontUrl || null,
-        cnicBackUrl || null,
-        dateOfBirth || null,
-        city?.trim() || 'Lahore',
-        role === 'passenger' ? true : false,
-        acceptedTerms !== false,
-        true,
-        true,
-        true,
-        now,
-        now,
-        now,
-      ]
-    );
-
-    // If driver, insert vehicle and document record
-    if (role === 'driver' && vehicleInfo) {
-      await query(
-        `INSERT INTO drivers (
-          driver_id, vehicle_category, vehicle_make, vehicle_model, vehicle_plate, vehicle_color,
-          vehicle_year, license_front_url, license_back_url, selfie_url, vehicle_photo_url, ac_option,
-          is_online, is_available, is_active, rating, total_rides, fee_terms_accepted, fee_terms_accepted_at, last_location_update
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+    await withTransaction(async (dbClient) => {
+      await dbClient.query(
+        `INSERT INTO users (
+          id, email, password_hash, name, phone, role, cnic, cnic_front_url, cnic_back_url, date_of_birth, city,
+          is_verified, accepted_terms, accepted_privacy_policy, accepted_location_consent,
+          accepted_document_consent, accepted_at, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
         [
           userId,
-          vehicleInfo.category || 'mini',
-          vehicleInfo.make || '',
-          vehicleInfo.model || '',
-          vehicleInfo.plate || '',
-          vehicleInfo.color || '',
-          vehicleInfo.year || '2022',
-          licenseFrontUrl || null,
-          licenseBackUrl || null,
-          selfieUrl || null,
-          vehiclePhotoUrl || null,
-          acOption || 'both',
-          false,
+          cleanEmail,
+          passHash,
+          name.trim(),
+          cleanPhone,
+          role,
+          cnic.trim(),
+          cnicFrontUrl || null,
+          cnicBackUrl || null,
+          dateOfBirth || null,
+          city?.trim() || 'Lahore',
+          role === 'passenger' ? true : false,
+          acceptedTerms !== false,
           true,
-          false,
-          0.00,
-          0,
           true,
+          true,
+          now,
           now,
           now,
         ]
       );
-    }
+
+      // If driver, insert vehicle and document record
+      if (role === 'driver' && vehicleInfo) {
+        await dbClient.query(
+          `INSERT INTO drivers (
+            driver_id, vehicle_category, vehicle_make, vehicle_model, vehicle_plate, vehicle_color,
+            vehicle_year, license_front_url, license_back_url, selfie_url, vehicle_photo_url, ac_option,
+            is_online, is_available, is_active, rating, total_rides, fee_terms_accepted, fee_terms_accepted_at, last_location_update
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+          [
+            userId,
+            vehicleInfo.category || 'mini',
+            vehicleInfo.make || '',
+            vehicleInfo.model || '',
+            vehicleInfo.plate || '',
+            vehicleInfo.color || '',
+            vehicleInfo.year || '2022',
+            licenseFrontUrl || null,
+            licenseBackUrl || null,
+            selfieUrl || null,
+            vehiclePhotoUrl || null,
+            acOption || 'both',
+            false,
+            true,
+            false,
+            0.00,
+            0,
+            true,
+            now,
+            now,
+          ]
+        );
+      }
+    });
 
 
     // Invalidate consumed OTP code after successful account creation
-    registrationOtpStore.delete(cleanEmail);
+    await query('DELETE FROM user_verification_codes WHERE email = $1 AND type = $2', [cleanEmail, 'registration']);
 
     // Also create/sync user in Supabase Auth (for password reset email support)
     if (cleanEmail) {
@@ -607,13 +639,12 @@ router.post('/forgot-password', passwordResetRateLimiter, async (req: Request, r
 
     const user = userRes.rows[0];
 
-    // Enforce role-scoped store key: cleanEmail:role
-    const storeKey = `${cleanEmail}:${role}`;
-    const existing = resetTokensStore.get(storeKey);
+    // Enforce role-scoped cooldown check from database
+    const existing = await getLatestUnusedCode(cleanEmail, `password_reset:${role}`);
     const COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown
 
-    if (existing && Date.now() - existing.lastSentAt < COOLDOWN_MS) {
-      const remainingMs = COOLDOWN_MS - (Date.now() - existing.lastSentAt);
+    if (existing && Date.now() - parseInt(existing.last_sent_at, 10) < COOLDOWN_MS) {
+      const remainingMs = COOLDOWN_MS - (Date.now() - parseInt(existing.last_sent_at, 10));
       const remainingSec = Math.ceil(remainingMs / 1000);
       const mins = Math.floor(remainingSec / 60);
       const secs = remainingSec % 60;
@@ -629,11 +660,7 @@ router.post('/forgot-password', passwordResetRateLimiter, async (req: Request, r
     const token = crypto.randomBytes(24).toString('hex');
     const expiresAt = Date.now() + 30 * 60 * 1000; // 30 min expiry
 
-    resetTokensStore.set(storeKey, {
-      token,
-      expiresAt,
-      lastSentAt: Date.now(),
-    });
+    await saveVerificationCode(cleanEmail, token, `password_reset:${role}`, expiresAt);
 
     const hostHeader = req.headers.host || 'localhost:3000';
     const protocol = req.protocol || 'http';
@@ -697,24 +724,25 @@ router.post('/update-password-from-reset', async (req: Request, res: Response) =
       return res.status(403).json({ error: 'Your account has been temporarily blocked.' });
     }
 
-    // Security token check
-    const storeKey = `${cleanEmail}:${user.role}`;
-    const stored = resetTokensStore.get(storeKey);
+    // Security token check from database
+    const stored = token ? await getUnusedCodeByValue(token.trim(), `password_reset:${user.role}`) : await getLatestUnusedCode(cleanEmail, `password_reset:${user.role}`);
 
-    if (!stored || (token && stored.token !== token)) {
+    if (!stored || (token && stored.code !== token.trim())) {
       return res.status(400).json({
         error: 'This password reset link has expired. Please use the most recently sent link or request a new one.',
       });
     }
 
-    if (Date.now() > stored.expiresAt) {
-      resetTokensStore.delete(storeKey);
+    if (Date.now() > parseInt(stored.expires_at, 10)) {
+      await markCodeUsed(stored.id);
       return res.status(400).json({
         error: 'This password reset link has expired. Please use the most recently sent link or request a new one.',
       });
     }
 
     const passHash = await hashPassword(newPassword);
+    // Update password and mark token as used
+    await markCodeUsed(stored.id);
     // Update ONLY the exact user matching ID (guarantees correct account type is updated)
     await query('UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3', [
       passHash,
@@ -732,8 +760,7 @@ router.post('/update-password-from-reset', async (req: Request, res: Response) =
       console.warn('[Supabase Auth] Password sync warning:', sbErr.message || sbErr);
     }
 
-    // Invalidate consumed reset token immediately
-    resetTokensStore.delete(storeKey);
+    // Invalidate consumed reset token immediately (already marked used)
 
     const authToken = generateToken({ id: user.id, email: user.email, role: user.role });
 

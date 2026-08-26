@@ -104,26 +104,90 @@ io.on('connection', (socket) => {
     io.emit('driver_location_broadcast', data);
   });
 
-  // Real-Time Bidding Offer Event with Push Notification Dispatch
+  // Real-Time Bidding Offer Event with Push Notification Dispatch & DB Persistence
   socket.on('send_fare_bid', async (data: { rideId: string; senderId: string; amount: number; role: string }) => {
-    io.emit(`ride_bid_${data.rideId}`, data);
-
     try {
-      const rideRes = await query('SELECT passenger_id, driver_id FROM rides WHERE ride_id = $1', [data.rideId]);
-      if (rideRes.rows.length > 0) {
-        const { passenger_id, driver_id } = rideRes.rows[0];
-        const recipientId = data.role === 'driver' ? passenger_id : driver_id;
-        if (recipientId && recipientId !== data.senderId) {
-          sendPushNotification({
-            userId: recipientId,
-            title: data.role === 'driver' ? '💬 Driver Counter Offer' : '💬 Passenger Bid Received',
-            body: `Offer: Rs. ${data.amount}. Tap to review and accept.`,
-            data: { type: 'counter_bid', rideId: data.rideId, amount: String(data.amount) },
-          }).catch(e => console.warn('[FCM] Bid push error:', e?.message));
+      const { rideId, senderId, amount, role } = data || {};
+
+      if (!rideId || !senderId || !amount || isNaN(Number(amount)) || Number(amount) < 50 || !role) {
+        socket.emit('bid_error', { error: 'Invalid bid data. Minimum bid amount is Rs. 50.' });
+        return;
+      }
+
+      const numAmount = Math.round(Number(amount));
+
+      // Authoritative database ride status check
+      const rideRes = await query('SELECT passenger_id, driver_id, status FROM rides WHERE ride_id = $1', [rideId]);
+      if (rideRes.rows.length === 0) {
+        socket.emit('bid_error', { error: 'Ride not found' });
+        return;
+      }
+
+      const { passenger_id, driver_id, status } = rideRes.rows[0];
+
+      if (status === 'completed' || status === 'cancelled') {
+        socket.emit('bid_error', { error: 'Cannot submit bid for a completed or cancelled ride' });
+        return;
+      }
+
+      // Role authorization check
+      if (role === 'passenger' && senderId !== passenger_id) {
+        socket.emit('bid_error', { error: 'Only the requesting passenger can submit passenger bids' });
+        return;
+      }
+
+      if (role === 'driver') {
+        // Verify driver is approved
+        const driverCheck = await query('SELECT verification_status FROM users WHERE id = $1 AND role = \'driver\'', [senderId]);
+        if (driverCheck.rows.length === 0 || driverCheck.rows[0].verification_status !== 'approved') {
+          socket.emit('bid_error', { error: 'Only verified drivers can submit fare offers' });
+          return;
+        }
+
+        // Prevent driver overwrites if ride is assigned to a different driver
+        if (driver_id && driver_id !== senderId) {
+          socket.emit('bid_error', { error: 'Ride is already assigned to another driver' });
+          return;
         }
       }
-    } catch (dbErr) {
-      console.warn('[FCM] Bid push notification DB lookup error:', dbErr);
+
+      // Persist bid event into bids table
+      const bidId = `bid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const now = Date.now();
+      await query(
+        `INSERT INTO bids (id, ride_id, sender_id, sender_role, amount, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [bidId, rideId, senderId, role, numAmount, now]
+      );
+
+      // Transition ride status to negotiating if still requested
+      if (status === 'requested') {
+        await query(`UPDATE rides SET status = 'negotiating', updated_at = $1 WHERE ride_id = $2`, [now, rideId]);
+      }
+
+      const payload = {
+        bidId,
+        rideId,
+        senderId,
+        amount: numAmount,
+        role,
+        timestamp: now,
+      };
+
+      io.emit(`ride_bid_${rideId}`, payload);
+
+      const recipientId = role === 'driver' ? passenger_id : driver_id;
+      if (recipientId && recipientId !== senderId) {
+        sendPushNotification({
+          userId: recipientId,
+          title: role === 'driver' ? '💬 Driver Counter Offer' : '💬 Passenger Bid Received',
+          body: `Offer: Rs. ${numAmount}. Tap to review and accept.`,
+          data: { type: 'counter_bid', rideId, amount: String(numAmount) },
+        }).catch(e => console.warn('[FCM] Bid push error:', e?.message));
+      }
+    } catch (dbErr: any) {
+      console.error('[Socket send_fare_bid error]:', dbErr?.message || dbErr);
+      socket.emit('bid_error', { error: 'Failed to process fare offer' });
     }
   });
 
