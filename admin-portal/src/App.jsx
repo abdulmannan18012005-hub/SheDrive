@@ -455,6 +455,26 @@ export default function App() {
     };
   }, []);
 
+  const handleAdminLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      const res = await adminApi.login(loginEmail.trim(), loginPassword);
+      if (res.token) {
+        setAuthToken(res.token);
+        setToken(res.token);
+        addToast('Welcome back, Admin!', 'success');
+      } else {
+        setLoginError(res.error || 'Login failed. Please check your credentials.');
+      }
+    } catch (err) {
+      setLoginError(err.message || 'Failed to connect to server. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   const handleLogout = () => {
     clearAuthToken();
     setToken('');
