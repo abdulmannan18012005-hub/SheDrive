@@ -1011,6 +1011,33 @@ Phase 18 Verification:
 
 ---
 
+# PHASE 19 — COMPLETED
+
+Phase 19 objective:
+
+ADMIN PORTAL AND PUBLIC WEBSITE FUNCTIONAL & RESPONSIVE STABILIZATION.
+
+Status: COMPLETED
+
+Implemented:
+1. **Admin API Client Body Parse Protection (`admin-portal/src/api/adminApi.ts`):**
+   - Added try-catch guarded JSON body parsing (`parsedBody`) in `fetchWithErrorHandling` to prevent client runtime exceptions when non-JSON body parameters are passed.
+2. **Centralized Website API Base URL Resolution (`SheDrive Website/assets/js/main.js`):**
+   - Implemented `window.getWebsiteApiUrl()` and `window.getWebsiteBackendBaseUrl()` helpers to dynamically switch between `http://localhost:3000` and production `https://shedrive.onrender.com`.
+3. **Public Website Forms & Live Tracking Integration (`feedback.html` & `track.html`):**
+   - Connected website feedback submission and live web ride tracking page to centralized API resolution functions.
+4. **Preserved All Admin Portal & Website Capabilities:**
+   - All 20 Admin Portal tabs (Dashboard, Drivers, Passengers, Payments, SOS, Support, Audit Logs, Rides, Analytics, Deactivated Accounts, Settings) built and verified.
+   - All 11 public website pages verified for responsive navbar, footer, drawer, and live simulation capabilities.
+
+Phase 19 Verification:
+- Admin Portal build (`npm run build` in `admin-portal/`): PASS (built in 2.11s, 0 errors)
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build` in `server/`): PASS (0 errors)
+- Phase 17 Automated Test Suite (`scratch/test_phase17_suite.js`): 3/3 PASS (100%)
+
+---
+
 # SAFETY RULES
 
 Before changing anything:

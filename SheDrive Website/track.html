@@ -284,7 +284,7 @@
   <script>
     // Live Web Ride Tracking Logic
     (function() {
-      const BACKEND_URL = 'https://shedrive.onrender.com';
+      const BACKEND_URL = window.getWebsiteBackendBaseUrl ? window.getWebsiteBackendBaseUrl() : 'https://shedrive.onrender.com';
       let map = null;
       let pickupMarker = null;
       let dropoffMarker = null;

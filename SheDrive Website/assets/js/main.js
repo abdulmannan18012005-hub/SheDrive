@@ -2,10 +2,17 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // ═══════════════════════════════════════════════════════════════════════
-  // CONFIGURATION — Single source of truth for APK download URL
-  // Uses GitHub Releases "latest" permalink so future releases auto-resolve.
-  // To release a new APK: create a new GitHub Release and attach "SheDrive.apk".
+  // CONFIGURATION — Centralized API & APK URL Resolution
   // ═══════════════════════════════════════════════════════════════════════
+  window.getWebsiteBackendBaseUrl = function() {
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    return isLocal ? 'http://localhost:3000' : 'https://shedrive.onrender.com';
+  };
+
+  window.getWebsiteApiUrl = function() {
+    return `${window.getWebsiteBackendBaseUrl()}/api/v1`;
+  };
+
   const APK_DOWNLOAD_URL = 'https://github.com/abdulmannan18012005-hub/SheDrive/releases/latest/download/SheDrive.apk';
 
   // Sticky Header Effect

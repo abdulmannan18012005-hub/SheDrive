@@ -63,7 +63,11 @@ async function fetchWithErrorHandling(
   options: RequestInit = {},
   cacheTTL: number | null = null
 ): Promise<any> {
-  const cacheKey = getCacheKey(endpoint, options.body ? JSON.parse(options.body as string) : undefined);
+  let parsedBody = undefined;
+  if (options.body && typeof options.body === 'string') {
+    try { parsedBody = JSON.parse(options.body); } catch (e) {}
+  }
+  const cacheKey = getCacheKey(endpoint, parsedBody);
   
   // Check cache first
   if (cacheTTL && options.method === 'GET') {

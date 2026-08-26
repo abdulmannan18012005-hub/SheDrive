@@ -311,7 +311,8 @@
       const isEmail = contact.includes('@');
 
       try {
-        const response = await fetch('https://shedrive.onrender.com/api/v1/support/feedback', {
+        const apiUrl = window.getWebsiteApiUrl ? window.getWebsiteApiUrl() : 'https://shedrive.onrender.com/api/v1';
+        const response = await fetch(`${apiUrl}/support/feedback`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
