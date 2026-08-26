@@ -21,6 +21,7 @@ import HelpSupportScreen from '../screens/shared/HelpSupportScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 import NotificationCenterScreen from '../screens/shared/NotificationCenterScreen';
 import ContactUsScreen from '../screens/shared/ContactUsScreen';
+import ReportProblemScreen from '../screens/shared/ReportProblemScreen';
 
 const Stack = createStackNavigator<DriverStackParamList>();
 
@@ -140,9 +141,24 @@ export default function DriverStack(): React.JSX.Element {
         options={{ title: 'Terms & Conditions' }}
       />
       <Stack.Screen
-        name="PrivacyPolicy"
-        component={PrivacyPolicyScreen}
-        options={{ title: 'Privacy Policy' }}
+        name="ReportProblem"
+        component={ReportProblemScreen}
+        options={{ title: 'Report a Problem' }}
+      />
+      <Stack.Screen
+        name="RideOffers"
+        component={DriverHomeScreen}
+        options={{ title: 'Available Rides & Offers' }}
+      />
+      <Stack.Screen
+        name="Earnings"
+        component={MonthlyPaymentScreen}
+        options={{ title: 'Earnings & Platform Fee' }}
+      />
+      <Stack.Screen
+        name="DriverSettings"
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
       />
     </Stack.Navigator>
   );

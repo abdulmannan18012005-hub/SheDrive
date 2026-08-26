@@ -1,7 +1,7 @@
-﻿import { Coordinates } from '../types';
+import { Coordinates } from '../types';
 
 // Google Places (New) API Key configuration
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCsOFBXAEmYvsV7SG6-VKK4cjyH9NoS7vs';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyCsOFBXAEmYvsV7SG6-VKK4cjyH9NoS7vs';
 const ANDROID_PACKAGE_NAME = 'com.lahore.pinkrides';
 const ANDROID_SHA1_CERT = '5E8F16062EA3CD2C4A0D547876BAA6F38CABF625';
 

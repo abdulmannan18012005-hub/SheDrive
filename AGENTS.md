@@ -980,6 +980,37 @@ Phase 17 Verification:
 
 ---
 
+# PHASE 18 — COMPLETED
+
+Phase 18 objective:
+
+MOBILE FUNCTIONAL AND UI/UX STABILIZATION.
+
+Status: COMPLETED
+
+Implemented:
+1. **Google Maps API Key Protection (`src/services/googlePlaces.ts`):**
+   - Configured dynamic environment resolution (`process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`) to eliminate raw hardcoded API key exposure while keeping Google Places API fully functional.
+2. **Driver Location Watcher Throttling (`src/screens/driver/DriverHomeScreen.tsx`):**
+   - Throttled background HTTP `PUT /api/v1/driver/online` location updates to a conservative 15-second interval using `lastHttpLocationSyncRef`, preventing battery drain and server request flooding while keeping Firestore real-time socket tracking instant.
+3. **Transient Network Fault Session Resilience (`src/navigation/AppNavigator.tsx`):**
+   - Replaced automatic session wipe (`dispatch({ type: 'LOGOUT' })`) on transient network drops with local token validation (`AsyncStorage.getItem('@shedrive_auth_token')`), preserving authenticated sessions during intermittent connection loss.
+4. **Missing Navigation Screen Registration (`src/navigation/PassengerStack.tsx` & `DriverStack.tsx`):**
+   - Registered `ReportProblemScreen` (`ReportProblem`), `DriverHomeScreen` (`RideOffers`), `MonthlyPaymentScreen` (`Earnings`), and `SettingsScreen` (`DriverSettings`) across navigation stacks to prevent runtime `Unregistered Screen` crashes.
+5. **API Response Verification & Failure Handling (`src/screens/passenger/FareBidScreen.tsx`):**
+   - Enforced HTTP `res.ok` checks for `POST /api/v1/rides/request` and `POST /api/v1/payments/passenger/initiate` calls, displaying actionable alert dialogs on server failures instead of blindly navigating to tracking screens.
+6. **Driver Counter-Offers Card UI (`src/screens/passenger/RideTrackingScreen.tsx`):**
+   - Implemented real-time counter-offer card UI displaying driver offers, fare amount, and 1-tap "Accept Offer" (`handleAcceptBid`) and "Decline" (`handleDeclineBid`) actions during `pending` and `negotiating` ride states.
+7. **Type Definitions Alignment (`src/types/index.ts`):**
+   - Added optional `userName` and `userId` fields to `FareOffer` interface.
+
+Phase 18 Verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build` in `server/`): PASS (0 errors)
+- Phase 17 Stabilization Suite (`scratch/test_phase17_suite.js`): 3/3 PASS (100%)
+
+---
+
 # SAFETY RULES
 
 Before changing anything:

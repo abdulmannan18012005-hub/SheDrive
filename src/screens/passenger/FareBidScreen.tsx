@@ -159,7 +159,44 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
 
       // Sync to Node.js / PostgreSQL backend server
       try {
-        await fetch(`${getApiBaseUrl()}/rides/request`, {
+        const res = await fetch(`${getApiBaseUrl()}/rides/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${state.token}`,
+        },
+        body: JSON.stringify({
+          rideId,
+          vehicleCategory: selectedCategory.id,
+          pickupLocation: {
+            address: pickup.label,
+            latitude: pickup.latitude,
+            longitude: pickup.longitude,
+          },
+          destinationLocation: {
+            address: destination.label,
+            latitude: destination.latitude,
+            longitude: destination.longitude,
+          },
+          distanceKm,
+          durationMin,
+          estimatedFare: bidAmount,
+          offeredFare: bidAmount,
+          paymentMethod,
+          multiStopWaypoints: stops.length > 0 ? stops : undefined,
+          isScheduled,
+          scheduledFor: effectiveScheduledFor,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to register ride with backend server.');
+      }
+
+      // If digital payment selected, initiate transaction
+      if (paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') {
+        const payRes = await fetch(`${getApiBaseUrl()}/payments/passenger/initiate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -167,41 +204,23 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           },
           body: JSON.stringify({
             rideId,
-            vehicleCategory: selectedCategory.id,
-            pickup,
-            destination,
-            stops: stops.length > 0 ? stops : undefined,
-            distanceKm,
-            durationMin,
-            estimatedFare,
-            offeredFare: bidAmount,
-            polyline: polylineString,
-            paymentMethod,
-            isScheduled,
-            scheduledFor: effectiveScheduledFor,
+            provider: paymentMethod,
+            amount: bidAmount,
+            mobileAccountNo,
+            customerEmail: user?.email,
+            idempotencyKey: `idemp_${rideId}_${paymentMethod}`,
           }),
         });
-
-        // If digital payment selected, initiate transaction
-        if (paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') {
-          await fetch(`${getApiBaseUrl()}/payments/passenger/initiate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${state.token}`,
-            },
-            body: JSON.stringify({
-              rideId,
-              provider: paymentMethod,
-              amount: bidAmount,
-              mobileAccountNo,
-              customerEmail: user?.email,
-              idempotencyKey: `idemp_${rideId}_${paymentMethod}`,
-            }),
-          });
+        if (!payRes.ok) {
+          const payErr = await payRes.json().catch(() => ({}));
+          throw new Error(payErr.error || 'Digital payment initiation failed. Please retry.');
         }
-      } catch (backendErr) {
-        console.warn('Backend ride request sync warning:', backendErr);
+      }
+    } catch (backendErr: any) {
+        console.error('Backend ride request sync error:', backendErr?.message || backendErr);
+        Alert.alert('Booking Error', backendErr?.message || 'Failed to place ride request. Please try again.');
+        setIsLoading(false);
+        return;
       }
 
       setIsSummaryVisible(false);

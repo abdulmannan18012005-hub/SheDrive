@@ -105,8 +105,16 @@ export default function AppNavigator(): React.JSX.Element {
           await AsyncStorage.removeItem('@shedrive_auth_token');
           dispatch({ type: 'LOGOUT' });
         }
-      } catch (error) {
-        dispatch({ type: 'LOGOUT' });
+      } catch (error: any) {
+        console.warn('[AUTH SESSION WARNING] Network error during auth initialization:', error?.message || error);
+        // If a saved auth token exists locally, preserve authentication state rather than forcing a logout
+        const savedToken = await AsyncStorage.getItem('@shedrive_auth_token');
+        if (savedToken) {
+          dispatch({ type: 'SET_TOKEN', payload: savedToken });
+          dispatch({ type: 'SET_AUTHENTICATED', payload: true });
+        } else {
+          dispatch({ type: 'LOGOUT' });
+        }
       } finally {
         dispatch({ type: 'SET_LOADING', payload: false });
       }

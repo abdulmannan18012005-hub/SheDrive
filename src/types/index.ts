@@ -110,6 +110,8 @@ export interface FareOffer {
   role: UserRole;
   amount: number;
   timestamp: number;
+  userName?: string;
+  userId?: string;
 }
 
 // ─── Ride Status ───────────────────────────────────────────

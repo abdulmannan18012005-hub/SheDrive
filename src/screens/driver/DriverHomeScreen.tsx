@@ -70,6 +70,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
 
   const mapRef = useRef<LeafletMapRef>(null);
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
+  const lastHttpLocationSyncRef = useRef<number>(0);
 
   // Subscribe to available rides when online
   useEffect(() => {
@@ -211,20 +212,24 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           async (newLocation) => {
             const { latitude, longitude, heading } = newLocation.coords;
 
-            // Update backend with new coordinates
-            await fetch(`${getApiBaseUrl()}/driver/online`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${state.token}`,
-              },
-              body: JSON.stringify({
-                isOnline: true,
-                latitude,
-                longitude,
-                heading: heading || 0,
-              }),
-            });
+            const nowMs = Date.now();
+            // Update backend with new coordinates throttled to once per 15 seconds to prevent battery drain & network flooding
+            if (nowMs - lastHttpLocationSyncRef.current >= 15000) {
+              lastHttpLocationSyncRef.current = nowMs;
+              fetch(`${getApiBaseUrl()}/driver/online`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${state.token}`,
+                },
+                body: JSON.stringify({
+                  isOnline: true,
+                  latitude,
+                  longitude,
+                  heading: heading || 0,
+                }),
+              }).catch(err => console.warn('[Driver Location Sync Warning]:', err?.message));
+            }
 
             // Also update Firestore for real-time passenger visibility
             const driverRef = doc(db, 'drivers', user.uid);

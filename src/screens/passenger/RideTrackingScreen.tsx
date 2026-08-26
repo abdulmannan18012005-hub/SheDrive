@@ -385,6 +385,44 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
           </View>
         )}
 
+        {/* Driver Counter Offers / Bids Section */}
+        {driverOffers.length > 0 && (ride.status === 'pending' || ride.status === 'negotiating') && (
+          <View style={{ marginHorizontal: 24, padding: 16, backgroundColor: Colors.light.surface, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.light.primary, marginBottom: 20 }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: Colors.light.primary, marginBottom: 12 }}>
+              💬 Driver Fare Counter-Offers ({driverOffers.length})
+            </Text>
+            {driverOffers.map((offer: FareOffer, idx: number) => {
+              const driverIdToAccept = offer.userId || offer.senderId;
+              return (
+                <View key={idx} style={{ padding: 12, backgroundColor: Colors.light.background, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.light.border }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.text }}>
+                      {offer.userName || 'Verified Driver'}
+                    </Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.light.primary }}>
+                      Rs. {offer.amount}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, paddingVertical: 10, backgroundColor: Colors.light.primary, borderRadius: 10, alignItems: 'center' }}
+                      onPress={() => handleAcceptBid(idx, driverIdToAccept, offer.amount)}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Accept Rs. {offer.amount}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: Colors.light.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center' }}
+                      onPress={() => handleDeclineBid(idx)}
+                    >
+                      <Text style={{ color: Colors.light.textSecondary, fontWeight: '600', fontSize: 13 }}>Decline</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* 4-Digit Ride Verification PIN Card */}
         {(ride.status === 'accepted' || ride.status === 'arrived') && (
           <View style={{ marginHorizontal: 24, padding: 16, backgroundColor: Colors.light.primaryGhost, borderRadius: 16, alignItems: 'center', marginBottom: 20, borderWidth: 1.5, borderColor: Colors.light.primary }}>
