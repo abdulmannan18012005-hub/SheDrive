@@ -855,6 +855,81 @@ Phase 13 Verification Results:
 
 ---
 
+# PHASE 14 — COMPLETED (SECURITY HARDENING & ANDROID SIZE OPTIMIZATION)
+
+Phase 14 objective:
+
+SECURITY HARDENING, FILE UPLOAD VALIDATION, SUPABASE ROW-LEVEL SECURITY (RLS) POLICIES, ERROR MASKING, AND ANDROID ASSET BUNDLING OPTIMIZATION.
+
+Status: COMPLETED
+
+Commit: 198f02d0
+
+Implemented & Verified:
+
+1. **Document & File Upload Hardening (`server/src/routes/v1/upload.routes.ts`):**
+   - Added strict base64 size check (max 10MB decoded, string length < 14MB).
+   - Base64 format and image header validation (JPEG, PNG, WebP allowed).
+   - Strict folder parameter whitelist validation (`shedrive/documents`, `shedrive/avatars`, `shedrive/vehicles`, `shedrive/receipts`, `shedrive/support`).
+   - Rate limiting applied (`uploadRateLimiter`: 10 requests / 5 min).
+
+2. **Supabase Row-Level Security (RLS) Policies Migration (`server/src/migrations/013_phase14_supabase_rls_security.sql`):**
+   - Enabled RLS across all 14 database tables (`users`, `drivers`, `rides`, `ride_stops`, `payment_transactions`, `monthly_payments`, `sos_alerts`, `support_tickets`, `feedbacks`, `saved_places`, `user_notifications`, `emergency_contacts`, `admin_settings`, `audit_logs`).
+   - Configured unrestricted bypass for backend `service_role` and `postgres` (guaranteeing 0 impact on TCP connection pool and backend query proxy).
+   - Implemented fine-grained user ownership policies for `authenticated` and `anon` access.
+
+3. **Android Asset & Bundle Optimization (`app.json`):**
+   - Added `"assetBundlePatterns": ["assets/*"]` to ensure Expo bundler includes only essential runtime assets, preventing asset bloat.
+
+4. **Production Error Masking & Rate Limiters:**
+   - Masked raw SMTP and database connection details in `auth.routes.ts` responses during production.
+   - Added `uploadRateLimiter` to `rateLimiter.ts`.
+
+---
+
+# PHASE 15 — COMPLETED (UI/UX REDESIGN & RESPONSIVE EXPERIENCE)
+
+Phase 15 objective:
+
+COMPLETE UI/UX REDESIGN, STITCH MCP DESIGN SYSTEM INTEGRATION, FLOATING HEADER CAPSULE, RESPONSIVE ADMIN PORTAL & ELASTIC CONTROL COMPONENTS.
+
+Status: COMPLETED
+
+Commit: f8bf9e87
+
+Implemented & Verified:
+
+1. **Stitch MCP Server Integration:**
+   - Created SheDrive Stitch project (`projects/632924268644129912`) and generated mobile & desktop concept templates via Stitch `generate_screen_from_text`.
+   - Established unified SheDrive Design System tokens (Primary Pink `#E91E63`, Deep Purple `#4A2060`, Plus Jakarta Sans font, rounded-2xl bento cards, glass pill navigation).
+
+2. **Public Website Responsive Transformation (11 Pages):**
+   - Implemented modern floating translucent sticky header capsule (`.floating-header-capsule`) with backdrop blur (`backdrop-filter: blur(20px)`).
+   - Added mobile navigation drawer toggle (`.mobile-toggle`, `.nav-links.active`) for seamless smartphone navigation.
+   - Enhanced hover lift card animations, bento feature grid cards, and interactive FAQ accordions across all 11 pages.
+
+3. **Admin Portal Responsive Overhaul (`admin-portal/src/index.css`):**
+   - Responsive multi-column layout for command dashboard: adapts dynamically from 5 columns on desktop to 3/2 columns on tablets and 1 column on mobile (`grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))`).
+   - Responsive horizontal scroll nav menu drawer for smaller viewports.
+   - Touch-friendly action buttons, responsive modals (`width: 95%` on mobile), sticky table headers, and smooth hover effects.
+
+4. **Mobile App Control & Component Redesign (`src/components/SlideToConfirm.tsx`):**
+   - Created elastic `SlideToConfirm.tsx` slider control for ride booking and driver acceptance.
+   - Added `ErrorBoundary.tsx` for graceful UI error fallback screen.
+
+Phase 15 Verification Results:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build`): PASS (0 errors)
+- Admin Portal build (`npm run build`): PASS (0 errors, 1.23s)
+- Security & API Automated Test Suite: 19/19 PASS (100%)
+- Live Production Verification (`https://shedrive.onrender.com/api/v1`):
+  - `GET /health` → HTTP 200 OK (all security headers active)
+  - `GET /user/notifications/unread-count` → HTTP 401 Unauthorized
+- Zero database migrations required (100% existing schema)
+- Zero new runtime dependencies added
+
+---
+
 # SAFETY RULES
 
 Before changing anything:
