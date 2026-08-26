@@ -158,10 +158,16 @@ nav button:hover {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* ── Responsive Container & Table Behavior ───────────── */
+/* ── Responsive Container, Metrics & Layout Behavior ───── */
 @media (max-width: 1300px) {
   table {
     min-width: 1050px;
+  }
+}
+
+@media (max-width: 1100px) {
+  div[style*="metricsGrid"] {
+    grid-template-columns: repeat(3, 1fr) !important;
   }
 }
 
@@ -172,5 +178,55 @@ nav button:hover {
   }
   table thead th, table tbody td {
     padding: 12px 14px;
+  }
+  div[style*="appContainer"] {
+    flex-direction: column !important;
+  }
+  aside[style*="sidebar"] {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid #232035 !important;
+    padding: 16px !important;
+  }
+  nav[style*="navMenu"] {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    padding-bottom: 8px !important;
+    gap: 8px !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  nav[style*="navMenu"] button {
+    flex-shrink: 0 !important;
+    font-size: 13px !important;
+    padding: 10px 14px !important;
+  }
+  main[style*="mainContent"] {
+    padding: 20px 16px !important;
+  }
+  div[style*="metricsGrid"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+  div[style*="topHeader"] {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  div[style*="metricsGrid"] {
+    grid-template-columns: 1fr !important;
+  }
+  div[style*="modalContent"] {
+    width: 95% !important;
+    padding: 20px 16px !important;
+    border-radius: 18px !important;
+  }
+  div[style*="cardContainer"] {
+    padding: 16px !important;
+    border-radius: 18px !important;
   }
 }
