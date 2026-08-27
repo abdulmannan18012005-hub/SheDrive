@@ -314,26 +314,35 @@ export default function MonthlyPaymentScreen(): React.JSX.Element {
             </View>
           </View>
 
-          {/* Bank / Transfer Instructions */}
+          {/* Bank / Raast / Transfer Instructions */}
           {bankDetails && (
             <View style={styles.bankCard}>
-              <Text style={styles.cardSectionTitle}>🏦 Official Transfer Instructions</Text>
+              <Text style={styles.cardSectionTitle}>🏦 Official Platform Fee Payment Details</Text>
               <Text style={styles.bankInstructions}>{bankDetails.instructions}</Text>
               
               <View style={styles.bankDetailRow}>
-                <Text style={styles.bankDetailLabel}>Bank / Wallet:</Text>
-                <Text style={styles.bankDetailValue}>{bankDetails.bankName}</Text>
+                <Text style={styles.bankDetailLabel}>⚡ Raast ID:</Text>
+                <Text style={styles.bankDetailValueHighlight}>{bankDetails.raastId || '03001234567'}</Text>
               </View>
 
               <View style={styles.bankDetailRow}>
-                <Text style={styles.bankDetailLabel}>Account Title:</Text>
-                <Text style={styles.bankDetailValue}>{bankDetails.accountTitle}</Text>
+                <Text style={styles.bankDetailLabel}>🏦 Account Number:</Text>
+                <Text style={styles.bankDetailValueHighlight}>{bankDetails.bankAccountNumber || 'PK92MEZN0009988776655'}</Text>
               </View>
 
               <View style={styles.bankDetailRow}>
-                <Text style={styles.bankDetailLabel}>Account Number / IBAN:</Text>
-                <Text style={styles.bankDetailValueHighlight}>{bankDetails.accountNumber}</Text>
+                <Text style={styles.bankDetailLabel}>🌐 IBAN:</Text>
+                <Text style={styles.bankDetailValueHighlight}>{bankDetails.iban || 'PK92MEZN000998877665544332211'}</Text>
               </View>
+
+              {bankDetails.raastQrUrl ? (
+                <View style={{ marginTop: 12, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.light.text, marginBottom: 6 }}>📲 Raast QR Code:</Text>
+                  <TouchableOpacity onPress={() => setPreviewImageModal(bankDetails.raastQrUrl)}>
+                    <Image source={{ uri: bankDetails.raastQrUrl }} style={{ width: 140, height: 140, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border }} resizeMode="contain" />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
           )}
 

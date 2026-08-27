@@ -452,12 +452,20 @@ router.get('/settings', authenticateToken, requireAdmin, async (_req: Request, r
       commission_pct: 5.0,
       sos_hotline: '+92 42 111 743 374',
       category_fares: defaultCategoryFares,
+      raast_id: '03001234567',
+      raast_qr_url: '',
+      bank_account_number: 'PK92MEZN0009988776655',
+      iban: 'PK92MEZN000998877665544332211',
     };
 
     if (result.rows.length > 0) {
       const row = result.rows[0];
       settings.commission_pct = parseFloat(row.commission_pct) || 5.0;
       settings.sos_hotline = row.sos_hotline || '+92 42 111 743 374';
+      settings.raast_id = row.raast_id || '03001234567';
+      settings.raast_qr_url = row.raast_qr_url || '';
+      settings.bank_account_number = row.bank_account_number || 'PK92MEZN0009988776655';
+      settings.iban = row.iban || 'PK92MEZN000998877665544332211';
       if (row.category_fares) {
         try {
           settings.category_fares = typeof row.category_fares === 'string' ? JSON.parse(row.category_fares) : row.category_fares;
@@ -476,26 +484,38 @@ router.get('/settings', authenticateToken, requireAdmin, async (_req: Request, r
 
 router.post('/settings', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { commissionPct, sosHotline, categoryFares } = req.body;
+    const { commissionPct, sosHotline, categoryFares, raastId, raastQrUrl, bankAccountNumber, iban } = req.body;
     const categoryFaresJson = typeof categoryFares === 'string' ? categoryFares : JSON.stringify(categoryFares || []);
 
     const now = Date.now();
     const finalCommissionPct = commissionPct !== undefined ? Math.max(0, Math.min(100, parseFloat(commissionPct) || 5.0)) : 5.0;
     const finalSosHotline = sosHotline || '+92 42 111 743 374';
+    const finalRaastId = raastId !== undefined ? String(raastId).trim() : '03001234567';
+    const finalRaastQrUrl = raastQrUrl !== undefined ? String(raastQrUrl).trim() : '';
+    const finalBankAccountNumber = bankAccountNumber !== undefined ? String(bankAccountNumber).trim() : 'PK92MEZN0009988776655';
+    const finalIban = iban !== undefined ? String(iban).trim() : 'PK92MEZN000998877665544332211';
 
     await query(
-      `INSERT INTO admin_settings (id, commission_pct, sos_hotline, category_fares, updated_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO admin_settings (id, commission_pct, sos_hotline, category_fares, raast_id, raast_qr_url, bank_account_number, iban, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (id) DO UPDATE SET
          commission_pct = EXCLUDED.commission_pct,
          sos_hotline = EXCLUDED.sos_hotline,
          category_fares = EXCLUDED.category_fares,
+         raast_id = EXCLUDED.raast_id,
+         raast_qr_url = EXCLUDED.raast_qr_url,
+         bank_account_number = EXCLUDED.bank_account_number,
+         iban = EXCLUDED.iban,
          updated_at = EXCLUDED.updated_at`,
       [
         1,
         finalCommissionPct,
         finalSosHotline,
         categoryFaresJson,
+        finalRaastId,
+        finalRaastQrUrl,
+        finalBankAccountNumber,
+        finalIban,
         now,
       ]
     );

@@ -1070,6 +1070,36 @@ Phase 20 Verification:
 
 ---
 
+# PAYMENT SYSTEM SIMPLIFICATION — COMPLETED
+
+Objective:
+
+SIMPLIFY PAYMENT MODEL TO CASH-ONLY PASSENGER RIDES AND DYNAMIC DRIVER-TO-ADMIN MONTHLY PLATFORM FEE SETTLEMENT.
+
+Status: COMPLETED
+
+Implemented:
+1. **Passenger Rides (Cash Only):**
+   - Locked passenger payment selection to Cash (`paymentMethod = 'cash'`) in `FareBidScreen.tsx`.
+   - Removed digital wallet (JazzCash, Easypaisa) options and account number input fields from mobile app.
+   - Displayed a single clear green badge: `💵 Payment Method: Cash on Trip Completion`.
+   - Rejected digital wallet initiation calls in `payment.routes.ts` (`POST /api/v1/payments/passenger/initiate`).
+2. **Driver Monthly Platform Fee Settlement (Driver -> Admin):**
+   - Executed migration `015_payment_simplification.sql` adding `raast_id`, `raast_qr_url`, `bank_account_number`, and `iban` to `admin_settings` table.
+   - Updated `admin.routes.ts` (`GET/POST /api/v1/admin/settings`) allowing Admin to configure Raast ID, Raast QR image URL, Bank Account Number, and IBAN.
+   - Updated `payment.routes.ts` (`GET /api/v1/payments/driver/monthly`) returning dynamic bank details from `admin_settings`.
+   - Enhanced `MonthlyPaymentScreen.tsx` displaying the 4 Admin payment details (Raast ID, Raast QR Code, Bank Account Number, IBAN) for driver fee settlement.
+3. **No Unused Gateway Credentials Required:**
+   - Removed dependency on `JAZZCASH_*` or `EASYPAISA_*` production environment variables.
+
+Verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Admin Portal build (`npm run build` in `admin-portal/`): PASS (built in 1.34s, 0 errors)
+- Server build (`npm run build` in `server/`): PASS (0 errors)
+- Phase 17 Automated Test Suite (`scratch/test_phase17_suite.js`): 3/3 PASS (100%)
+
+---
+
 # SAFETY RULES
 
 Before changing anything:

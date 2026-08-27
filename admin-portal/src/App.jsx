@@ -141,6 +141,10 @@ export default function App() {
   const [settings, setSettings] = useState({
     commission_pct: 5.0,
     sos_hotline: '+92 42 111 743 374',
+    raast_id: '03001234567',
+    raast_qr_url: '',
+    bank_account_number: 'PK92MEZN0009988776655',
+    iban: 'PK92MEZN000998877665544332211',
     category_fares: [
       { id: 'bike', name: 'Bike / Scooty', baseFare: 60, perKmRate: 25, perMinuteRate: 2, minimumFare: 50 },
       { id: 'mini', name: 'SheDrive Mini', baseFare: 100, perKmRate: 40, perMinuteRate: 3, minimumFare: 80 },
@@ -665,6 +669,10 @@ export default function App() {
         commissionPct: settings.commission_pct,
         sosHotline: settings.sos_hotline,
         categoryFares: settings.category_fares,
+        raastId: settings.raast_id,
+        raastQrUrl: settings.raast_qr_url,
+        bankAccountNumber: settings.bank_account_number,
+        iban: settings.iban,
       });
       addToast(res.message || 'System settings and category fares saved successfully!', 'success');
       fetchTabData(true);
@@ -1610,7 +1618,52 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Category Fare Table */}
+              {/* Driver Monthly Fee Payment Instructions */}
+              <div style={{ backgroundColor: '#F8F9FA', padding: 16, borderRadius: 12, border: '1px solid #E4E6EF' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#181C32' }}>💳 Driver Monthly Fee Payment Details (Raast & Bank)</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <label style={styles.label}>Raast ID</label>
+                    <input
+                      type="text"
+                      value={settings.raast_id || ''}
+                      onChange={(e) => setSettings({ ...settings, raast_id: e.target.value })}
+                      placeholder="e.g. 03001234567 or raast@shedrive"
+                      style={styles.input}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Bank Account Number</label>
+                    <input
+                      type="text"
+                      value={settings.bank_account_number || ''}
+                      onChange={(e) => setSettings({ ...settings, bank_account_number: e.target.value })}
+                      placeholder="e.g. PK92MEZN0009988776655"
+                      style={styles.input}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>IBAN</label>
+                    <input
+                      type="text"
+                      value={settings.iban || ''}
+                      onChange={(e) => setSettings({ ...settings, iban: e.target.value })}
+                      placeholder="e.g. PK92MEZN000998877665544332211"
+                      style={styles.input}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Raast QR Image URL (Optional)</label>
+                    <input
+                      type="text"
+                      value={settings.raast_qr_url || ''}
+                      onChange={(e) => setSettings({ ...settings, raast_qr_url: e.target.value })}
+                      placeholder="https://.../raast-qr.png"
+                      style={styles.input}
+                    />
+                  </div>
+                </div>
+              </div>
               <div style={{ backgroundColor: '#F8F9FA', padding: 16, borderRadius: 12, border: '1px solid #E4E6EF' }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#181C32' }}>🚖 Vehicle Category Fare Structure</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr', gap: 12, fontWeight: '700', fontSize: '13px', color: '#5E6278', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #E4E6EF' }}>

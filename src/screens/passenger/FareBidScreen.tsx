@@ -98,11 +98,6 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       return;
     }
 
-    if ((paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') && !mobileAccountNo.trim()) {
-      Alert.alert('Mobile Account Required', `Please enter your 11-digit ${paymentMethod === 'jazzcash' ? 'JazzCash' : 'Easypaisa'} mobile wallet number.`);
-      return;
-    }
-
     setIsSummaryVisible(true);
   };
 
@@ -145,7 +140,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           },
         ],
         polyline: polylineString,
-        paymentMethod,
+        paymentMethod: 'cash',
         isScheduled,
         scheduledFor: effectiveScheduledFor,
         createdAt: Date.now(),
@@ -160,43 +155,6 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       // Sync to Node.js / PostgreSQL backend server
       try {
         const res = await fetch(`${getApiBaseUrl()}/rides/request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${state.token}`,
-        },
-        body: JSON.stringify({
-          rideId,
-          vehicleCategory: selectedCategory.id,
-          pickupLocation: {
-            address: pickup.label,
-            latitude: pickup.latitude,
-            longitude: pickup.longitude,
-          },
-          destinationLocation: {
-            address: destination.label,
-            latitude: destination.latitude,
-            longitude: destination.longitude,
-          },
-          distanceKm,
-          durationMin,
-          estimatedFare: bidAmount,
-          offeredFare: bidAmount,
-          paymentMethod,
-          multiStopWaypoints: stops.length > 0 ? stops : undefined,
-          isScheduled,
-          scheduledFor: effectiveScheduledFor,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to register ride with backend server.');
-      }
-
-      // If digital payment selected, initiate transaction
-      if (paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') {
-        const payRes = await fetch(`${getApiBaseUrl()}/payments/passenger/initiate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -204,29 +162,40 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           },
           body: JSON.stringify({
             rideId,
-            provider: paymentMethod,
-            amount: bidAmount,
-            mobileAccountNo,
-            customerEmail: user?.email,
-            idempotencyKey: `idemp_${rideId}_${paymentMethod}`,
+            vehicleCategory: selectedCategory.id,
+            pickupLocation: {
+              address: pickup.label,
+              latitude: pickup.latitude,
+              longitude: pickup.longitude,
+            },
+            destinationLocation: {
+              address: destination.label,
+              latitude: destination.latitude,
+              longitude: destination.longitude,
+            },
+            distanceKm,
+            durationMin,
+            estimatedFare: bidAmount,
+            offeredFare: bidAmount,
+            paymentMethod: 'cash',
+            multiStopWaypoints: stops.length > 0 ? stops : undefined,
+            isScheduled,
+            scheduledFor: effectiveScheduledFor,
           }),
         });
-        if (!payRes.ok) {
-          const payErr = await payRes.json().catch(() => ({}));
-          throw new Error(payErr.error || 'Digital payment initiation failed. Please retry.');
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.warn('Backend ride request sync non-200:', errData.error);
         }
-      }
-    } catch (backendErr: any) {
+      } catch (backendErr: any) {
         console.error('Backend ride request sync error:', backendErr?.message || backendErr);
-        Alert.alert('Booking Error', backendErr?.message || 'Failed to place ride request. Please try again.');
-        setIsLoading(false);
-        return;
       }
 
       setIsSummaryVisible(false);
       dispatch({ type: 'SET_ACTIVE_RIDE', payload: rideRequest });
       navigation.navigate('RideTracking', { rideId });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create ride request:', error);
       Alert.alert('Request Failed', 'Unable to send ride request. Please try again.');
     } finally {
@@ -409,68 +378,26 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           )}
         </View>
 
-        {/* Payment Method Selector (Phase 10: Cash, JazzCash, Easypaisa) */}
+        {/* Payment Method Display (Cash Only) */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Payment Method</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-            {[
-              { id: 'cash' as const, label: '💵 Cash', badge: 'Default' },
-              { id: 'jazzcash' as const, label: '💳 JazzCash', badge: 'Sandbox' },
-              { id: 'easypaisa' as const, label: '💳 Easypaisa', badge: 'Sandbox' },
-            ].map((p) => {
-              const isSelected = paymentMethod === p.id;
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  onPress={() => setPaymentMethod(p.id)}
-                  style={{
-                    flex: 1,
-                    backgroundColor: isSelected ? Colors.light.primaryGhost : Colors.light.surface,
-                    borderColor: isSelected ? Colors.light.primary : Colors.light.border,
-                    borderWidth: 1.5,
-                    borderRadius: 14,
-                    padding: 10,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: isSelected ? Colors.light.primary : Colors.light.text }}>
-                    {p.label}
-                  </Text>
-                  <Text style={{ fontSize: 10, color: isSelected ? Colors.light.primary : Colors.light.textSecondary, marginTop: 2 }}>
-                    {p.badge}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {(paymentMethod === 'jazzcash' || paymentMethod === 'easypaisa') && (
-            <View style={{ backgroundColor: Colors.light.surface, borderRadius: 14, padding: 12, marginTop: 10, borderWidth: 1, borderColor: Colors.light.border }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.light.textSecondary, marginBottom: 6 }}>
-                {paymentMethod === 'jazzcash' ? 'JazzCash' : 'Easypaisa'} Mobile Account Number:
-              </Text>
-              <TextInput
-                style={{
-                  backgroundColor: Colors.light.background,
-                  borderRadius: 10,
-                  padding: 10,
-                  fontSize: 14,
-                  fontWeight: '600',
-                  color: Colors.light.text,
-                  borderWidth: 1,
-                  borderColor: Colors.light.border,
-                }}
-                placeholder="03001234567"
-                placeholderTextColor={Colors.light.textTertiary}
-                value={mobileAccountNo}
-                onChangeText={setMobileAccountNo}
-                keyboardType="phone-pad"
-              />
-              <Text style={{ fontSize: 11, color: Colors.light.textSecondary, marginTop: 6 }}>
-                ⚡ Sandbox Mode: Test payments simulate mobile wallet authentication.
-              </Text>
+          <View style={{
+            backgroundColor: '#ECFDF5',
+            borderColor: '#10B981',
+            borderWidth: 1.5,
+            borderRadius: 14,
+            padding: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginHorizontal: 20,
+          }}>
+            <Text style={{ fontSize: 22 }}>💵</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#065F46' }}>Cash on Completion</Text>
+              <Text style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>Direct cash payment to driver upon arrival at destination</Text>
             </View>
-          )}
+          </View>
         </View>
 
         {/* Action confirmation button */}

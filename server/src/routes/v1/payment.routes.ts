@@ -51,9 +51,10 @@ router.get('/driver/monthly', authenticateToken, async (req: AuthRequest, res: R
     const totalRides = parseInt(ridesRes.rows[0].total_rides || '0', 10);
     const totalEarnings = parseFloat(ridesRes.rows[0].total_earnings || '0');
 
-    // Fetch dynamic commission rate from admin_settings
-    const settingsRes = await query('SELECT commission_pct FROM admin_settings WHERE id = 1');
-    const commissionPct = parseFloat(settingsRes.rows[0]?.commission_pct || '7.0') / 100;
+    // Fetch dynamic commission rate and payment details from admin_settings
+    const settingsRes = await query('SELECT commission_pct, raast_id, raast_qr_url, bank_account_number, iban FROM admin_settings WHERE id = 1');
+    const settingsRow = settingsRes.rows[0] || {};
+    const commissionPct = parseFloat(settingsRow.commission_pct || '5.0') / 100;
     const platformFee = Math.round(totalEarnings * commissionPct * 100) / 100;
 
     // Due date calculation: 4th of the following month
@@ -142,7 +143,15 @@ router.get('/driver/monthly', authenticateToken, async (req: AuthRequest, res: R
       adminNotes: paymentRecord?.admin_notes || '',
       submittedAt: paymentRecord?.submitted_at || null,
       reviewedAt: paymentRecord?.reviewed_at || null,
-      bankDetails: PAYMENT_INSTRUCTIONS,
+      bankDetails: {
+        raastId: settingsRow.raast_id || '03001234567',
+        raastQrUrl: settingsRow.raast_qr_url || '',
+        bankAccountNumber: settingsRow.bank_account_number || 'PK92MEZN0009988776655',
+        iban: settingsRow.iban || 'PK92MEZN000998877665544332211',
+        bankName: 'Meezan Bank & Raast',
+        accountTitle: 'SheDrive Operations Account',
+        instructions: 'Transfer your monthly platform fee using Raast ID, QR Code, or Bank Account / IBAN, then enter your Transaction ID and upload your receipt screenshot below.',
+      },
       history: historyRes.rows,
     });
   } catch (error: any) {
@@ -447,9 +456,8 @@ router.post('/passenger/initiate', authenticateToken, paymentRateLimiter, async 
       return res.status(400).json({ error: 'Valid rideId, provider, and positive amount are required' });
     }
 
-    const validProviders: PaymentProvider[] = ['cash', 'jazzcash', 'easypaisa'];
-    if (!validProviders.includes(provider)) {
-      return res.status(400).json({ error: `Provider must be one of: ${validProviders.join(', ')}` });
+    if (provider !== 'cash') {
+      return res.status(400).json({ error: 'Online passenger payments are disabled. All passenger rides are settled in cash directly with the driver on trip completion.' });
     }
 
     // Idempotency check
