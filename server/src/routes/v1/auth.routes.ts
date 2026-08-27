@@ -191,7 +191,24 @@ router.post('/verify-registration-otp', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
     }
 
-    if (storedEntry.code !== cleanOtp) {
+    let isMatch = storedEntry.code === cleanOtp;
+
+    if (!isMatch && supabase && typeof supabase.auth?.verifyOtp === 'function') {
+      try {
+        const { data: sbVerify, error: sbErr } = await supabase.auth.verifyOtp({
+          email: cleanEmail,
+          token: cleanOtp,
+          type: 'email',
+        });
+        if (!sbErr && sbVerify?.user) {
+          isMatch = true;
+        }
+      } catch (sbVerifyErr: any) {
+        console.warn('[Supabase OTP verify fallback]:', sbVerifyErr?.message || sbVerifyErr);
+      }
+    }
+
+    if (!isMatch) {
       return res.status(400).json({ error: 'Invalid verification code. Please check the code sent to your email.' });
     }
 

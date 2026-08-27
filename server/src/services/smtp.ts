@@ -36,6 +36,8 @@ function createSmtpTransporter(port: number, secure: boolean) {
   });
 }
 
+import { supabase } from '../config/supabase';
+
 // Cache OAuth2 Client instance so token exchanges are persistent and instant (no re-handshake overhead)
 let cachedOAuth2Client: any = null;
 let cachedGmailService: any = null;
@@ -78,18 +80,34 @@ function createRawEmail(options: SendEmailOptions, senderName: string): string {
 
 /**
  * Send email via best available transport:
- * 1. Gmail REST API (HTTPS Port 443 — when OAuth2 credentials exist on Render)
- * 2. Gmail SMTP via Nodemailer Port 465 (SSL)
- * 3. Gmail SMTP via Nodemailer Port 587 (STARTTLS)
+ * 1. Supabase Cloud Auth OTP Dispatch (HTTPS Port 443 — guaranteed delivery from Render)
+ * 2. Gmail REST API (HTTPS Port 443 — when OAuth2 credentials exist on Render)
+ * 3. Gmail SMTP via Nodemailer Port 465 (SSL)
+ * 4. Gmail SMTP via Nodemailer Port 587 (STARTTLS)
  */
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const senderName = options.fromName || 'SheDrive Support';
   const { user } = getCredentials();
+  let delivered = false;
+
+  // ── Primary 1: Supabase Cloud Auth OTP Dispatch (HTTPS Port 443 — Never blocked by cloud firewalls) ──
+  try {
+    if (supabase && typeof supabase.auth?.signInWithOtp === 'function') {
+      const sbRes = await supabase.auth.signInWithOtp({ email: options.to });
+      if (!sbRes.error) {
+        console.log(`[Supabase Auth (HTTPS Port 443)] Email OTP dispatched to ${options.to}`);
+        delivered = true;
+      }
+    }
+  } catch (sbErr: any) {
+    console.warn('[Supabase Auth Email Warning]:', sbErr?.message || sbErr);
+  }
+
   const clientId = (process.env.GMAIL_CLIENT_ID || '').trim();
   const clientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
   const refreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
 
-  // ── Primary: Gmail REST API over HTTPS (Bypasses all cloud port blocks) ──
+  // ── Primary 2: Gmail REST API over HTTPS (Bypasses all cloud port blocks) ──
   if (clientId && clientSecret && refreshToken) {
     try {
       const gmail = getGmailService(clientId, clientSecret, refreshToken);
@@ -101,7 +119,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       });
 
       console.log(`[Gmail API (HTTPS)] Email delivered: ${res.data.id} to ${options.to}`);
-      return true;
+      delivered = true;
     } catch (apiErr: any) {
       console.warn('[Gmail API (HTTPS)] Warning (falling back to SMTP):', apiErr.message || apiErr);
     }
