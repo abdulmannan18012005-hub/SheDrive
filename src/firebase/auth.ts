@@ -8,6 +8,7 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import sessionManager from '../utils/sessionManager';
 import { UserProfile, UserRole, VehicleInfo } from '../types';
 
 /**
@@ -85,6 +86,7 @@ export async function signOutUser(): Promise<void> {
   }
   await AsyncStorage.removeItem('@shedrive_auth_token').catch(() => {});
   await AsyncStorage.removeItem('@shedrive_user_profile').catch(() => {});
+  await sessionManager.clearSession().catch(() => {});
   const rememberMeFlag = await AsyncStorage.getItem('@shedrive_remember_me_flag');
   if (rememberMeFlag === 'false') {
     await AsyncStorage.removeItem('@shedrive_remember_me').catch(() => {});

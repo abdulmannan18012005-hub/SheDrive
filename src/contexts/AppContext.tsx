@@ -136,7 +136,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   useEffect(() => {
-    // Initialize session management
+    // Initialize session management callbacks
     const initializeSession = async () => {
       // Set up session timeout callback
       sessionManager.setSessionTimeoutCallback(() => {
@@ -147,13 +147,6 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       sessionManager.setTokenRefreshCallback((newToken: string) => {
         dispatch({ type: 'SET_TOKEN', payload: newToken });
       });
-
-      // Attempt auto-login if remember me is enabled
-      const autoLoginResult = await sessionManager.autoLogin();
-      if (autoLoginResult) {
-        dispatch({ type: 'SET_TOKEN', payload: autoLoginResult.token });
-        // User data would need to be fetched from API here
-      }
 
       // Start session monitoring if there's an active session
       const session = await sessionManager.getSession();

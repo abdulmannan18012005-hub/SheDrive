@@ -518,9 +518,14 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
       if (lowerSql.includes('type = $2') && params[1]) {
         queryBuilder = queryBuilder.eq('type', params[1]);
       }
+    } else if (lowerSql.includes('id = $1') && params[0]) {
+      queryBuilder = queryBuilder.eq('id', params[0]);
     }
     if (lowerSql.includes('used = false')) {
       queryBuilder = queryBuilder.eq('used', false);
+    }
+    if (lowerSql.includes('verified_at is not null')) {
+      queryBuilder = queryBuilder.not('verified_at', 'is', null);
     }
     queryBuilder = queryBuilder.order('created_at', { ascending: false });
     const { data, error } = await queryBuilder;
@@ -728,7 +733,14 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
         }
       }
     } else if (lowerSql.includes('update user_verification_codes')) {
-      if (lowerSql.includes('used = true')) {
+      if (lowerSql.includes('verified_at = $1')) {
+        const verifiedAt = params ? params[0] : Date.now();
+        const targetId = params ? params[1] : null;
+        if (targetId) {
+          const { data, error } = await supabaseClient.from('user_verification_codes').update({ used: true, verified_at: verifiedAt }).eq('id', targetId).select();
+          if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
+        }
+      } else if (lowerSql.includes('used = true') && lowerSql.includes('where id = $1')) {
         const targetId = params ? params[0] : null;
         if (targetId) {
           const { data, error } = await supabaseClient.from('user_verification_codes').update({ used: true }).eq('id', targetId).select();

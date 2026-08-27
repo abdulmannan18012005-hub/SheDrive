@@ -497,29 +497,30 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
         return;
       }
 
-      setOtpModalVisible(false);
+      const newUserProfile = {
+        uid: regData.user.id,
+        phone: regData.user.phone,
+        email: regData.user.email,
+        name: regData.user.name,
+        role: regData.user.role,
+        cnic: regData.user.cnic || cnicNumber.trim(),
+        gender: 'female' as const,
+        dateOfBirth: regData.user.dateOfBirth || (role === 'driver' ? dateOfBirth : undefined),
+        isVerified: regData.user.isVerified ?? (role === 'passenger'),
+        photoURL: regData.user.photo_url || regData.user.photoURL || undefined,
+        createdAt: Date.now(),
+      };
 
       if (regData.token) {
         dispatch({ type: 'SET_TOKEN', payload: regData.token });
         AsyncStorage.setItem('@shedrive_auth_token', regData.token).catch(() => {});
+        AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(newUserProfile)).catch(() => {});
+        AsyncStorage.setItem('@shedrive_remember_me', formattedEmail).catch(() => {});
+        AsyncStorage.setItem('@shedrive_remember_me_flag', 'true').catch(() => {});
       }
 
       // Successfully registered & verified — log user in
-      dispatch({
-        type: 'SET_USER',
-        payload: {
-          uid: regData.user.id,
-          phone: regData.user.phone,
-          email: regData.user.email,
-          name: regData.user.name,
-          role: regData.user.role,
-          cnic: regData.user.cnic || cnicNumber.trim(),
-          gender: 'female',
-          dateOfBirth: regData.user.dateOfBirth || (role === 'driver' ? dateOfBirth : undefined),
-          isVerified: regData.user.isVerified ?? (role === 'passenger'),
-          createdAt: Date.now(),
-        },
-      });
+      dispatch({ type: 'SET_USER', payload: newUserProfile });
       dispatch({ type: 'SET_ROLE', payload: regData.user.role });
       dispatch({ type: 'SET_AUTHENTICATED', payload: true });
     } catch (error) {

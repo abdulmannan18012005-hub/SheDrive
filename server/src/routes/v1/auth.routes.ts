@@ -7,6 +7,8 @@ import { sendEmail } from '../../services/smtp';
 import { buildPasswordResetEmailHtml, buildRegistrationOtpEmailHtml } from '../../utils/emailTemplates';
 import { loginRateLimiter, otpRateLimiter, passwordResetRateLimiter } from '../../middleware/rateLimiter';
 
+import { uploadImage } from '../../config/cloudinary';
+
 const router = Router();
 
 // Helper methods for database-backed verification codes
@@ -45,14 +47,14 @@ async function getUnusedCodeByValue(code: string, type: string) {
   return res.rows[0] || null;
 }
 
-async function getLatestUsedCode(email: string, type: string) {
+async function getLatestVerifiedCode(email: string, type: string) {
   const now = Date.now();
   // Allowed within 1 hour of verification
   const oneHourAgo = now - 60 * 60 * 1000;
   const res = await query(
     `SELECT * FROM user_verification_codes 
-     WHERE email = $1 AND type = $2 AND used = true AND created_at > $3 
-     ORDER BY created_at DESC LIMIT 1`,
+     WHERE email = $1 AND type = $2 AND verified_at IS NOT NULL AND verified_at > $3 
+     ORDER BY verified_at DESC LIMIT 1`,
     [email, type, oneHourAgo]
   );
   return res.rows[0] || null;
@@ -60,6 +62,35 @@ async function getLatestUsedCode(email: string, type: string) {
 
 async function markCodeUsed(id: string) {
   await query('UPDATE user_verification_codes SET used = true WHERE id = $1', [id]);
+}
+
+async function markCodeVerified(id: string) {
+  const now = Date.now();
+  await query('UPDATE user_verification_codes SET used = true, verified_at = $1 WHERE id = $2', [now, id]);
+}
+
+async function processDocumentUpload(imageUriOrBase64?: string, folder: string = 'shedrive/documents'): Promise<string | null> {
+  if (!imageUriOrBase64 || typeof imageUriOrBase64 !== 'string') return null;
+  const trimmed = imageUriOrBase64.trim();
+  if (!trimmed) return null;
+  
+  // If it's already an http(s) URL (e.g. Cloudinary, CDN), retain as-is
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  
+  // If it is a base64 / data URI, upload to Cloudinary
+  if (trimmed.startsWith('data:image/') || trimmed.length > 500) {
+    try {
+      const uploadRes = await uploadImage(trimmed, folder);
+      return uploadRes.url;
+    } catch (err: any) {
+      console.warn(`[Registration Upload] Cloudinary warning for ${folder}:`, err?.message || err);
+      return trimmed;
+    }
+  }
+  
+  return trimmed;
 }
 
 /**
@@ -168,8 +199,8 @@ router.post('/verify-registration-otp', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid verification code. Please check the code sent to your email.' });
     }
 
-    // Mark as verified
-    await markCodeUsed(storedEntry.id);
+    // Mark as verified with timestamp
+    await markCodeVerified(storedEntry.id);
 
     res.status(200).json({
       success: true,
@@ -225,7 +256,7 @@ router.post('/register', async (req: Request, res: Response) => {
     const cleanEmail = email.trim().toLowerCase();
 
     // Verify email was validated via OTP before allowing account creation
-    const otpEntry = await getLatestUsedCode(cleanEmail, 'registration');
+    const otpEntry = await getLatestVerifiedCode(cleanEmail, 'registration');
     if (!otpEntry) {
       return res.status(400).json({
         error: 'Please verify your email address with the OTP code before completing registration.',
@@ -338,6 +369,14 @@ router.post('/register', async (req: Request, res: Response) => {
     const passHash = await hashPassword(password);
     const now = Date.now();
 
+    // Process document uploads to Cloudinary if base64/data URLs are passed
+    const finalCnicFrontUrl = await processDocumentUpload(cnicFrontUrl, 'shedrive/documents');
+    const finalCnicBackUrl = await processDocumentUpload(cnicBackUrl, 'shedrive/documents');
+    const finalLicenseFrontUrl = await processDocumentUpload(licenseFrontUrl, 'shedrive/documents');
+    const finalLicenseBackUrl = await processDocumentUpload(licenseBackUrl, 'shedrive/documents');
+    const finalSelfieUrl = await processDocumentUpload(selfieUrl, 'shedrive/avatars');
+    const finalVehiclePhotoUrl = await processDocumentUpload(vehiclePhotoUrl, 'shedrive/vehicles');
+
     await withTransaction(async (dbClient) => {
       await dbClient.query(
         `INSERT INTO users (
@@ -353,8 +392,8 @@ router.post('/register', async (req: Request, res: Response) => {
           cleanPhone,
           role,
           cnic.trim(),
-          cnicFrontUrl || null,
-          cnicBackUrl || null,
+          finalCnicFrontUrl || null,
+          finalCnicBackUrl || null,
           dateOfBirth || null,
           city?.trim() || 'Lahore',
           role === 'passenger' ? true : false,
@@ -384,10 +423,10 @@ router.post('/register', async (req: Request, res: Response) => {
             vehicleInfo.plate || '',
             vehicleInfo.color || '',
             vehicleInfo.year || '2022',
-            licenseFrontUrl || null,
-            licenseBackUrl || null,
-            selfieUrl || null,
-            vehiclePhotoUrl || null,
+            finalLicenseFrontUrl || null,
+            finalLicenseBackUrl || null,
+            finalSelfieUrl || null,
+            finalVehiclePhotoUrl || null,
             acOption || 'both',
             false,
             true,

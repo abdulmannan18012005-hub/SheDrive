@@ -170,27 +170,8 @@ class SessionManager {
     }
   }
 
-  async refreshToken(refreshToken: string): Promise<string | null> {
-    try {
-      const response = await fetch('https://your-api.com/auth/refresh', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const newToken = data.token;
-        const newExpiry = data.expiresAt;
-        
-        await this.saveSession(newToken, refreshToken, newExpiry, await this.isRememberMeEnabled());
-        return newToken;
-      }
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-    }
+  async refreshToken(_refreshToken: string): Promise<string | null> {
+    // SheDrive uses 30-day JWT auth tokens; no separate refresh token endpoint is needed
     return null;
   }
 
@@ -199,25 +180,14 @@ class SessionManager {
     return rememberMe === 'true';
   }
 
-  async logoutAllDevices(userId: string): Promise<boolean> {
+  async logoutAllDevices(_userId: string): Promise<boolean> {
     try {
-      const response = await fetch('https://your-api.com/auth/logout-all', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await this.getCurrentToken()}`,
-        },
-        body: JSON.stringify({ userId }),
-      });
-
-      if (response.ok) {
-        await this.clearSession();
-        return true;
-      }
+      await this.clearSession();
+      return true;
     } catch (error) {
       console.error('Logout all devices failed:', error);
+      return false;
     }
-    return false;
   }
 
   async getCurrentToken(): Promise<string | null> {

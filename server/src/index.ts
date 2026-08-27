@@ -32,6 +32,7 @@ const allowedOrigins: string[] = process.env.CORS_ALLOWED_ORIGINS
   : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'https://shedrive.onrender.com'];
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
