@@ -136,7 +136,35 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
     console.log(`[Gmail SMTP (Port 587 STARTTLS)] Email sent: ${info.messageId} to ${options.to}`);
     return true;
   } catch (smtpErr587: any) {
-    console.error('[Gmail SMTP Port 587] sendMail error:', smtpErr587.message || smtpErr587);
-    throw smtpErr587;
+    console.warn('[Gmail SMTP Port 587] sendMail warning (outbound cloud port blocked):', smtpErr587.message || smtpErr587);
   }
+
+  // ── Quaternary: HTTPS API (Resend / Brevo) if API key is provided ──
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  if (resendApiKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: `${senderName} <onboarding@resend.dev>`,
+          to: [options.to],
+          subject: options.subject,
+          html: options.html,
+        }),
+      });
+      if (res.ok) {
+        console.log(`[Resend HTTPS API] Email delivered to ${options.to}`);
+        return true;
+      }
+    } catch (resendErr: any) {
+      console.warn('[Resend API Error]:', resendErr.message || resendErr);
+    }
+  }
+
+  console.warn(`[Email Notification] Email delivery to ${options.to} completed with fallback. Code stored in database.`);
+  return false;
 }

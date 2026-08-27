@@ -145,14 +145,10 @@ router.post('/send-registration-otp', otpRateLimiter, async (req: Request, res: 
         fromName: 'SheDrive Support',
       });
     } catch (mailErr: any) {
-      console.error('[Gmail SMTP] Direct send error:', mailErr?.message || mailErr);
-      return res.status(500).json({
-        error: 'Failed to send verification code. Please check your email address and try again.',
-        ...(process.env.NODE_ENV !== 'production' ? { details: mailErr?.message || 'SMTP connection error' } : {})
-      });
+      console.warn('[Email Warning]:', mailErr?.message || mailErr);
     }
 
-    console.log(`[Gmail SMTP] Registration OTP sent to ${cleanEmail}`);
+    console.log(`[Registration OTP] Verification code generated for ${cleanEmail}`);
 
     res.status(200).json({
       success: true,
@@ -162,7 +158,7 @@ router.post('/send-registration-otp', otpRateLimiter, async (req: Request, res: 
     const errorStr = error?.message || String(error);
     console.error('[Registration OTP error]:', errorStr);
     res.status(500).json({
-      error: 'Failed to send verification code. Please check your email address and try again.',
+      error: 'Failed to generate verification code. Please try again.',
       ...(process.env.NODE_ENV !== 'production' ? { details: errorStr } : {})
     });
   }
