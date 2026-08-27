@@ -8,25 +8,33 @@ export interface SendEmailOptions {
   fromName?: string;
 }
 
-const gmailUser = process.env.GMAIL_USER?.trim();
-const gmailPass = process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, '');
+const GMAIL_DEFAULT_USER = 'SheDrive.Support@gmail.com';
+const GMAIL_DEFAULT_PASS = 'pofs asgp bruk yomi';
 
-if (!gmailUser || !gmailPass) {
-  console.warn('[SMTP] GMAIL_USER and GMAIL_APP_PASSWORD environment variables are required for email delivery. Email features will not work.');
+function getCredentials() {
+  const user = (process.env.GMAIL_USER || GMAIL_DEFAULT_USER).trim();
+  const pass = (process.env.GMAIL_APP_PASSWORD || GMAIL_DEFAULT_PASS).replace(/\s+/g, '');
+  return { user, pass };
 }
 
 /**
- * Standard Gmail SMTP Transporter (Fallback for local dev or when Render is upgraded)
+ * Creates a nodemailer transporter for a specific port and security configuration
  */
-const smtpTransporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: { user: gmailUser, pass: gmailPass },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-});
+function createSmtpTransporter(port: number, secure: boolean) {
+  const { user, pass } = getCredentials();
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
+    tls: {
+      rejectUnauthorized: false,
+    },
+  });
+}
 
 // Cache OAuth2 Client instance so token exchanges are persistent and instant (no re-handshake overhead)
 let cachedOAuth2Client: any = null;
@@ -49,9 +57,10 @@ function getGmailService(clientId: string, clientSecret: string, refreshToken: s
  * Helper to encode an email payload into standard RFC 2822 base64url for the Gmail API
  */
 function createRawEmail(options: SendEmailOptions, senderName: string): string {
+  const { user } = getCredentials();
   const utf8Subject = `=?utf-8?B?${Buffer.from(options.subject, 'utf-8').toString('base64')}?=`;
   const messageParts = [
-    `From: "${senderName}" <${gmailUser}>`,
+    `From: "${senderName}" <${user}>`,
     `To: <${options.to}>`,
     `Subject: ${utf8Subject}`,
     'MIME-Version: 1.0',
@@ -70,10 +79,12 @@ function createRawEmail(options: SendEmailOptions, senderName: string): string {
 /**
  * Send email via best available transport:
  * 1. Gmail REST API (HTTPS Port 443 — when OAuth2 credentials exist on Render)
- * 2. Gmail SMTP via Nodemailer (Port 465 SSL — fallback for local dev / paid server)
+ * 2. Gmail SMTP via Nodemailer Port 465 (SSL)
+ * 3. Gmail SMTP via Nodemailer Port 587 (STARTTLS)
  */
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const senderName = options.fromName || 'SheDrive Support';
+  const { user } = getCredentials();
   const clientId = (process.env.GMAIL_CLIENT_ID || '').trim();
   const clientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
   const refreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
@@ -92,24 +103,40 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       console.log(`[Gmail API (HTTPS)] Email delivered: ${res.data.id} to ${options.to}`);
       return true;
     } catch (apiErr: any) {
-      console.error('[Gmail API (HTTPS)] Error:', apiErr.message || apiErr);
-      throw new Error(`Gmail API Delivery Failed: ${apiErr.message || apiErr}`);
+      console.warn('[Gmail API (HTTPS)] Warning (falling back to SMTP):', apiErr.message || apiErr);
     }
   }
 
-  // ── Fallback: Gmail SMTP via Nodemailer (Free, unlimited for local / paid host) ──
+  // ── Secondary: Gmail SMTP via Port 465 (SSL) ──
   try {
-    const info = await smtpTransporter.sendMail({
-      from: `"${senderName}" <${gmailUser}>`,
+    const transporter465 = createSmtpTransporter(465, true);
+    const info = await transporter465.sendMail({
+      from: `"${senderName}" <${user}>`,
       to: options.to,
       subject: options.subject,
       html: options.html,
     });
 
-    console.log(`[Gmail SMTP (SSL)] Email sent: ${info.messageId} to ${options.to}`);
+    console.log(`[Gmail SMTP (Port 465 SSL)] Email sent: ${info.messageId} to ${options.to}`);
     return true;
-  } catch (smtpErr: any) {
-    console.error('[Gmail SMTP] sendMail error:', smtpErr.message || smtpErr);
-    throw smtpErr;
+  } catch (smtpErr465: any) {
+    console.warn('[Gmail SMTP Port 465] Attempt failed, trying Port 587 STARTTLS...', smtpErr465.message || smtpErr465);
+  }
+
+  // ── Tertiary: Gmail SMTP via Port 587 (STARTTLS) ──
+  try {
+    const transporter587 = createSmtpTransporter(587, false);
+    const info = await transporter587.sendMail({
+      from: `"${senderName}" <${user}>`,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+    });
+
+    console.log(`[Gmail SMTP (Port 587 STARTTLS)] Email sent: ${info.messageId} to ${options.to}`);
+    return true;
+  } catch (smtpErr587: any) {
+    console.error('[Gmail SMTP Port 587] sendMail error:', smtpErr587.message || smtpErr587);
+    throw smtpErr587;
   }
 }
