@@ -207,6 +207,7 @@ export const adminApi = {
   // Block/unblock driver
   blockDriver: async (driverId: string, block: boolean) => {
     invalidateCache('/admin/drivers');
+    invalidateCache('/admin/drivers/pending');
     invalidateCache('/admin/stats');
     return fetchWithErrorHandling(`/admin/drivers/${driverId}/block`, {
       method: 'PUT',

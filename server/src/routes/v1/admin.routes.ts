@@ -65,9 +65,9 @@ router.post('/login', async (req: Request, res: Response) => {
       try {
         const passHash = await hashPassword('Admin#2026!');
         await query(
-          `INSERT INTO users (id, email, password_hash, name, phone, role, is_verified, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (email) DO NOTHING`,
-          [adminId, 'admin@shedrive.com', passHash, 'Super Admin', '+92 42 111 743 374', 'admin', true, Date.now(), Date.now()]
+          `INSERT INTO users (id, email, password_hash, name, phone, role, cnic, is_verified, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (email) DO NOTHING`,
+          [adminId, 'admin@shedrive.com', passHash, 'Super Admin', '+92 42 111 743 374', 'admin', '00000-0000000-0', true, Date.now(), Date.now()]
         );
       } catch (dbErr) {
         // Ignored

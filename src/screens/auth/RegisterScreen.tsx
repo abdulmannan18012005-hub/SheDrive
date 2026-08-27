@@ -142,6 +142,11 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
 
   const convertToBase64 = async (uri: string): Promise<string> => {
     try {
+      if (!uri || typeof uri !== 'string') return '';
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        return uri;
+      }
       const base64Data = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });

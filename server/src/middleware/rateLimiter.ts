@@ -51,6 +51,11 @@ export function createRateLimiter(
       });
     }
 
+    if (!rateLimitStore.has(key) && rateLimitStore.size >= 10000) {
+      const oldestKey = rateLimitStore.keys().next().value;
+      if (oldestKey) rateLimitStore.delete(oldestKey);
+    }
+
     rateLimitStore.set(key, entry);
     next();
   };

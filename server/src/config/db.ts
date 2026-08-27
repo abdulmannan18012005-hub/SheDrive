@@ -94,7 +94,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
   }
 
   const sql = text.trim();
-  const lowerSql = sql.toLowerCase();
+  const lowerSql = sql.toLowerCase().replace(/\s+/g, ' ');
 
   // A. SELECT COUNT(*) & AGGREGATE QUERIES
   if (lowerSql.includes('count(*)') || lowerSql.includes('sum(')) {

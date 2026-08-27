@@ -739,11 +739,12 @@ router.post('/update-password-from-reset', async (req: Request, res: Response) =
   try {
     const { email, newPassword, token, role } = req.body;
 
-    if (!email || !newPassword) {
-      return res.status(400).json({ error: 'Email and new password are required' });
+    if (!email || !newPassword || !token || typeof token !== 'string' || !token.trim()) {
+      return res.status(400).json({ error: 'Email, new password, and reset security token are required' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const cleanToken = token.trim();
 
     // Query user by BOTH email and role to ensure correct account type is updated
     let userRes;
@@ -763,12 +764,12 @@ router.post('/update-password-from-reset', async (req: Request, res: Response) =
       return res.status(403).json({ error: 'Your account has been temporarily blocked.' });
     }
 
-    // Security token check from database
-    const stored = token ? await getUnusedCodeByValue(token.trim(), `password_reset:${user.role}`) : await getLatestUnusedCode(cleanEmail, `password_reset:${user.role}`);
+    // Security token check from database — strictly require matching token and email
+    const stored = await getUnusedCodeByValue(cleanToken, `password_reset:${user.role}`);
 
-    if (!stored || (token && stored.code !== token.trim())) {
+    if (!stored || stored.email.toLowerCase() !== cleanEmail) {
       return res.status(400).json({
-        error: 'This password reset link has expired. Please use the most recently sent link or request a new one.',
+        error: 'This password reset link is invalid or has expired. Please request a new password reset.',
       });
     }
 

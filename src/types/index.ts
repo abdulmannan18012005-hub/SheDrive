@@ -257,7 +257,7 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
-  ResetPassword: { email?: string };
+  ResetPassword: { email?: string; token?: string; role?: 'passenger' | 'driver' };
   TermsAndConditions: undefined;
   PrivacyPolicy: undefined;
   PlatformFeeInfo: undefined;
