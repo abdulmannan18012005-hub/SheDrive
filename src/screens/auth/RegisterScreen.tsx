@@ -475,6 +475,8 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
           password,
           role,
           cnic: cnicNumber.trim(),
+          cnicFrontUrl: cnicFrontUri || undefined,
+          cnicBackUrl: cnicBackUri || undefined,
           dateOfBirth: role === 'driver' ? dateOfBirth : undefined,
           vehicleInfo,
           licenseFrontUrl: role === 'driver' ? licenseFrontUri : undefined,

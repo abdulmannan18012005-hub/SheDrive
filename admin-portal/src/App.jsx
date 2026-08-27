@@ -589,11 +589,11 @@ export default function App() {
         <div class="doc-grid">
           <div class="doc-card">
             <div class="doc-title">CNIC Front</div>
-            ${driver.cnic_front_url ? `<img class="doc-img" src="${driver.cnic_front_url}" />` : `<div class="no-img">Not Provided</div>`}
+            ${(driver.cnic_front_url || driver.cnicFrontUrl) ? `<img class="doc-img" src="${driver.cnic_front_url || driver.cnicFrontUrl}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">CNIC Back</div>
-            ${driver.cnic_back_url ? `<img class="doc-img" src="${driver.cnic_back_url}" />` : `<div class="no-img">Not Provided</div>`}
+            ${(driver.cnic_back_url || driver.cnicBackUrl) ? `<img class="doc-img" src="${driver.cnic_back_url || driver.cnicBackUrl}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">Driving License Front</div>
@@ -3423,24 +3423,24 @@ export default function App() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>CNIC Front</p>
-                {selectedDriverDocs.cnic_front_url ? (
+                {(selectedDriverDocs.cnic_front_url || selectedDriverDocs.cnicFrontUrl) ? (
                   <img 
-                    src={selectedDriverDocs.cnic_front_url} 
+                    src={selectedDriverDocs.cnic_front_url || selectedDriverDocs.cnicFrontUrl} 
                     alt="CNIC Front" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_front_url, title: 'CNIC Front' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_front_url || selectedDriverDocs.cnicFrontUrl, title: 'CNIC Front' })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>
 
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>CNIC Back</p>
-                {selectedDriverDocs.cnic_back_url ? (
+                {(selectedDriverDocs.cnic_back_url || selectedDriverDocs.cnicBackUrl) ? (
                   <img 
-                    src={selectedDriverDocs.cnic_back_url} 
+                    src={selectedDriverDocs.cnic_back_url || selectedDriverDocs.cnicBackUrl} 
                     alt="CNIC Back" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_back_url, title: 'CNIC Back' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_back_url || selectedDriverDocs.cnicBackUrl, title: 'CNIC Back' })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>

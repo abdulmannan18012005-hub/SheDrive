@@ -82,45 +82,99 @@ export default function AppNavigator(): React.JSX.Element {
   const { state, dispatch } = useApp();
 
   useEffect(() => {
-    // Listen to Firebase Auth state changes
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          // Fetch user profile from Firestore
-          const profile = await getUserProfileDoc(firebaseUser.uid);
-          if (profile) {
-            const savedToken = await AsyncStorage.getItem('@shedrive_auth_token');
-            if (savedToken) {
-              dispatch({ type: 'SET_TOKEN', payload: savedToken });
-            }
-            dispatch({ type: 'SET_USER', payload: profile });
-            dispatch({ type: 'SET_ROLE', payload: profile.role });
-            dispatch({ type: 'SET_AUTHENTICATED', payload: true });
-          } else {
-            // Profile not found in database, sign out
-            await AsyncStorage.removeItem('@shedrive_auth_token');
-            dispatch({ type: 'LOGOUT' });
-          }
-        } else {
-          await AsyncStorage.removeItem('@shedrive_auth_token');
-          dispatch({ type: 'LOGOUT' });
-        }
-      } catch (error: any) {
-        console.warn('[AUTH SESSION WARNING] Network error during auth initialization:', error?.message || error);
-        // If a saved auth token exists locally, preserve authentication state rather than forcing a logout
-        const savedToken = await AsyncStorage.getItem('@shedrive_auth_token');
-        if (savedToken) {
-          dispatch({ type: 'SET_TOKEN', payload: savedToken });
-          dispatch({ type: 'SET_AUTHENTICATED', payload: true });
-        } else {
-          dispatch({ type: 'LOGOUT' });
-        }
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    });
+    let isMounted = true;
 
-    return () => unsubscribe();
+    const restoreSession = async () => {
+      try {
+        const savedToken = await AsyncStorage.getItem('@shedrive_auth_token');
+        const savedUserJson = await AsyncStorage.getItem('@shedrive_user_profile');
+
+        if (savedToken && savedUserJson) {
+          const userProfile = JSON.parse(savedUserJson);
+          if (isMounted) {
+            dispatch({ type: 'SET_TOKEN', payload: savedToken });
+            dispatch({ type: 'SET_USER', payload: userProfile });
+            dispatch({ type: 'SET_ROLE', payload: userProfile.role });
+            dispatch({ type: 'SET_AUTHENTICATED', payload: true });
+            dispatch({ type: 'SET_LOADING', payload: false });
+          }
+
+          // Background validation with backend API (non-blocking)
+          try {
+            const { getApiBaseUrl } = await import('../config/apiConfig');
+            const res = await fetch(`${getApiBaseUrl()}/user/profile`, {
+              headers: { Authorization: `Bearer ${savedToken}` },
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data.user && isMounted) {
+                const refreshedUser = {
+                  uid: data.user.id,
+                  phone: data.user.phone,
+                  email: data.user.email,
+                  name: data.user.name,
+                  role: data.user.role,
+                  cnic: data.user.cnic || '',
+                  gender: 'female',
+                  isVerified: data.user.is_verified ?? true,
+                  photoURL: data.user.photo_url || undefined,
+                  createdAt: Date.now(),
+                };
+                dispatch({ type: 'SET_USER', payload: refreshedUser });
+                AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(refreshedUser)).catch(() => {});
+              }
+            } else if (res.status === 401 || res.status === 403) {
+              // Token genuinely rejected by backend -> logout
+              await AsyncStorage.removeItem('@shedrive_auth_token');
+              await AsyncStorage.removeItem('@shedrive_user_profile');
+              if (isMounted) {
+                dispatch({ type: 'LOGOUT' });
+              }
+            }
+            // If offline / network error: retain cached session without logging out
+          } catch (netErr) {
+            console.warn('[Session Restore] Background validation offline/network error (session retained):', netErr);
+          }
+          return;
+        }
+
+        // Fallback check for Firebase Auth if no JWT session exists
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+          try {
+            if (firebaseUser) {
+              const profile = await getUserProfileDoc(firebaseUser.uid);
+              if (profile && isMounted) {
+                dispatch({ type: 'SET_USER', payload: profile });
+                dispatch({ type: 'SET_ROLE', payload: profile.role });
+                dispatch({ type: 'SET_AUTHENTICATED', payload: true });
+                AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(profile)).catch(() => {});
+              }
+            }
+          } catch (err) {
+            console.warn('[Firebase Auth] Initialization warning:', err);
+          } finally {
+            if (isMounted) {
+              dispatch({ type: 'SET_LOADING', payload: false });
+            }
+          }
+        });
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error('[Session Restore Error]:', error);
+      } finally {
+        if (isMounted) {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
+      }
+    };
+
+    restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [dispatch]);
 
   // Show a full-screen loading spinner while checking auth status

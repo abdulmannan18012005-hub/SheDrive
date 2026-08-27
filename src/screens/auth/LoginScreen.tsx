@@ -39,9 +39,13 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
   const [lockoutTimeRemaining, setLockoutTimeRemaining] = useState(0);
 
   useEffect(() => {
-    // Check for existing lockout
-    checkLockoutStatus();
-  }, [identifier]);
+    // Load saved Remember Me identifier on mount
+    AsyncStorage.getItem('@shedrive_remember_me').then((savedIdentifier) => {
+      if (savedIdentifier) {
+        setIdentifier(savedIdentifier);
+      }
+    }).catch(() => {});
+  }, []);
 
   const checkLockoutStatus = async () => {
     if (!identifier) return;
@@ -163,46 +167,36 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
         rememberMe
       );
 
+      const userProfile = {
+        uid: data.user.id,
+        phone: data.user.phone,
+        email: data.user.email,
+        name: data.user.name,
+        role: data.user.role,
+        cnic: data.user.cnic || '',
+        gender: data.user.gender || (data.user.role === 'driver' ? 'female' : 'female'),
+        isVerified: data.user.isVerified ?? (data.user.role === 'passenger'),
+        photoURL: data.user.photo_url || data.user.photoURL || undefined,
+        createdAt: Date.now(),
+      };
+
       if (rememberMe) {
         AsyncStorage.setItem('@shedrive_remember_me', identifier.trim()).catch(() => {});
+        AsyncStorage.setItem('@shedrive_remember_me_flag', 'true').catch(() => {});
       } else {
         AsyncStorage.removeItem('@shedrive_remember_me').catch(() => {});
+        AsyncStorage.setItem('@shedrive_remember_me_flag', 'false').catch(() => {});
       }
 
       if (data.token) {
-        dispatch({
-          type: 'SET_TOKEN',
-          payload: data.token,
-        });
+        dispatch({ type: 'SET_TOKEN', payload: data.token });
         AsyncStorage.setItem('@shedrive_auth_token', data.token).catch(() => {});
+        AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(userProfile)).catch(() => {});
       }
 
-      dispatch({
-        type: "SET_USER",
-        payload: {
-          uid: data.user.id,
-          phone: data.user.phone,
-          email: data.user.email,
-          name: data.user.name,
-          role: data.user.role,
-          cnic: data.user.cnic || '',
-          gender: data.user.gender || (data.user.role === 'driver' ? 'female' : 'female'),
-          isVerified: data.user.isVerified ?? (data.user.role === 'passenger'),
-          photoURL: data.user.photo_url || data.user.photoURL || undefined,
-          createdAt: Date.now(),
-        },
-      });
-
-
-      dispatch({
-        type: "SET_ROLE",
-        payload: data.user.role,
-      });
-
-      dispatch({
-        type: "SET_AUTHENTICATED",
-        payload: true,
-      });
+      dispatch({ type: 'SET_USER', payload: userProfile });
+      dispatch({ type: 'SET_ROLE', payload: data.user.role });
+      dispatch({ type: 'SET_AUTHENTICATED', payload: true });
 
     } catch (error: any) {
       Alert.alert(

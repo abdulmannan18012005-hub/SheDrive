@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebaseConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile, UserRole, VehicleInfo } from '../types';
 
 /**
@@ -77,7 +78,17 @@ export async function signUpWithEmail(
  * Sign out the current user.
  */
 export async function signOutUser(): Promise<void> {
-  await signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (err) {
+    // Ignore firebase signout error if auth was via JWT
+  }
+  await AsyncStorage.removeItem('@shedrive_auth_token').catch(() => {});
+  await AsyncStorage.removeItem('@shedrive_user_profile').catch(() => {});
+  const rememberMeFlag = await AsyncStorage.getItem('@shedrive_remember_me_flag');
+  if (rememberMeFlag === 'false') {
+    await AsyncStorage.removeItem('@shedrive_remember_me').catch(() => {});
+  }
 }
 
 /**
