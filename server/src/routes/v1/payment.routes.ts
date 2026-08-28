@@ -280,9 +280,29 @@ router.get('/admin/payments', authenticateToken, async (req: AuthRequest, res: R
     }
 
     // Get total count for pagination
-    const countQueryStr = queryStr.replace(/SELECT.*?FROM/, 'SELECT COUNT(*) as total FROM');
-    const countResult = await query(countQueryStr, params);
-    const total = parseInt(countResult.rows[0].total, 10);
+    let countQueryStr = `
+      SELECT COUNT(*) as total
+      FROM monthly_payments p
+      JOIN users u ON p.driver_id = u.id
+      JOIN drivers d ON p.driver_id = d.driver_id
+      WHERE u.verification_status = 'approved'
+    `;
+    const countParams: any[] = [];
+
+    if (status && status !== 'all') {
+      countParams.push(status);
+      countQueryStr += ` AND p.status = $${countParams.length}`;
+    }
+
+    if (search && search.trim()) {
+      countParams.push(`%${search.trim().toLowerCase()}%`);
+      countQueryStr += ` AND (LOWER(u.name) LIKE $${countParams.length} OR LOWER(u.email) LIKE $${countParams.length} OR LOWER(u.phone) LIKE $${countParams.length} OR LOWER(p.transaction_id) LIKE $${countParams.length} OR LOWER(d.vehicle_plate) LIKE $${countParams.length})`;
+    }
+
+    const countResult = await query(countQueryStr, countParams);
+    const total = (countResult.rows && countResult.rows[0] && countResult.rows[0].total)
+      ? parseInt(countResult.rows[0].total, 10)
+      : 0;
 
     // Get paginated data
     queryStr += ` ORDER BY p.updated_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
@@ -291,12 +311,12 @@ router.get('/admin/payments', authenticateToken, async (req: AuthRequest, res: R
     const result = await query(queryStr, params);
 
     res.status(200).json({
-      payments: result.rows,
+      payments: result.rows || [],
       pagination: {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
   } catch (error: any) {
