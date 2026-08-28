@@ -9,7 +9,6 @@ import { AnalyticsTab } from './components/analytics/AnalyticsTab';
 import { SystemHealthTab } from './components/health/SystemHealthTab';
 import { ComplianceTab } from './components/compliance/ComplianceTab';
 import { DisputesTab } from './components/disputes/DisputesTab';
-import { PassengerTransactionsTab } from './components/payments/PassengerTransactionsTab';
 
 // Maps an admin audit-log action to a badge background color
 const getActionColor = (action) => {
@@ -884,12 +883,6 @@ export default function App() {
             onClick={() => setActiveTab('payments')}
           >
             💳 Monthly Payments {paymentSummary.pendingSubmissionsCount > 0 ? `(${paymentSummary.pendingSubmissionsCount})` : ''}
-          </button>
-          <button
-            style={activeTab === 'passengerTransactions' ? styles.navItemActive : styles.navItem}
-            onClick={() => setActiveTab('passengerTransactions')}
-          >
-            💳 Passenger Payments
           </button>
           <button
             style={activeTab === 'sosAlerts' ? styles.navItemActive : styles.navItem}
@@ -3156,11 +3149,6 @@ export default function App() {
         {/* Phase 9: Ride Dispute & Complaint Resolution Tab */}
         {activeTab === 'disputes' && (
           <DisputesTab onShowToast={addToast} />
-        )}
-
-        {/* Phase 10: Passenger Digital & Cash Transactions Tab */}
-        {activeTab === 'passengerTransactions' && (
-          <PassengerTransactionsTab onShowToast={addToast} />
         )}
       </main>
 

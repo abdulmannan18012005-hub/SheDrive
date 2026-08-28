@@ -516,15 +516,6 @@ export const adminApi = {
     });
   },
 
-  // Phase 10: Passenger Payment Transactions
-  getPassengerTransactions: async (params: { provider?: string; status?: string; page?: number; limit?: number } = {}) => {
-    const queryString = new URLSearchParams(
-      Object.entries(params).filter(([_, v]) => v !== undefined && v !== '') as [string, string][]
-    ).toString();
-    const endpoint = queryString ? `/admin/payments/transactions?${queryString}` : '/admin/payments/transactions';
-    return fetchWithErrorHandling(endpoint, {}, CACHE_TTL.SHORT);
-  },
-
   // Phase 10: Scheduled Rides Query
   getScheduledRides: async () => {
     return fetchWithErrorHandling('/rides/scheduled', {}, CACHE_TTL.SHORT);
