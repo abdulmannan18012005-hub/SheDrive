@@ -258,6 +258,19 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
 
   // C. SELECT FROM USERS (Passengers Roster & User queries)
   if (lowerSql.startsWith('select') && lowerSql.includes('from users')) {
+    // COUNT query for users (passengers or drivers)
+    if (lowerSql.includes('count(')) {
+      let countQuery = supabaseClient.from('users').select('id', { count: 'exact', head: true });
+      if (lowerSql.includes("u.role = 'passenger'") || lowerSql.includes("role = 'passenger'")) {
+        countQuery = countQuery.eq('role', 'passenger');
+      } else if (lowerSql.includes("u.role = 'driver'") || lowerSql.includes("role = 'driver'")) {
+        countQuery = countQuery.eq('role', 'driver');
+      }
+      const { count, error } = await countQuery;
+      if (error) throw new Error(error.message);
+      return { rows: [{ total: count || 0, count: count || 0 }], rowCount: 1 };
+    }
+
     if (lowerSql.includes("u.role = 'passenger'") || lowerSql.includes("role = 'passenger'")) {
       const [{ data: passengers, error: pErr }, { data: rides, error: rErr }] = await Promise.all([
           supabaseClient.from('users').select('id, name, phone, email, cnic, is_verified, is_blocked, created_at').eq('role', 'passenger'),

@@ -101,9 +101,16 @@ async function fetchWithErrorHandling(
         headers,
       });
       
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       
       if (!response.ok) {
+        if (response.status === 401 && !endpoint.includes('/login')) {
+          clearAuthToken();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('admin_auth_unauthorized'));
+          }
+          throw new Error('Session expired or unauthorized. Please log in again.');
+        }
         throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
       }
       

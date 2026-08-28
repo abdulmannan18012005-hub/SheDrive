@@ -61,24 +61,22 @@ function createRawEmail(options: SendEmailOptions, senderName: string): string {
 }
 
 /**
- * Dedicated Primary Email Dispatcher:
- * 1. Gmail REST API (HTTPS Port 443 via Google Cloud OAuth2) — Primary, fast (<1s latency), never blocked by cloud firewalls.
- * 2. Non-blocking SMTP fallback (Short 5s timeout) — Only used if OAuth2 credentials are not yet configured.
- * 3. 30-Second Timeout Guarantee — If email dispatch takes longer than 30s, aborts cleanly and returns false.
- * NOTE: Supabase Auth Magic Links have been completely removed to prevent default sign-in links.
+ * Dedicated High-Speed Email Dispatcher:
+ * 1. Gmail REST API (HTTPS Port 443 via Google Cloud OAuth2) — Primary transport, instant (<1s latency), firewall-immune.
+ * 2. Strict 3000ms (3-second) Timeout Guarantee — Guarantees the auth endpoints respond swiftly without hanging.
+ * 3. Zero Magic Links — Supabase Auth email dispatch removed completely.
  */
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const senderName = options.fromName || 'SheDrive Support';
-  const { user } = getCredentials();
   const startTime = Date.now();
 
   const clientId = (process.env.GMAIL_CLIENT_ID || '').trim();
   const clientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
   const refreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
 
-  // 30-Second Timeout Promise
+  // Strict 3-Second Timeout Promise
   const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Email dispatch timed out after 30 seconds')), 30000)
+    setTimeout(() => reject(new Error('Email dispatch exceeded 3s timeout limit')), 3000)
   );
 
   const dispatchPromise = (async (): Promise<boolean> => {
@@ -94,24 +92,25 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
         });
 
         const elapsed = Date.now() - startTime;
-        console.log(`[Gmail REST API (HTTPS Port 443)] Email delivered: ${res.data.id} to ${options.to} (${elapsed}ms)`);
+        console.log(`[Gmail REST API (HTTPS Port 443)] Email delivered in ${elapsed}ms: ${res.data.id} to ${options.to}`);
         return true;
       } catch (apiErr: any) {
         console.error('[Gmail REST API Error]:', apiErr?.message || apiErr);
+        return false;
       }
     }
 
-    // ── 2. SECONDARY FALLBACK: Direct SMTP (5s timeout max) ──
+    // ── 2. SECONDARY FALLBACK: Direct SMTP (Only if OAuth2 credentials are unset, max 1500ms) ──
     try {
-      const { pass } = getCredentials();
+      const { user, pass } = getCredentials();
       const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
         auth: { user, pass },
-        connectionTimeout: 5000,
-        greetingTimeout: 5000,
-        socketTimeout: 5000,
+        connectionTimeout: 1500,
+        greetingTimeout: 1500,
+        socketTimeout: 1500,
         tls: { rejectUnauthorized: false },
       });
 
@@ -122,7 +121,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
         html: options.html,
       });
 
-      console.log(`[Gmail SMTP Port 465 SSL] Email sent: ${info.messageId} to ${options.to}`);
+      const elapsed = Date.now() - startTime;
+      console.log(`[Gmail SMTP Port 465 SSL] Email sent in ${elapsed}ms: ${info.messageId} to ${options.to}`);
       return true;
     } catch (smtpErr: any) {
       console.warn('[Gmail SMTP Fallback Note]:', smtpErr?.message || smtpErr);
@@ -134,11 +134,12 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   try {
     const success = await Promise.race([dispatchPromise, timeoutPromise]);
     if (!success) {
-      console.error(`[Email Dispatch] Failed to dispatch email to ${options.to}. Please check GMAIL_* credentials.`);
+      console.error(`[Email Dispatch Error] Failed to dispatch email to ${options.to}. Ensure GMAIL_* credentials are active.`);
     }
     return success;
   } catch (err: any) {
-    console.error(`[Email Dispatch Timeout / Error]: ${err?.message || err}`);
+    const elapsed = Date.now() - startTime;
+    console.error(`[Email Dispatch Timeout / Abort (${elapsed}ms)]: ${err?.message || err}`);
     return false;
   }
 }

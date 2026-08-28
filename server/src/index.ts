@@ -27,16 +27,83 @@ import disputeRoutes from './routes/v1/dispute.routes';
 
 dotenv.config();
 
-const allowedOrigins: string[] = process.env.CORS_ALLOWED_ORIGINS
-  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'https://shedrive.onrender.com'];
+// ── Comprehensive Dynamic CORS Whitelist Engine ──
+const isOriginAllowed = (origin?: string | null): boolean => {
+  if (!origin) return true; // Allow mobile apps, curl, Postman, server-to-server calls
+  const cleanOrigin = origin.toLowerCase().trim();
+
+  // Explicitly Whitelisted Production & Dev Domains
+  const explicitlyAllowed = [
+    'https://shedrive.onrender.com',
+    'http://shedrive.onrender.com',
+    'https://shedrive.great-site.net',
+    'http://shedrive.great-site.net',
+    'https://shedrive.infinityfreeapp.com',
+    'http://shedrive.infinityfreeapp.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://localhost:19006',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8080',
+  ];
+
+  if (explicitlyAllowed.includes(cleanOrigin)) return true;
+
+  // Custom origins from environment variable
+  if (process.env.CORS_ALLOWED_ORIGINS) {
+    const envOrigins = process.env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim().toLowerCase());
+    if (envOrigins.includes(cleanOrigin) || envOrigins.includes('*')) return true;
+  }
+
+  // Domain suffixes (InfinityFree subdomains, Render apps, Local dev)
+  if (
+    cleanOrigin.endsWith('.great-site.net') ||
+    cleanOrigin.endsWith('.infinityfreeapp.com') ||
+    cleanOrigin.endsWith('.epizy.com') ||
+    cleanOrigin.endsWith('.rf.gd') ||
+    cleanOrigin.endsWith('.onrender.com') ||
+    cleanOrigin.includes('localhost') ||
+    cleanOrigin.includes('127.0.0.1')
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS Blocked Origin]: ${origin}`);
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Cache-Control',
+    'Pragma',
+  ],
+  optionsSuccessStatus: 204,
+};
 
 const app = express();
 app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      callback(null, isOriginAllowed(origin));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
   },
@@ -45,10 +112,8 @@ const io = new SocketIOServer(server, {
 const PORT = process.env.PORT || 3000;
 
 // Express Global Middlewares
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-}));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Enable pre-flight across all routes
 
 // Phase 11: Production Security Headers Middleware
 app.use((_req: any, res: any, next: any) => {

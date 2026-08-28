@@ -280,7 +280,7 @@ router.get('/passengers', authenticateToken, requireAdmin, async (req: Request, 
       queryStr += ` AND (LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.phone) LIKE $${params.length})`;
     }
 
-    queryStr += ` GROUP BY u.id`;
+    queryStr += ` GROUP BY u.id, u.name, u.phone, u.email, u.cnic, u.is_verified, u.is_blocked, u.created_at`;
 
     // Get total count for pagination
     let countQueryStr = `SELECT COUNT(DISTINCT u.id) as total FROM users u WHERE u.role = 'passenger'`;
