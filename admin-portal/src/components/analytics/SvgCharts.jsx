@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 /**
  * KPI Metric Card with Delta % indicator
  */
-export function KpiDeltaCard({ title, value, prefix = '', suffix = '', delta, deltaLabel = 'vs prev period', icon, color = '#E91E63', subtext }) {
+export function KpiDeltaCard({ title, value, prefix = '', suffix = '', delta, deltaLabel = 'vs prev period', icon, color = '#0D9488', subtext }) {
   const isPositive = delta > 0;
   const isNeutral = delta === 0 || delta === undefined || delta === null;
 
@@ -239,7 +239,7 @@ export function SvgLineChart({ data = [], lines = [], height = 260, xKey = 'date
 /**
  * Responsive SVG Bar Chart / Histogram
  */
-export function SvgBarChart({ data = [], xKey = 'label', yKey = 'count', height = 240, barColor = '#E91E63', title }) {
+export function SvgBarChart({ data = [], xKey = 'label', yKey = 'count', height = 240, barColor = '#0D9488', title }) {
   const [hoverIndex, setHoverIndex] = useState(null);
 
   if (!data || data.length === 0) {
@@ -299,7 +299,7 @@ export function SvgBarChart({ data = [], xKey = 'label', yKey = 'count', height 
                 width={barWidth}
                 height={Math.max(2, barHeight)}
                 rx="4"
-                fill={isHovered ? '#F43F5E' : barColor}
+                fill={isHovered ? '#14B8A6' : barColor}
                 style={{ transition: 'all 0.15s ease' }}
               />
               {/* X Label */}
@@ -356,7 +356,7 @@ export function SvgDonutChart({ data = [], height = 240, size = 180, strokeWidth
 
   let accumulatedOffset = 0;
 
-  const defaultColors = ['#E91E63', '#6366F1', '#10B981', '#F59E0B', '#06B6D4', '#8B5CF6', '#EC4899'];
+  const defaultColors = ['#0D9488', '#6366F1', '#10B981', '#F59E0B', '#06B6D4', '#8B5CF6', '#38BDF8'];
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap', gap: '20px', minHeight: height }}>

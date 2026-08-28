@@ -85,7 +85,7 @@ export const TripReceiptModal: React.FC<TripReceiptModalProps> = ({
                 </View>
               </View>
               <View style={styles.routeItem}>
-                <View style={[styles.routeDot, { backgroundColor: '#E91E63' }]} />
+                <View style={[styles.routeDot, { backgroundColor: Colors.light.primary }]} />
                 <View style={styles.routeTextContainer}>
                   <Text style={styles.routeLabel}>Dropoff</Text>
                   <Text style={styles.routeAddress}>{ride.dropoff.label}</Text>

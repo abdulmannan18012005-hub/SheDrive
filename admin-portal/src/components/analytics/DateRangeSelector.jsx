@@ -84,7 +84,7 @@ export function DateRangeSelector({ startDate, endDate, onRangeChange, isLoading
                 padding: '6px 12px',
                 borderRadius: '6px',
                 border: 'none',
-                backgroundColor: isActive ? '#E91E63' : 'transparent',
+                backgroundColor: isActive ? '#0D9488' : 'transparent',
                 color: isActive ? '#FFFFFF' : '#94A3B8',
                 fontSize: '12px',
                 fontWeight: isActive ? '700' : '500',

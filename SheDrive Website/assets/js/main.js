@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-weight:800; color:#E91E63;">${bid.fare}</span>
+            <span style="font-weight:800; color:#0D9488;">${bid.fare}</span>
             <button class="bid-action-btn" onclick="alert('SheDrive Fare Bidding: In the app, you can accept any driver\\'s bid or wait for counter-offers!')">Accept</button>
           </div>
         </div>

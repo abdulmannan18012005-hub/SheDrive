@@ -562,7 +562,7 @@ export default function App() {
         <title>SheDrive Verification Bundle - ${driver.name}</title>
         <style>
           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 24px; color: #181C32; }
-          h1 { color: #E91E63; border-bottom: 2px solid #E91E63; padding-bottom: 8px; }
+          h1 { color: #0D9488; border-bottom: 2px solid #0D9488; padding-bottom: 8px; }
           .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #F8F9FA; padding: 16px; border-radius: 8px; margin-bottom: 24px; }
           .info-item { font-size: 14px; }
           .info-item strong { color: #5E6278; }
@@ -1771,7 +1771,7 @@ export default function App() {
                     disabled={credLoading}
                     style={{
                       ...styles.btnSave,
-                      background: 'linear-gradient(135deg, #7239EA 0%, #E91E63 100%)',
+                      background: 'linear-gradient(135deg, #6366F1 0%, #0D9488 100%)',
                       opacity: credLoading ? 0.6 : 1,
                       cursor: credLoading ? 'not-allowed' : 'pointer',
                       maxWidth: '280px',
@@ -1922,7 +1922,7 @@ export default function App() {
                           <td><strong style={{ color: '#181C32' }}>{p.month_year}</strong></td>
                           <td><span style={{ fontWeight: '700' }}>{p.total_rides}</span></td>
                           <td><strong style={{ color: '#181C32' }}>PKR {parseFloat(p.total_earnings).toLocaleString()}</strong></td>
-                          <td><strong style={{ color: '#E91E63' }}>PKR {parseFloat(p.platform_fee).toLocaleString()}</strong></td>
+                          <td><strong style={{ color: '#0D9488' }}>PKR {parseFloat(p.platform_fee).toLocaleString()}</strong></td>
                           <td>
                             <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#3F4254' }}>
                               {p.transaction_id || '—'}
@@ -2144,7 +2144,7 @@ export default function App() {
                                   fontSize: '11px',
                                   fontWeight: '800',
                                   color: '#FFFFFF',
-                                  backgroundColor: f.user_role === 'driver' ? '#7239EA' : '#E91E63',
+                                  backgroundColor: f.user_role === 'driver' ? '#6366F1' : '#0D9488',
                                 }}
                               >
                                 {f.user_role === 'driver' ? '🚘 DRIVER' : '👩 PASSENGER'}
@@ -3730,61 +3730,61 @@ const styles = {
   loginTitle: { margin: 0, fontSize: '22px', fontWeight: '800', color: '#1A1A1A', textAlign: 'center', letterSpacing: '-0.5px' },
   loginSub: { margin: '8px 0 0 0', fontSize: '13px', color: '#666666', textAlign: 'center', lineHeight: '20px' },
   loginErrorBox: { backgroundColor: '#FFEBEE', color: '#C62828', padding: '12px 16px', borderRadius: '12px', fontSize: '13px', width: '100%', marginTop: '16px', fontWeight: '600' },
-  appContainer: { display: 'flex', minHeight: '100vh', backgroundColor: '#F8F9FB', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
-  sidebar: { width: '270px', backgroundColor: '#13111C', color: '#FFFFFF', padding: '28px 20px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #232035' },
+  appContainer: { display: 'flex', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
+  sidebar: { width: '270px', backgroundColor: '#0F172A', color: '#FFFFFF', padding: '28px 20px', display: 'flex', flexDirection: 'column', borderRight: '1px solid #1E293B' },
   logoSection: { display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '36px', paddingLeft: '6px' },
   logoIcon: { fontSize: '32px' },
-  logoTitle: { margin: 0, fontSize: '22px', fontWeight: '900', color: '#E91E63', letterSpacing: '-0.5px' },
-  logoSubtitle: { margin: '2px 0 0 0', fontSize: '11px', color: '#9D9BBE', letterSpacing: '0.5px', fontWeight: '600', textTransform: 'uppercase' },
+  logoTitle: { margin: 0, fontSize: '22px', fontWeight: '900', color: '#0D9488', letterSpacing: '-0.5px' },
+  logoSubtitle: { margin: '2px 0 0 0', fontSize: '11px', color: '#94A3B8', letterSpacing: '0.5px', fontWeight: '600', textTransform: 'uppercase' },
   navMenu: { display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 },
-  navItem: { backgroundColor: 'transparent', color: '#9D9BBE', border: 'none', padding: '13px 18px', borderRadius: '14px', textAlign: 'left', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease' },
-  navItemActive: { backgroundColor: '#E91E63', color: '#FFFFFF', border: 'none', padding: '13px 18px', borderRadius: '14px', textAlign: 'left', fontSize: '14px', fontWeight: '800', cursor: 'pointer', boxShadow: '0px 8px 20px rgba(233, 30, 99, 0.35)' },
-  adminProfileCard: { backgroundColor: '#1E1B2E', padding: '14px 18px', borderRadius: '16px', marginTop: 'auto', border: '1px solid #2A2640' },
+  navItem: { backgroundColor: 'transparent', color: '#94A3B8', border: 'none', padding: '13px 18px', borderRadius: '14px', textAlign: 'left', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease' },
+  navItemActive: { backgroundColor: '#0D9488', color: '#FFFFFF', border: 'none', padding: '13px 18px', borderRadius: '14px', textAlign: 'left', fontSize: '14px', fontWeight: '800', cursor: 'pointer', boxShadow: '0px 8px 20px rgba(13, 148, 136, 0.35)' },
+  adminProfileCard: { backgroundColor: '#1E293B', padding: '14px 18px', borderRadius: '16px', marginTop: 'auto', border: '1px solid #334155' },
   adminName: { margin: 0, fontWeight: '800', fontSize: '14px', color: '#FFFFFF' },
-  adminRole: { margin: '2px 0 0 0', fontSize: '12px', color: '#9D9BBE' },
-  btnLogout: { backgroundColor: 'transparent', color: '#FF5252', border: 'none', padding: 0, marginTop: '10px', fontSize: '12px', cursor: 'pointer', fontWeight: '800' },
+  adminRole: { margin: '2px 0 0 0', fontSize: '12px', color: '#94A3B8' },
+  btnLogout: { backgroundColor: 'transparent', color: '#EF4444', border: 'none', padding: 0, marginTop: '10px', fontSize: '12px', cursor: 'pointer', fontWeight: '800' },
   mainContent: { flex: 1, padding: '36px 40px', overflowY: 'auto' },
   topHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' },
-  headerTitle: { margin: 0, fontSize: '26px', fontWeight: '900', color: '#1A1A1A', letterSpacing: '-0.5px' },
-  headerSub: { margin: '4px 0 0 0', fontSize: '14px', color: '#666666', fontWeight: '500' },
-  statusBadge: { backgroundColor: '#E8F5E9', color: '#2E7D32', padding: '8px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '800', border: '1px solid #C8E6C9' },
+  headerTitle: { margin: 0, fontSize: '26px', fontWeight: '900', color: '#0F172A', letterSpacing: '-0.5px' },
+  headerSub: { margin: '4px 0 0 0', fontSize: '14px', color: '#64748B', fontWeight: '500' },
+  statusBadge: { backgroundColor: '#ECFDF5', color: '#059669', padding: '8px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '800', border: '1px solid #A7F3D0' },
   metricsGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '18px', marginBottom: '32px' },
-  metricCard: { backgroundColor: '#FFFFFF', padding: '22px 18px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0px 10px 25px rgba(0, 0, 0, 0.04)', border: '1px solid #EFEFF5' },
+  metricCard: { backgroundColor: '#FFFFFF', padding: '22px 18px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0px 10px 25px rgba(0, 0, 0, 0.04)', border: '1px solid #E2E8F0' },
   metricIcon: { fontSize: '32px' },
-  metricLabel: { margin: 0, fontSize: '12px', color: '#666666', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  metricValue: { margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#1A1A1A' },
+  metricLabel: { margin: 0, fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  metricValue: { margin: '4px 0 0 0', fontSize: '22px', fontWeight: '900', color: '#0F172A' },
   cardContainer: { 
     backgroundColor: '#FFFFFF', 
     borderRadius: '24px', 
     padding: '28px', 
     boxShadow: '0px 10px 30px rgba(0, 0, 0, 0.04)', 
-    border: '1px solid #EFEFF5',
+    border: '1px solid #E2E8F0',
     marginBottom: '24px',
   },
   cardHeader: { 
     margin: '0 0 24px 0', 
     fontSize: '19px', 
     fontWeight: '800', 
-    color: '#1A1A1A', 
+    color: '#0F172A', 
     letterSpacing: '-0.3px',
-    borderBottom: '2px solid #F0F0F5',
+    borderBottom: '2px solid #F1F5F9',
     paddingBottom: '16px',
   },
-  emptyStateText: { padding: '24px 0', color: '#888888', fontSize: '14px', fontWeight: '500' },
+  emptyStateText: { padding: '24px 0', color: '#94A3B8', fontSize: '14px', fontWeight: '500' },
   // Table styling is handled by global index.css for pseudo-selector support (zebra striping, hover, etc.)
-  statusGreen: { backgroundColor: '#E8F5E9', color: '#2E7D32', padding: '6px 12px', borderRadius: '14px', fontSize: '12px', fontWeight: '800' },
-  statusYellow: { backgroundColor: '#FFF3E0', color: '#E65100', padding: '6px 12px', borderRadius: '14px', fontSize: '12px', fontWeight: '800' },
-  statusRed: { backgroundColor: '#FFEBEE', color: '#C62828', padding: '6px 12px', borderRadius: '14px', fontSize: '12px', fontWeight: '800' },
-  btnViewDocs: { backgroundColor: '#FFF0F5', color: '#E91E63', border: '1px solid #FFD1E3', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
-  btnDownloadPdf: { backgroundColor: '#F3E5F5', color: '#7B1FA2', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
-  btnApprove: { backgroundColor: '#4CAF50', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px', boxShadow: '0px 4px 10px rgba(76, 175, 80, 0.25)' },
-  btnReject: { backgroundColor: '#F44336', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px', boxShadow: '0px 4px 10px rgba(244, 67, 54, 0.25)' },
-  btnBlock: { backgroundColor: '#D32F2F', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
-  btnUnblock: { backgroundColor: '#388E3C', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
-  btnCancel: { backgroundColor: '#E4E6EF', color: '#3F4254', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' },
-  label: { display: 'block', fontSize: '13px', fontWeight: '800', marginBottom: '8px', color: '#1A1A1A', letterSpacing: '0.2px' },
-  input: { width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1.5px solid #EFEFF5', fontSize: '14px', backgroundColor: '#FAFAFC', outline: 'none' },
-  btnSave: { backgroundColor: '#E91E63', color: '#FFF', border: 'none', padding: '14px', borderRadius: '14px', fontWeight: '800', cursor: 'pointer', marginTop: '16px', width: '100%', boxShadow: '0px 8px 20px rgba(233, 30, 99, 0.35)', fontSize: '15px' },
+  statusGreen: { backgroundColor: '#ECFDF5', color: '#059669', padding: '6px 12px', borderRadius: '14px', fontSize: '12px', fontWeight: '800' },
+  statusYellow: { backgroundColor: '#FFFBEB', color: '#D97706', padding: '6px 12px', borderRadius: '14px', fontSize: '12px', fontWeight: '800' },
+  statusRed: { backgroundColor: '#FEF2F2', color: '#DC2626', padding: '6px 12px', borderRadius: '14px', fontSize: '12px', fontWeight: '800' },
+  btnViewDocs: { backgroundColor: '#F0FDFA', color: '#0D9488', border: '1px solid #CCFBF1', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
+  btnDownloadPdf: { backgroundColor: '#EEF2FF', color: '#4F46E5', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
+  btnApprove: { backgroundColor: '#10B981', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px', boxShadow: '0px 4px 10px rgba(16, 185, 129, 0.25)' },
+  btnReject: { backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px', boxShadow: '0px 4px 10px rgba(239, 68, 68, 0.25)' },
+  btnBlock: { backgroundColor: '#DC2626', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
+  btnUnblock: { backgroundColor: '#059669', color: '#FFF', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '800', cursor: 'pointer', fontSize: '12px' },
+  btnCancel: { backgroundColor: '#E2E8F0', color: '#334155', border: 'none', padding: '8px 14px', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' },
+  label: { display: 'block', fontSize: '13px', fontWeight: '800', marginBottom: '8px', color: '#0F172A', letterSpacing: '0.2px' },
+  input: { width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1.5px solid #E2E8F0', fontSize: '14px', backgroundColor: '#F8FAFC', outline: 'none' },
+  btnSave: { backgroundColor: '#0D9488', color: '#FFF', border: 'none', padding: '14px', borderRadius: '14px', fontWeight: '800', cursor: 'pointer', marginTop: '16px', width: '100%', boxShadow: '0px 8px 20px rgba(13, 148, 136, 0.35)', fontSize: '15px' },
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 12, 32, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { backgroundColor: '#FFFFFF', padding: '32px', borderRadius: '24px', width: '660px', maxWidth: '92%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0px 25px 60px rgba(0, 0, 0, 0.3)', border: '1px solid rgba(255, 255, 255, 0.5)' },
   docBox: { backgroundColor: '#FAFAFC', padding: '14px', borderRadius: '14px', border: '1px solid #EFEFF5' },

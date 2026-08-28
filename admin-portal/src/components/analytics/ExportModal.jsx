@@ -125,8 +125,8 @@ export function ExportModal({ isOpen, onClose, defaultStartDate, defaultEndDate,
                 style={{
                   padding: '12px 16px',
                   borderRadius: '10px',
-                  border: isSelected ? '2px solid #E91E63' : '1px solid #334155',
-                  backgroundColor: isSelected ? 'rgba(233, 30, 99, 0.1)' : '#0F172A',
+                  border: isSelected ? '2px solid #0D9488' : '1px solid #334155',
+                  backgroundColor: isSelected ? 'rgba(13, 148, 136, 0.15)' : '#0F172A',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
@@ -205,7 +205,7 @@ export function ExportModal({ isOpen, onClose, defaultStartDate, defaultEndDate,
             disabled={isExporting}
             style={{
               padding: '10px 22px',
-              backgroundColor: '#E91E63',
+              backgroundColor: '#0D9488',
               border: 'none',
               borderRadius: '8px',
               color: '#FFFFFF',

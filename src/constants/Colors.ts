@@ -1,43 +1,47 @@
 // SheDrive Color Palette & Theme Tokens
-// Premium female-friendly ride-hailing design system with light/dark mode support
+// High-Trust Safety Emerald (Teal), Modern Indigo, and Slate Design System
 
-const tintColorLight = '#E91E63';
-const tintColorDark = '#F48FB1';
+const tintColorLight = '#0D9488';
+const tintColorDark = '#2DD4BF';
 
 const Colors = {
   light: {
-    // Primary palette
-    primary: '#E91E63',
-    primaryDark: '#C2185B',
-    primaryLight: '#F8BBD0',
-    primaryGhost: '#FCE4EC',
-    rosePink: '#FF5C8A',
-    softPink: '#FFD1E3',
+    // Primary palette (Teal / Safety Emerald)
+    primary: '#0D9488',
+    primaryDark: '#0F766E',
+    primaryLight: '#2DD4BF',
+    primaryGhost: '#F0FDFA',
+    rosePink: '#14B8A6',
+    softPink: '#CCFBF1',
 
-    // Accent & Luxury
-    accent: '#FF4081',
-    accentDark: '#F50057',
-    purple: '#6A1B9A',
-    purpleLight: '#F3E5F5',
-    gold: '#FFC107',
-    goldLight: '#FFF8E1',
+    // Accent & Modern Tech (Indigo / Slate)
+    accent: '#6366F1',
+    accentDark: '#4F46E5',
+    purple: '#6366F1',
+    purpleLight: '#EEF2FF',
+    gold: '#F59E0B',
+    goldLight: '#FEF3C7',
+
+    // Dark Elevated Surface
+    darkElevated: '#0F172A',
+    slateDark: '#1E293B',
 
     // Backgrounds
-    background: '#FAFAFA',
+    background: '#F8FAFC',
     surface: '#FFFFFF',
     card: '#FFFFFF',
-    cardElevated: '#FFF8F9',
+    cardElevated: '#FFFFFF',
 
     // Text
-    text: '#1A1A1A',
-    textSecondary: '#666666',
-    textTertiary: '#9E9E9E',
+    text: '#0F172A',
+    textSecondary: '#64748B',
+    textTertiary: '#94A3B8',
     textOnPrimary: '#FFFFFF',
 
     // Borders & dividers
-    border: '#EAEAEA',
-    divider: '#F5F5F5',
-    glassBorder: 'rgba(233, 30, 99, 0.12)',
+    border: '#E2E8F0',
+    divider: '#F1F5F9',
+    glassBorder: 'rgba(13, 148, 136, 0.15)',
 
     // Semantic
     success: '#10B981',
@@ -49,30 +53,30 @@ const Colors = {
     info: '#3B82F6',
     infoLight: '#EFF6FF',
 
-    // SOS / Emergency
-    emergency: '#D50000',
-    emergencyBackground: '#FF1744',
+    // SOS / Emergency (Safety Crimson)
+    emergency: '#EF4444',
+    emergencyBackground: '#DC2626',
 
     // Map
-    routeColor: '#E91E63',
+    routeColor: '#0D9488',
     pickupMarker: '#10B981',
     dropoffMarker: '#EF4444',
-    driverMarker: '#3B82F6',
+    driverMarker: '#6366F1',
 
     // Navigation
     tabBar: '#FFFFFF',
-    tabBarActive: '#E91E63',
-    tabBarInactive: '#9E9E9E',
+    tabBarActive: '#0D9488',
+    tabBarInactive: '#94A3B8',
 
     // Shadows
-    shadow: 'rgba(0, 0, 0, 0.06)',
-    shadowMedium: 'rgba(0, 0, 0, 0.12)',
-    shadowDark: 'rgba(0, 0, 0, 0.22)',
-    shadowGlow: 'rgba(233, 30, 99, 0.25)',
+    shadow: 'rgba(15, 23, 42, 0.05)',
+    shadowMedium: 'rgba(15, 23, 42, 0.1)',
+    shadowDark: 'rgba(15, 23, 42, 0.2)',
+    shadowGlow: 'rgba(13, 148, 136, 0.25)',
 
     // Status
     online: '#10B981',
-    offline: '#9E9E9E',
+    offline: '#94A3B8',
     busy: '#F59E0B',
 
     // Tint
@@ -80,74 +84,78 @@ const Colors = {
   },
 
   dark: {
-    // Primary palette
-    primary: '#F48FB1',
-    primaryDark: '#E91E63',
-    primaryLight: '#880E4F',
-    primaryGhost: '#311B20',
-    rosePink: '#FF5C8A',
-    softPink: '#FFD1E3',
+    // Primary palette (Teal / Safety Emerald)
+    primary: '#2DD4BF',
+    primaryDark: '#0D9488',
+    primaryLight: '#14B8A6',
+    primaryGhost: '#042F2E',
+    rosePink: '#2DD4BF',
+    softPink: '#134E4A',
 
-    // Accent & Luxury
-    accent: '#FF80AB',
-    accentDark: '#FF4081',
-    purple: '#CE93D8',
-    purpleLight: '#38006B',
-    gold: '#FFD54F',
-    goldLight: '#422D00',
+    // Accent & Modern Tech (Indigo / Slate)
+    accent: '#818CF8',
+    accentDark: '#6366F1',
+    purple: '#818CF8',
+    purpleLight: '#1E1B4B',
+    gold: '#FBBF24',
+    goldLight: '#451A03',
+
+    // Dark Elevated Surface
+    darkElevated: '#020617',
+    slateDark: '#0F172A',
 
     // Backgrounds
-    background: '#121212',
-    surface: '#1E1E1E',
-    card: '#2C2C2C',
-    cardElevated: '#353535',
+    background: '#0F172A',
+    surface: '#1E293B',
+    card: '#1E293B',
+    cardElevated: '#334155',
 
     // Text
-    text: '#FFFFFF',
-    textSecondary: '#B0BEC5',
-    textTertiary: '#78909C',
-    textOnPrimary: '#000000',
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    textTertiary: '#64748B',
+    textOnPrimary: '#0F172A',
 
     // Borders & dividers
-    border: '#424242',
-    divider: '#303030',
-    glassBorder: 'rgba(244, 143, 177, 0.2)',
+    border: '#334155',
+    divider: '#1E293B',
+    glassBorder: 'rgba(45, 212, 191, 0.2)',
 
     // Semantic
-    success: '#66BB6A',
-    successLight: '#1B5E20',
-    warning: '#FFA726',
-    warningLight: '#E65100',
-    error: '#EF5350',
-    errorLight: '#B71C1C',
-    info: '#42A5F5',
-    infoLight: '#0D47A1',
+    success: '#34D399',
+    successLight: '#064E3B',
+    warning: '#FBBF24',
+    warningLight: '#78350F',
+    error: '#F87171',
+    errorLight: '#7F1D1D',
+    info: '#60A5FA',
+    infoLight: '#1E3A8A',
 
     // SOS / Emergency
-    emergency: '#FF1744',
-    emergencyBackground: '#D50000',
+    emergency: '#EF4444',
+    emergencyBackground: '#DC2626',
 
     // Map
-    routeColor: '#F48FB1',
-    pickupMarker: '#66BB6A',
-    dropoffMarker: '#EF5350',
-    driverMarker: '#42A5F5',
+    routeColor: '#2DD4BF',
+    pickupMarker: '#34D399',
+    dropoffMarker: '#F87171',
+    driverMarker: '#818CF8',
 
     // Navigation
-    tabBar: '#1E1E1E',
-    tabBarActive: '#F48FB1',
-    tabBarInactive: '#78909C',
+    tabBar: '#0F172A',
+    tabBarActive: '#2DD4BF',
+    tabBarInactive: '#64748B',
 
     // Shadows
     shadow: 'rgba(0, 0, 0, 0.3)',
-    shadowMedium: 'rgba(0, 0, 0, 0.4)',
-    shadowDark: 'rgba(0, 0, 0, 0.6)',
-    shadowGlow: 'rgba(244, 143, 177, 0.3)',
+    shadowMedium: 'rgba(0, 0, 0, 0.5)',
+    shadowDark: 'rgba(0, 0, 0, 0.7)',
+    shadowGlow: 'rgba(45, 212, 191, 0.3)',
 
     // Status
-    online: '#66BB6A',
-    offline: '#78909C',
-    busy: '#FFA726',
+    online: '#34D399',
+    offline: '#64748B',
+    busy: '#FBBF24',
 
     // Tint
     tint: tintColorDark,

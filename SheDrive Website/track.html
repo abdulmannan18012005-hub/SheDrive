@@ -40,24 +40,24 @@
     .track-info-panel {
       padding: 28px 32px;
     }
-    .track-status-badge {
+    .track-badge {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      background: rgba(233, 30, 99, 0.1);
-      color: #E91E63;
+      gap: 6px;
       padding: 6px 14px;
-      border-radius: 20px;
+      border-radius: 9999px;
+      background: rgba(13, 148, 136, 0.1);
+      color: #0D9488;
       font-size: 0.85rem;
       font-weight: 700;
       margin-bottom: 16px;
     }
-    .track-pulse {
+    .track-badge-pulse {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #E91E63;
-      animation: pulse 1.5s infinite;
+      background: #0D9488;
+      animation: pulse 2s infinite;
     }
     @keyframes pulse {
       0% { transform: scale(0.9); opacity: 1; }
@@ -209,7 +209,7 @@
 
             <div style="text-align: right;">
               <span style="font-size: 0.75rem; color: #64748B; display: block;">Agreed Fare</span>
-              <span id="currentFareText" style="font-size: 1.15rem; font-weight: 800; color: #E91E63;">Rs. --</span>
+              <span id="currentFareText" style="font-size: 1.15rem; font-weight: 800; color: #0D9488;">Rs. --</span>
             </div>
           </div>
         </div>
@@ -387,7 +387,7 @@
             try {
               const coords = JSON.parse(data.polyline);
               const path = coords.map(c => [c[1], c[0]]);
-              routePolyline = L.polyline(path, { color: '#E91E63', weight: 5, opacity: 0.85 }).addTo(map);
+              routePolyline = L.polyline(path, { color: '#0D9488', weight: 5, opacity: 0.85 }).addTo(map);
               map.fitBounds(routePolyline.getBounds(), { padding: [30, 30] });
             } catch (err) {
               console.warn('Polyline parse warning:', err);

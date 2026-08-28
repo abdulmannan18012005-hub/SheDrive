@@ -161,7 +161,7 @@ export function AnalyticsTab({ onShowToast }) {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              backgroundColor: '#E91E63',
+              backgroundColor: '#0D9488',
               color: '#FFFFFF',
               border: 'none',
               borderRadius: '8px',
@@ -169,7 +169,7 @@ export function AnalyticsTab({ onShowToast }) {
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(233, 30, 99, 0.3)',
+              boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
             }}
           >
             📥 Export CSV
@@ -214,7 +214,7 @@ export function AnalyticsTab({ onShowToast }) {
                 padding: '10px 18px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: isActive ? '#E91E63' : 'transparent',
+                backgroundColor: isActive ? '#0D9488' : 'transparent',
                 color: isActive ? '#FFFFFF' : '#94A3B8',
                 fontSize: '14px',
                 fontWeight: isActive ? '700' : '500',
@@ -262,7 +262,7 @@ export function AnalyticsTab({ onShowToast }) {
               value={overviewData.summary.completedRides}
               delta={overviewData.summary.prevPeriodComparison.rideGrowthPct}
               icon="🏁"
-              color="#E91E63"
+              color="#0D9488"
             />
             <KpiDeltaCard
               title="Active Fleet Drivers"
@@ -496,7 +496,7 @@ export function AnalyticsTab({ onShowToast }) {
               xKey="label"
               yKey="count"
               height={260}
-              barColor="#E91E63"
+              barColor="#0D9488"
             />
           </div>
 
@@ -523,7 +523,7 @@ export function AnalyticsTab({ onShowToast }) {
                     border: '1px solid #334155',
                   }}>
                     <div style={{ fontSize: '13px', color: '#FFFFFF', fontWeight: '600' }}>
-                      {c.pickup} <span style={{ color: '#E91E63' }}>➔</span> {c.dropoff}
+                      {c.pickup} <span style={{ color: '#0D9488' }}>➔</span> {c.dropoff}
                     </div>
                     <div style={{ fontSize: '12px', color: '#38BDF8', fontWeight: '700' }}>
                       {c.tripCount} trips
@@ -635,8 +635,8 @@ export function AnalyticsTab({ onShowToast }) {
                       </td>
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{
-                          backgroundColor: '#E91E6320',
-                          color: '#E91E63',
+                          backgroundColor: '#0D948820',
+                          color: '#0D9488',
                           padding: '2px 8px',
                           borderRadius: '4px',
                           fontSize: '11px',

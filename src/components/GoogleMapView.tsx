@@ -1,4 +1,4 @@
-﻿import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useMemo } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useMemo } from 'react';
 import { StyleSheet, View, Text, Platform, Image, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region, LatLng } from 'react-native-maps';
 import Colors from '../constants/Colors';
@@ -258,7 +258,7 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
           {parsedRouteCoordinates.length > 0 && (
             <Polyline
               coordinates={parsedRouteCoordinates}
-              strokeColor="#E91E63" // SheDrive Brand Pink
+              strokeColor={Colors.light.primary} // SheDrive Brand Teal
               strokeWidth={5}
               lineCap="round"
               lineJoin="round"
@@ -301,13 +301,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pickupMarkerPin: {
-    backgroundColor: '#E91E63',
+    backgroundColor: Colors.light.primary,
     padding: 6,
     borderRadius: 20,
     borderWidth: 2.5,
     borderColor: '#FFFFFF',
     elevation: 6,
-    shadowColor: '#E91E63',
+    shadowColor: Colors.light.primary,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.4,
     shadowRadius: 5,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E91E63',
+    backgroundColor: Colors.light.primary,
     marginTop: 2,
   },
   destMarkerContainer: {

@@ -17,7 +17,7 @@ const MAX_SLIDE = SLIDER_WIDTH - THUMB_SIZE - 8;
 export default function SlideToConfirm({
   text = 'Slide to Confirm Ride',
   onConfirm,
-  color = '#E91E63',
+  color = Colors.light.primary,
   disabled = false,
 }: Props): React.JSX.Element {
   const pan = useRef(new Animated.Value(0)).current;
@@ -84,14 +84,14 @@ const styles = StyleSheet.create({
   container: {
     width: SLIDER_WIDTH,
     height: 60,
-    backgroundColor: 'rgba(233, 30, 99, 0.1)',
+    backgroundColor: '#F0FDFA',
     borderRadius: 30,
     justifyContent: 'center',
     padding: 4,
     position: 'relative',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(233, 30, 99, 0.25)',
+    borderColor: '#CCFBF1',
   },
   disabledContainer: {
     opacity: 0.5,
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     fontSize: 15,
     fontWeight: '700',
-    color: '#E91E63',
+    color: Colors.light.primary,
     letterSpacing: 0.5,
   },
   thumb: {
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
-    shadowColor: '#E91E63',
+    shadowColor: Colors.light.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,

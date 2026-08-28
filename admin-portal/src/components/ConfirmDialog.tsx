@@ -20,7 +20,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  confirmColor = '#E91E63',
+  confirmColor = '#0D9488',
   requireReason = false,
   reasonPlaceholder = 'Please specify a reason...',
   isLoading = false,

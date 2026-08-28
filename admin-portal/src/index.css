@@ -93,8 +93,8 @@ table tbody tr {
 }
 
 table tbody tr:hover {
-  background-color: #FFF0F5 !important;
-  box-shadow: inset 0 0 0 1px rgba(233, 30, 99, 0.08);
+  background-color: #F0FDFA !important;
+  box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.1);
 }
 
 /* ── Last Row Rounded Bottom ────────────────────────── */
@@ -124,8 +124,8 @@ button:active {
 
 /* ── Input Focus States ─────────────────────────────── */
 input:focus, textarea:focus {
-  border-color: #E91E63 !important;
-  box-shadow: 0 0 0 3px rgba(233, 30, 99, 0.08) !important;
+  border-color: #0D9488 !important;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12) !important;
   outline: none;
 }
 
@@ -134,8 +134,8 @@ nav button {
   transition: all 0.2s ease !important;
 }
 nav button:hover {
-  background-color: rgba(233, 30, 99, 0.12) !important;
-  color: #F48FB1 !important;
+  background-color: rgba(13, 148, 136, 0.15) !important;
+  color: #2DD4BF !important;
 }
 
 /* ── Animations ─────────────────────────────────────── */

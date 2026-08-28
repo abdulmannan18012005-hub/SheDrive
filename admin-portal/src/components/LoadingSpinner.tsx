@@ -14,7 +14,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'medium',
 
   const spinnerStyle = {
     border: '3px solid #E4E6EF',
-    borderTop: `3px solid #E91E63`,
+    borderTop: `3px solid #0D9488`,
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
     ...sizeMap[size],
