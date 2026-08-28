@@ -32,7 +32,7 @@ export const pool = new Pool({
   ssl: isRemote ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 500,
+  connectionTimeoutMillis: 10000,
 });
 
 pool.on('error', (err: Error) => {

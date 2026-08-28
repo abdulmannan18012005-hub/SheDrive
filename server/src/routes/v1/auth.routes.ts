@@ -6,8 +6,26 @@ import { supabase } from '../../config/supabase';
 import { sendEmail } from '../../services/smtp';
 import { buildPasswordResetEmailHtml, buildRegistrationOtpEmailHtml } from '../../utils/emailTemplates';
 import { loginRateLimiter, otpRateLimiter, passwordResetRateLimiter } from '../../middleware/rateLimiter';
+import { uploadImage, deleteImage } from '../../config/cloudinary';
 
-import { uploadImage } from '../../config/cloudinary';
+function extractCloudinaryPublicId(url: string): string | null {
+  if (!url || typeof url !== 'string' || !url.includes('cloudinary.com')) {
+    return null;
+  }
+  try {
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return null;
+    let pathPart = parts[1];
+    pathPart = pathPart.replace(/^v\d+\//, '');
+    const dotIndex = pathPart.lastIndexOf('.');
+    if (dotIndex !== -1) {
+      pathPart = pathPart.substring(0, dotIndex);
+    }
+    return pathPart;
+  } catch {
+    return null;
+  }
+}
 
 const router = Router();
 
@@ -885,12 +903,51 @@ router.delete('/delete-account', authenticateToken, async (req: Request, res: Re
     const userId = (req as any).user.id;
     const now = Date.now();
 
-    // Retrieve user info for audit trail before deletion
-    const userRes = await query('SELECT id, name, email, role FROM users WHERE id = $1', [userId]);
+    // Retrieve user info and media assets for audit trail and Cloudinary cleanup before deletion
+    const userRes = await query(
+      'SELECT id, name, email, role, cnic_front_url, cnic_back_url FROM users WHERE id = $1',
+      [userId]
+    );
     if (userRes.rows.length === 0) {
       return res.status(404).json({ error: 'Account not found' });
     }
     const user = userRes.rows[0];
+
+    // Collect all document URLs to purge from Cloudinary
+    const docUrls: string[] = [];
+    if (user.cnic_front_url) docUrls.push(user.cnic_front_url);
+    if (user.cnic_back_url) docUrls.push(user.cnic_back_url);
+
+    // If driver, retrieve driver-specific document uploads and set offline
+    if (user.role === 'driver') {
+      const driverRes = await query(
+        'SELECT vehicle_photo_url, license_url, license_front_url, license_back_url, selfie_url, cnic_front_url, cnic_back_url FROM drivers WHERE driver_id = $1',
+        [userId]
+      );
+      if (driverRes.rows.length > 0) {
+        const d = driverRes.rows[0];
+        if (d.vehicle_photo_url) docUrls.push(d.vehicle_photo_url);
+        if (d.license_url) docUrls.push(d.license_url);
+        if (d.license_front_url) docUrls.push(d.license_front_url);
+        if (d.license_back_url) docUrls.push(d.license_back_url);
+        if (d.selfie_url) docUrls.push(d.selfie_url);
+        if (d.cnic_front_url) docUrls.push(d.cnic_front_url);
+        if (d.cnic_back_url) docUrls.push(d.cnic_back_url);
+      }
+      await query('UPDATE drivers SET is_online = false, is_available = false WHERE driver_id = $1', [userId]);
+    }
+
+    // Purge binary assets from Cloudinary
+    for (const url of docUrls) {
+      const publicId = extractCloudinaryPublicId(url);
+      if (publicId) {
+        try {
+          await deleteImage(publicId);
+        } catch (cErr) {
+          console.warn('[Cloudinary Cleanup Notice] Could not delete image:', publicId);
+        }
+      }
+    }
 
     // Write ACCOUNT_DELETED audit log BEFORE deletion (ON DELETE CASCADE would remove it if user_id is FK)
     const auditId = `aud_${now}_${Math.random().toString(36).substring(2, 6)}`;
@@ -900,13 +957,8 @@ router.delete('/delete-account', authenticateToken, async (req: Request, res: Re
       [auditId, userId, JSON.stringify({ name: user.name, email: user.email, role: user.role }), now]
     );
 
-    // If driver, set offline before deletion
-    if (user.role === 'driver') {
-      await query('UPDATE drivers SET is_online = false, is_available = false WHERE driver_id = $1', [userId]);
-    }
-
     await query('DELETE FROM users WHERE id = $1', [userId]);
-    res.status(200).json({ success: true, message: 'Account deleted successfully' });
+    res.status(200).json({ success: true, message: 'Account and associated media deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);
     res.status(500).json({ error: 'Failed to delete account' });
