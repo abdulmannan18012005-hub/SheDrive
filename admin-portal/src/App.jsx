@@ -370,8 +370,26 @@ export default function App() {
           break;
       }
     } catch (err) {
+      // 1. Ignore normal cancellation from debouncing or tab switching
+      if (err?.message === 'Request cancelled') {
+        return;
+      }
+      
+      // 2. Handle unauthorized / session expiry smoothly
+      if (err?.message && (err.message.includes('Session expired') || err.message.includes('unauthorized') || err.message.includes('401'))) {
+        setToken('');
+        clearAuthToken();
+        addToast('Your session has expired. Please log in again.', 'warning');
+        return;
+      }
+
       console.error('Admin API fetch error:', err);
-      addToast('Failed to fetch data. Please try again.', 'error');
+      // 3. Only show error toast on real unexpected network failures
+      if (err?.message && !err.message.includes('Failed to fetch')) {
+        addToast(err.message, 'error');
+      } else {
+        addToast('Server connection failed. Please check your internet connection.', 'error');
+      }
     } finally {
       if (showSpinner) setIsLoadingData(false);
     }
@@ -1876,114 +1894,124 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="table-responsive">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Driver Info</th>
-                      <th>Vehicle Plate</th>
-                      <th>Month</th>
-                      <th>Completed Rides</th>
-                      <th>Total Earnings</th>
-                      <th>7% Platform Fee</th>
-                      <th>Transaction ID</th>
-                      <th>Receipt Proof</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyPayments
-                      .filter(p => {
-                        if (paymentFilterStatus !== 'all' && p.status !== paymentFilterStatus) return false;
-                        if (paymentSearchQuery.trim()) {
-                          const q = paymentSearchQuery.toLowerCase();
-                          const name = (p.driver_name || '').toLowerCase();
-                          const email = (p.driver_email || '').toLowerCase();
-                          const phone = (p.driver_phone || '').toLowerCase();
-                          const tx = (p.transaction_id || '').toLowerCase();
-                          const plate = (p.vehicle_plate || '').toLowerCase();
-                          return name.includes(q) || email.includes(q) || phone.includes(q) || tx.includes(q) || plate.includes(q);
-                        }
-                        return true;
-                      })
-                      .map((p) => (
-                        <tr key={p.id}>
-                          <td>
-                            <strong style={{ color: '#181C32' }}>{p.driver_name}</strong>
-                            <div style={{ fontSize: '12px', color: '#7E8299', marginTop: '2px' }}>{p.driver_phone}</div>
-                            <div style={{ fontSize: '11px', color: '#A1A5B7' }}>{p.driver_email}</div>
-                          </td>
-                          <td>
-                            <span style={{ fontWeight: '700', color: '#3F4254', backgroundColor: '#F3F6F9', padding: '4px 8px', borderRadius: '6px' }}>
-                              {p.vehicle_plate || 'N/A'}
-                            </span>
-                          </td>
-                          <td><strong style={{ color: '#181C32' }}>{p.month_year}</strong></td>
-                          <td><span style={{ fontWeight: '700' }}>{p.total_rides}</span></td>
-                          <td><strong style={{ color: '#181C32' }}>PKR {parseFloat(p.total_earnings).toLocaleString()}</strong></td>
-                          <td><strong style={{ color: '#0D9488' }}>PKR {parseFloat(p.platform_fee).toLocaleString()}</strong></td>
-                          <td>
-                            <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#3F4254' }}>
-                              {p.transaction_id || '—'}
-                            </span>
-                          </td>
-                          <td>
-                            {p.receipt_url ? (
-                              <button
-                                style={{ ...styles.btnAction, backgroundColor: '#7239EA', color: '#FFFFFF', padding: '5px 10px', fontSize: '12px' }}
-                                onClick={() => setSelectedImage(p.receipt_url)}
+              {monthlyPayments.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#7E8299' }}>
+                  <span style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>💳</span>
+                  <strong style={{ fontSize: '16px', color: '#3F4254' }}>No Monthly Fee Payments Found</strong>
+                  <p style={{ fontSize: '13px', marginTop: '6px' }}>
+                    When drivers complete rides and settle their monthly platform fees, fee slips will appear here for review.
+                  </p>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Driver Info</th>
+                        <th>Vehicle Plate</th>
+                        <th>Month</th>
+                        <th>Completed Rides</th>
+                        <th>Total Earnings</th>
+                        <th>7% Platform Fee</th>
+                        <th>Transaction ID</th>
+                        <th>Receipt Proof</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyPayments
+                        .filter(p => {
+                          if (paymentFilterStatus !== 'all' && p.status !== paymentFilterStatus) return false;
+                          if (paymentSearchQuery.trim()) {
+                            const q = paymentSearchQuery.toLowerCase();
+                            const name = (p.driver_name || '').toLowerCase();
+                            const email = (p.driver_email || '').toLowerCase();
+                            const phone = (p.driver_phone || '').toLowerCase();
+                            const tx = (p.transaction_id || '').toLowerCase();
+                            const plate = (p.vehicle_plate || '').toLowerCase();
+                            return name.includes(q) || email.includes(q) || phone.includes(q) || tx.includes(q) || plate.includes(q);
+                          }
+                          return true;
+                        })
+                        .map((p) => (
+                          <tr key={p.id}>
+                            <td>
+                              <strong style={{ color: '#181C32' }}>{p.driver_name}</strong>
+                              <div style={{ fontSize: '12px', color: '#7E8299', marginTop: '2px' }}>{p.driver_phone}</div>
+                              <div style={{ fontSize: '11px', color: '#A1A5B7' }}>{p.driver_email}</div>
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: '700', color: '#3F4254', backgroundColor: '#F3F6F9', padding: '4px 8px', borderRadius: '6px' }}>
+                                {p.vehicle_plate || 'N/A'}
+                              </span>
+                            </td>
+                            <td><strong style={{ color: '#181C32' }}>{p.month_year}</strong></td>
+                            <td><span style={{ fontWeight: '700' }}>{p.total_rides}</span></td>
+                            <td><strong style={{ color: '#181C32' }}>PKR {parseFloat(p.total_earnings).toLocaleString()}</strong></td>
+                            <td><strong style={{ color: '#0D9488' }}>PKR {parseFloat(p.platform_fee).toLocaleString()}</strong></td>
+                            <td>
+                              <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#3F4254' }}>
+                                {p.transaction_id || '—'}
+                              </span>
+                            </td>
+                            <td>
+                              {p.receipt_url ? (
+                                <button
+                                  style={{ ...styles.btnAction, backgroundColor: '#7239EA', color: '#FFFFFF', padding: '5px 10px', fontSize: '12px' }}
+                                  onClick={() => setSelectedImage(p.receipt_url)}
+                                >
+                                  🖼️ View Receipt
+                                </button>
+                              ) : (
+                                <span style={{ color: '#A1A5B7', fontSize: '12px' }}>No receipt</span>
+                              )}
+                            </td>
+                            <td>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '4px 10px',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: '800',
+                                  color: '#FFFFFF',
+                                  backgroundColor:
+                                    p.status === 'paid' ? '#10B981' :
+                                    p.status === 'submitted' ? '#F59E0B' :
+                                    p.status === 'rejected' ? '#EF4444' :
+                                    p.status === 'overdue' ? '#DC2626' : '#3B82F6'
+                                }}
                               >
-                                🖼️ View Receipt
-                              </button>
-                            ) : (
-                              <span style={{ color: '#A1A5B7', fontSize: '12px' }}>No receipt</span>
-                            )}
-                          </td>
-                          <td>
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                padding: '4px 10px',
-                                borderRadius: '8px',
-                                fontSize: '12px',
-                                fontWeight: '800',
-                                color: '#FFFFFF',
-                                backgroundColor:
-                                  p.status === 'paid' ? '#10B981' :
-                                  p.status === 'submitted' ? '#F59E0B' :
-                                  p.status === 'rejected' ? '#EF4444' :
-                                  p.status === 'overdue' ? '#DC2626' : '#3B82F6'
-                              }}
-                            >
-                              {p.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              {p.status !== 'paid' && (
-                                <button
-                                  style={{ ...styles.btnApprove, padding: '5px 10px', fontSize: '12px' }}
-                                  onClick={() => setPaymentReviewModal({ id: p.id, driverName: p.driver_name, action: 'paid' })}
-                                >
-                                  ✓ Approve
-                                </button>
-                              )}
-                              {p.status !== 'rejected' && (
-                                <button
-                                  style={{ ...styles.btnReject, padding: '5px 10px', fontSize: '12px' }}
-                                  onClick={() => setPaymentReviewModal({ id: p.id, driverName: p.driver_name, action: 'rejected' })}
-                                >
-                                  ✕ Reject
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+                                {p.status.toUpperCase()}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                {p.status !== 'paid' && (
+                                  <button
+                                    style={{ ...styles.btnApprove, padding: '5px 10px', fontSize: '12px' }}
+                                    onClick={() => setPaymentReviewModal({ id: p.id, driverName: p.driver_name, action: 'paid' })}
+                                  >
+                                    ✓ Approve
+                                  </button>
+                                )}
+                                {p.status !== 'rejected' && (
+                                  <button
+                                    style={{ ...styles.btnReject, padding: '5px 10px', fontSize: '12px' }}
+                                    onClick={() => setPaymentReviewModal({ id: p.id, driverName: p.driver_name, action: 'rejected' })}
+                                  >
+                                    ✕ Reject
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <PaginationBar
                 currentPage={pagination.payments.page}
                 totalPages={pagination.payments.totalPages}
