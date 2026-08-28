@@ -7,6 +7,79 @@
   <meta name="description" content="Official Terms & Conditions for SheDrive Pakistan - female-only transportation rules, bidding policies, and 7% driver commission terms.">
   <link rel="icon" type="image/png" href="assets/images/favicon.png">
   <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .legal-content h2 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--dark, #1E293B);
+      margin-top: 32px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid rgba(233, 30, 99, 0.1);
+    }
+    .legal-content h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--primary, #E91E63);
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+    .legal-content p {
+      font-size: 0.95rem;
+      color: var(--dark-light, #475569);
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+    .legal-content ul {
+      list-style: none;
+      padding-left: 0;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .legal-content ul li {
+      font-size: 0.95rem;
+      color: var(--dark-light, #475569);
+      line-height: 1.7;
+      position: relative;
+      padding-left: 24px;
+    }
+    .legal-content ul li::before {
+      content: "•";
+      color: var(--primary, #E91E63);
+      font-weight: bold;
+      font-size: 1.4rem;
+      position: absolute;
+      left: 6px;
+      top: -2px;
+    }
+    .contact-box {
+      background: rgba(233, 30, 99, 0.05);
+      border: 1px solid rgba(233, 30, 99, 0.2);
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .contact-box p {
+      margin-bottom: 0;
+      font-weight: 500;
+      color: var(--dark, #1E293B);
+    }
+    .badge-date {
+      display: inline-block;
+      background: rgba(233, 30, 99, 0.1);
+      color: var(--primary, #E91E63);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+  </style>
 </head>
 <body>
 
@@ -24,7 +97,7 @@
           </a>
 
           <div class="nav-actions">
-            <a href="#download" data-download-apk="true" class="btn btn-primary download-apk-btn">📥 Download App</a>
+            <a href="downloads.html" class="btn btn-primary download-apk-btn">📥 Download App</a>
             <button class="mobile-toggle" aria-label="Toggle navigation">☰</button>
           </div>
         </div>
@@ -35,6 +108,7 @@
             <li><a href="passenger.html" class="nav-link">For Passengers</a></li>
             <li><a href="driver.html" class="nav-link">For Drivers</a></li>
             <li><a href="safety.html" class="nav-link">Safety Center</a></li>
+            <li><a href="track.html" class="nav-link">Live Track</a></li>
             <li><a href="feedback.html" class="nav-link">Feedback</a></li>
             <li><a href="contact.html" class="nav-link">Support</a></li>
           </ul>
@@ -43,36 +117,139 @@
     </div>
   </header>
 
-  <section class="section" style="padding-top: 140px;">
-    <div class="container" style="max-width: 860px;">
-      <div style="background:#FFF; padding: 48px; border-radius: var(--radius-lg); border:1px solid var(--card-border); box-shadow: var(--shadow-sm);">
-        <h1 style="font-size: 2.2rem; font-weight:800; color:var(--dark); margin-bottom:8px;">Terms and Conditions</h1>
-        <p style="font-size: 0.85rem; color:var(--slate); margin-bottom: 28px;">Last Updated: August 2026 • SheDrive Pakistan</p>
-
-        <div style="font-size: 0.95rem; color: var(--dark-light); line-height: 1.8; display:flex; flex-direction:column; gap:20px;">
-          <h2 style="font-size: 1.2rem; font-weight:800; color:var(--dark);">1. Acceptance of Terms</h2>
-          <p>By downloading, accessing, or using the SheDrive mobile application or web portal, you agree to be bound by these Terms and Conditions. SheDrive is an exclusive ride-hailing and economic empowerment platform dedicated strictly to female passengers and female drivers in Pakistan.</p>
-
-          <h2 style="font-size: 1.2rem; font-weight:800; color:var(--dark);">2. Gender Eligibility & Verification</h2>
-          <p>SheDrive strictly enforces a female-only policy. All passengers and drivers must verify their Pakistani National Identity Card (CNIC) with female designation. Any registration with male credentials or falsified documents constitutes a direct violation of our safety policies and will result in immediate permanent account termination and potential legal reporting.</p>
-
-          <h2 style="font-size: 1.2rem; font-weight:800; color:var(--dark);">3. Direct Fare Negotiation (Bidding Model)</h2>
-          <p>SheDrive provides a direct peer-to-peer fare negotiation mechanism. The platform does not impose surge pricing algorithms. The agreed price between passenger and driver represents the final binding fare for the completed trip.</p>
-
-          <h2 style="font-size: 1.2rem; font-weight:800; color:var(--dark);">4. Driver Partner Platform Fee</h2>
-          <p>Driver partners agree to a 7% platform fee on completed rides. Drivers retain 93% of the negotiated fare directly from cash payments received from passengers.</p>
-
-          <h2 style="font-size: 1.2rem; font-weight:800; color:var(--dark);">5. Code of Conduct & Safety</h2>
-          <p>All members of the SheDrive community agree to treat each other with utmost respect, dignity, and courtesy. Any verbal harassment, discrimination, reckless driving, or safety violations will lead to permanent bans.</p>
-
-          <h2 style="font-size: 1.2rem; font-weight:800; color:var(--dark);">6. Contact Information</h2>
-          <p>For legal inquiries, please contact our team at <strong>shedrive.support@gmail.com</strong>.</p>
+  <!-- Main Legal Document Section -->
+  <section class="section" style="padding-top: 140px; padding-bottom: 80px;">
+    <div class="container" style="max-width: 900px;">
+      <div style="background:#FFF; padding: 48px; border-radius: var(--radius-lg, 16px); border:1px solid var(--card-border, #E2E8F0); box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.05));">
+        
+        <div style="text-align: center; margin-bottom: 32px;">
+          <span style="font-size: 3rem; display: block; margin-bottom: 12px;">📜</span>
+          <h1 style="font-size: 2.4rem; font-weight:800; color:var(--dark, #1E293B); margin-bottom:8px;">Terms and Conditions</h1>
+          <p style="font-size: 1.1rem; color:var(--slate, #64748B); font-weight:500;">SheDrive Operations Pvt. Ltd. — Lahore, Pakistan</p>
+          <span class="badge-date">Last Updated: August 2026 • Version 1.0</span>
         </div>
+
+        <div class="legal-content">
+          <h2>1. Eligibility</h2>
+          <p>The SheDrive platform is exclusively available to female residents of Pakistan who are 18 years of age or older. All users must possess a valid Pakistani National Identity Card (CNIC) with verified female designation under NADRA guidelines. Driver partners must additionally hold a valid Pakistani driving license and registered roadworthy vehicle. By creating an account, you confirm that you meet all eligibility requirements.</p>
+          <p>SheDrive reserves the right to verify eligibility at any time and to refuse, suspend, or terminate service to any user who does not comply with eligibility criteria.</p>
+
+          <h2>2. Account Registration & Usage</h2>
+          <p>Each user is permitted to maintain only one active account on the SheDrive platform. Account sharing, account selling, or creating multiple accounts is prohibited and will result in permanent suspension.</p>
+          <ul>
+            <li>You are responsible for all activity conducted through your account.</li>
+            <li>You must keep your login credentials secure and confidential.</li>
+            <li>Notify SheDrive immediately at <a href="mailto:SheDrive.Support@gmail.com" style="color:var(--primary, #E91E63); font-weight:600;">SheDrive.Support@gmail.com</a> if you suspect unauthorized access.</li>
+            <li>SheDrive reserves the right to close or restrict accounts that violate these Terms.</li>
+            <li>Accounts inactive for more than 12 months may be deactivated after prior notification.</li>
+          </ul>
+
+          <h2>3. Driver Partner Obligations</h2>
+          <p>Driver partners agree to uphold the following obligations while registered with SheDrive:</p>
+          <ul>
+            <li>Maintain a valid driving license, vehicle fitness certificate, and registered vehicle at all times.</li>
+            <li>Keep the vehicle in safe, clean, and roadworthy condition for every ride.</li>
+            <li>Only go online when physically fit and capable of safely operating a vehicle.</li>
+            <li>Follow all traffic laws, highway codes, and road safety rules in Pakistan.</li>
+            <li>Accept rides based on vehicle category matching and geographical proximity.</li>
+            <li>Treat all passengers with professionalism, respect, and courtesy.</li>
+            <li>Never charge a fare higher than the agreed and confirmed amount.</li>
+            <li>Complete mandatory document re-verification when requested by SheDrive Admin.</li>
+            <li>Maintain a minimum driver rating of 3.5 stars — accounts falling below this threshold may be suspended for administrative review.</li>
+          </ul>
+
+          <h2>4. Passenger Obligations</h2>
+          <p>Passengers using SheDrive agree to the following conduct obligations:</p>
+          <ul>
+            <li>Be at the designated pickup location at the time of booking confirmation.</li>
+            <li>Communicate any pickup or route changes only through the in-app messaging system.</li>
+            <li>Not request the driver to violate traffic laws, speed limits, or take unapproved risky alternative routes.</li>
+            <li>Pay the full confirmed fare in cash upon arrival at destination.</li>
+            <li>Leave the vehicle in the same clean condition in which it was entered.</li>
+            <li>Not make personal contact with drivers outside of the SheDrive platform.</li>
+            <li>Provide honest, fair, and non-retaliatory ratings after rides.</li>
+            <li>Maintain a minimum passenger rating of 3.0 stars.</li>
+          </ul>
+
+          <h2>5. Fare, Bidding & Payment Terms</h2>
+          <p>Fares on SheDrive are dynamically estimated based on distance (km), vehicle category base fare, per-kilometer rate, per-minute rate, and applicable minimum fare floor. Passengers may negotiate the final fare within the platform's bidding system (using ±5 PKR steppers) before confirming a ride.</p>
+          <p>SheDrive applies a 7% platform commission on completed rides. Drivers retain 93% of the direct cash earnings received from passengers. Drivers are required to submit their monthly platform fee settlement payments through the SheDrive app by the specified due date each month. Payment instructions and transaction tracking are available in the Driver Payments section.</p>
+          <ul>
+            <li>All fares shown and transacted are in Pakistani Rupees (PKR).</li>
+            <li>Passenger payments are direct <strong>Cash on Completion</strong>.</li>
+            <li>No additional charges, tips, or unauthorized toll surcharges may be demanded by the driver beyond the agreed fare.</li>
+            <li>Drivers with overdue monthly fee statements will be temporarily suspended from going online until payment receipt verification by SheDrive Admin.</li>
+          </ul>
+
+          <h2>6. Cancellation Policy</h2>
+          <p>Ride cancellations are permitted but must be conducted fairly to respect the time and resources of both passengers and drivers:</p>
+          <ul>
+            <li>Passengers may cancel a ride request for free before a driver accepts.</li>
+            <li>Cancellations made after driver acceptance may result in an account warning if repeated frequently without cause.</li>
+            <li>Drivers who cancel accepted trips frequently without valid emergencies will be deprioritized in ride matching.</li>
+            <li>In case of emergency cancellations, users should contact SheDrive Support immediately.</li>
+          </ul>
+
+          <h2>7. Ratings & Reviews Policy</h2>
+          <p>SheDrive uses a mutual rating system after every completed ride. Both drivers and passengers rate each other on a scale of 1 to 5 stars. Ratings are anonymous and displayed as running averages.</p>
+          <ul>
+            <li>You must provide honest and factually accurate ratings.</li>
+            <li>Retaliatory, false, or manipulated ratings violate these Terms and may result in immediate suspension.</li>
+            <li>You may report a rating you believe is fraudulent to <a href="mailto:SheDrive.Support@gmail.com" style="color:var(--primary, #E91E63); font-weight:600;">SheDrive.Support@gmail.com</a>.</li>
+            <li>SheDrive Admin reserves the right to review and remove ratings found to be retaliatory.</li>
+            <li>Sustained low ratings may trigger an automatic safety review of the account.</li>
+          </ul>
+
+          <h2>8. Misconduct & Zero Tolerance Policy</h2>
+          <p>The following actions constitute severe misconduct and will result in immediate permanent account termination and referral to Pakistani law enforcement:</p>
+          <ul>
+            <li>Submission of forged, altered, or stolen CNIC or driving license documents.</li>
+            <li>Verbal, psychological, or physical harassment or assault of any user.</li>
+            <li>Fraudulent manipulation of GPS location or route data.</li>
+            <li>Creating fake accounts to manipulate ratings or gain unfair advantage.</li>
+            <li>Requesting or facilitating rides for commercial, illegal, or prohibited purposes.</li>
+            <li>Threatening, blackmailing, or coercing other users.</li>
+            <li>Any form of gender misrepresentation or violation of the female-only platform rule.</li>
+          </ul>
+          <p>SheDrive cooperates fully with Punjab Police and Pakistani cybercrime authorities in investigation of criminal complaints.</p>
+
+          <h2>9. Intellectual Property</h2>
+          <p>All intellectual property associated with SheDrive — including the mobile application, brand name, logo, interface design, software architecture, content, and technology — is exclusively owned by SheDrive Operations Pvt. Ltd. and is protected under applicable Pakistani and international intellectual property law.</p>
+          <ul>
+            <li>Users may not copy, reproduce, distribute, or create derivative works from SheDrive content.</li>
+            <li>The SheDrive brand name and logo may not be used without prior written permission.</li>
+            <li>Unauthorized reverse engineering of the SheDrive application is strictly prohibited.</li>
+            <li>Feedback and suggestions submitted by users become the property of SheDrive.</li>
+          </ul>
+
+          <h2>10. Limitation of Liability</h2>
+          <p>SheDrive operates as a technology marketplace connecting passengers with independent driver partners. SheDrive does not employ drivers, own vehicles, or provide transportation services directly.</p>
+          <p>SheDrive's total liability to any user for any claim arising from use of the platform is limited to PKR 10,000 or the amount of the disputed fare, whichever is lower — except where greater liability is required under applicable law. SheDrive is not liable for indirect, incidental, or consequential damages including lost income, personal injury, or property damage, except where such limitation is not permitted under Pakistani consumer protection law.</p>
+
+          <h2>11. Account Termination</h2>
+          <p>Either party may terminate the account relationship at any time. Users may delete their account through the app (<code>Settings → Delete Account</code>) or by contacting support. SheDrive may terminate accounts for violations of these Terms with or without prior notice, depending on the severity of the violation.</p>
+          <p>Upon termination, any outstanding dues, disputes, or complaints must still be resolved in accordance with these Terms. Ride history and safety logs may be retained for legal compliance purposes.</p>
+
+          <h2>12. Governing Law & Jurisdiction</h2>
+          <p>These Terms & Conditions are governed exclusively by the laws of the Islamic Republic of Pakistan. Any disputes arising from or related to these Terms shall be submitted to the exclusive jurisdiction of the competent courts of Lahore, Punjab, Pakistan.</p>
+          
+          <div class="contact-box">
+            <p>📧 <strong>Legal Inquiries:</strong> <a href="mailto:SheDrive.Support@gmail.com" style="color:var(--primary, #E91E63); font-weight:700;">SheDrive.Support@gmail.com</a></p>
+            <p>📞 <strong>Helpline:</strong> +92 300 0000000</p>
+            <p>📍 <strong>Registered Office:</strong> SheDrive Operations Pvt. Ltd., Lahore, Punjab, Pakistan</p>
+            <p>🕐 <strong>Support Hours:</strong> 24/7 Support for Active Trips</p>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px;">
+          <a href="index.html" class="btn btn-secondary" style="padding: 12px 28px; border-radius: 10px; font-weight: 700;">← Back to Home</a>
+        </div>
+
       </div>
     </div>
   </section>
 
-  <!-- Full Footer -->
+  <!-- Footer -->
   <footer class="footer">
     <div class="container">
       <div class="footer-grid">
@@ -98,36 +275,39 @@
             <a href="passenger.html" class="footer-link">For Passengers</a>
             <a href="driver.html" class="footer-link">For Drivers</a>
             <a href="safety.html" class="footer-link">Safety Center</a>
+            <a href="downloads.html" class="footer-link">Download App</a>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Features & Help</h4>
+          <div class="footer-links">
+            <a href="track.html" class="footer-link">Live Ride Tracking</a>
             <a href="feedback.html" class="footer-link">Feedback & Suggestions</a>
-            <a href="#download" data-download-apk="true" class="footer-link download-apk-btn">Download App</a>
             <a href="contact.html" class="footer-link">Support & Helpline</a>
-          </div>
-        </div>
-
-        <div>
-          <h4 class="footer-col-title">Legal & Trust</h4>
-          <div class="footer-links">
-            <a href="terms.html" class="footer-link">Terms & Conditions</a>
+            <a href="terms.html" class="footer-link">Terms of Service</a>
             <a href="privacy.html" class="footer-link">Privacy Policy</a>
-            <a href="feedback.html" class="footer-link">Share Feedback</a>
-            <a href="contact.html" class="footer-link">Support & Helpline</a>
           </div>
         </div>
 
         <div>
-          <h4 class="footer-col-title">Contact & Help</h4>
+          <h4 class="footer-col-title">Emergency Help</h4>
           <div class="footer-links">
-            <span class="footer-link">📍 Lahore, Punjab, Pakistan</span>
-            <a href="mailto:shedrive.support@gmail.com" class="footer-link">📧 shedrive.support@gmail.com</a>
-            <a href="tel:+9242111743374" class="footer-link">📞 +92 42 111 743 374</a>
-            <a href="tel:15" class="footer-link">🚨 Police Emergency: 15</a>
+            <a href="tel:15" class="footer-link" style="color:var(--danger, #EF4444); font-weight:700;">🚨 Police 15 (Emergency)</a>
+            <a href="tel:+923000000000" class="footer-link">📞 SheDrive 24/7 Helpline</a>
+            <a href="mailto:SheDrive.Support@gmail.com" class="footer-link">📧 SheDrive.Support@gmail.com</a>
+            <span class="footer-link" style="color:var(--slate, #64748B);">📍 Lahore, Punjab, Pakistan</span>
           </div>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <span>© 2026 SheDrive Pakistan. All rights reserved.</span>
-        <span>Dedicated Exclusively to Women's Mobility and Safety.</span>
+        <p>© 2026 SheDrive Operations Pvt. Ltd. All rights reserved. Exclusively for women.</p>
+        <div class="footer-bottom-links">
+          <a href="privacy.html" class="footer-link">Privacy Policy</a>
+          <a href="terms.html" class="footer-link">Terms of Service</a>
+          <a href="feedback.html" class="footer-link">Feedback</a>
+        </div>
       </div>
     </div>
   </footer>
