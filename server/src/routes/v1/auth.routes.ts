@@ -155,18 +155,20 @@ router.post('/send-registration-otp', otpRateLimiter, async (req: Request, res: 
     await saveVerificationCode(cleanEmail, otp, 'registration', expiresAt);
 
     const emailHtml = buildRegistrationOtpEmailHtml(cleanEmail, otp);
-    try {
-      await sendEmail({
-        to: cleanEmail,
-        subject: 'Your SheDrive Email Verification Code',
-        html: emailHtml,
-        fromName: 'SheDrive Support',
+    const sent = await sendEmail({
+      to: cleanEmail,
+      subject: 'Your SheDrive Email Verification Code',
+      html: emailHtml,
+      fromName: 'SheDrive Support',
+    });
+
+    if (!sent) {
+      return res.status(500).json({
+        error: 'Unable to send verification email. Please check your internet connection or try again in 30 seconds.',
       });
-    } catch (mailErr: any) {
-      console.warn('[Email Warning]:', mailErr?.message || mailErr);
     }
 
-    console.log(`[Registration OTP] Verification code generated for ${cleanEmail}`);
+    console.log(`[Registration OTP] Verification code generated and dispatched to ${cleanEmail}`);
 
     res.status(200).json({
       success: true,
@@ -209,22 +211,7 @@ router.post('/verify-registration-otp', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
     }
 
-    let isMatch = storedEntry.code === cleanOtp;
-
-    if (!isMatch && supabase && typeof supabase.auth?.verifyOtp === 'function') {
-      try {
-        const { data: sbVerify, error: sbErr } = await supabase.auth.verifyOtp({
-          email: cleanEmail,
-          token: cleanOtp,
-          type: 'email',
-        });
-        if (!sbErr && sbVerify?.user) {
-          isMatch = true;
-        }
-      } catch (sbVerifyErr: any) {
-        console.warn('[Supabase OTP verify fallback]:', sbVerifyErr?.message || sbVerifyErr);
-      }
-    }
+    const isMatch = storedEntry.code === cleanOtp;
 
     if (!isMatch) {
       return res.status(400).json({ error: 'Invalid verification code. Please check the code sent to your email.' });
@@ -899,12 +886,18 @@ router.post('/forgot-password/send-otp', passwordResetRateLimiter, async (req: R
       </div>
     `;
 
-    await sendEmail({
+    const sent = await sendEmail({
       to: cleanEmail,
       subject: `Your SheDrive Password Reset Code: ${otp}`,
       html: emailHtml,
       fromName: 'SheDrive Support',
     });
+
+    if (!sent) {
+      return res.status(500).json({
+        error: 'Unable to send password reset code. Please check your internet connection or try again in 30 seconds.',
+      });
+    }
 
     console.log(`[Gmail REST API] Password reset OTP sent to ${cleanEmail}`);
 

@@ -1,6 +1,5 @@
 import { google } from 'googleapis';
 import nodemailer from 'nodemailer';
-import { supabase } from '../config/supabase';
 
 export interface SendEmailOptions {
   to: string;
@@ -63,9 +62,10 @@ function createRawEmail(options: SendEmailOptions, senderName: string): string {
 
 /**
  * Dedicated Primary Email Dispatcher:
- * 1. Gmail REST API (HTTPS Port 443 via Google Cloud OAuth2) — Primary, instant (<1s latency), never blocked by cloud firewalls.
- * 2. Supabase Cloud Auth OTP Dispatch (HTTPS Port 443) — Parallel / secondary HTTPS transport.
- * 3. Non-blocking SMTP fallback (Short 2s timeout) — Only used if OAuth2 credentials are completely unconfigured.
+ * 1. Gmail REST API (HTTPS Port 443 via Google Cloud OAuth2) — Primary, fast (<1s latency), never blocked by cloud firewalls.
+ * 2. Non-blocking SMTP fallback (Short 5s timeout) — Only used if OAuth2 credentials are not yet configured.
+ * 3. 30-Second Timeout Guarantee — If email dispatch takes longer than 30s, aborts cleanly and returns false.
+ * NOTE: Supabase Auth Magic Links have been completely removed to prevent default sign-in links.
  */
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const senderName = options.fromName || 'SheDrive Support';
@@ -76,65 +76,69 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const clientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
   const refreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
 
-  // ── 1. PRIMARY EXCLUSIVE TRANSPORT: Gmail REST API over HTTPS Port 443 ──
-  if (clientId && clientSecret && refreshToken) {
-    try {
-      const gmail = getGmailService(clientId, clientSecret, refreshToken);
-      const raw = createRawEmail(options, senderName);
+  // 30-Second Timeout Promise
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Email dispatch timed out after 30 seconds')), 30000)
+  );
 
-      const res = await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw },
-      });
+  const dispatchPromise = (async (): Promise<boolean> => {
+    // ── 1. PRIMARY EXCLUSIVE TRANSPORT: Gmail REST API over HTTPS Port 443 ──
+    if (clientId && clientSecret && refreshToken) {
+      try {
+        const gmail = getGmailService(clientId, clientSecret, refreshToken);
+        const raw = createRawEmail(options, senderName);
 
-      const elapsed = Date.now() - startTime;
-      console.log(`[Gmail REST API (HTTPS Port 443)] Email delivered: ${res.data.id} to ${options.to} (${elapsed}ms)`);
-      return true;
-    } catch (apiErr: any) {
-      console.warn('[Gmail REST API Warning]:', apiErr?.message || apiErr);
-    }
-  }
+        const res = await gmail.users.messages.send({
+          userId: 'me',
+          requestBody: { raw },
+        });
 
-  // ── 2. SECONDARY TRANSPORT: Supabase Cloud Auth OTP Dispatch (HTTPS Port 443) ──
-  try {
-    if (supabase && typeof supabase.auth?.signInWithOtp === 'function') {
-      const sbRes = await supabase.auth.signInWithOtp({ email: options.to });
-      if (!sbRes.error) {
-        console.log(`[Supabase Auth (HTTPS Port 443)] Email OTP dispatched to ${options.to}`);
+        const elapsed = Date.now() - startTime;
+        console.log(`[Gmail REST API (HTTPS Port 443)] Email delivered: ${res.data.id} to ${options.to} (${elapsed}ms)`);
         return true;
+      } catch (apiErr: any) {
+        console.error('[Gmail REST API Error]:', apiErr?.message || apiErr);
       }
     }
-  } catch (sbErr: any) {
-    console.warn('[Supabase Auth Email Warning]:', sbErr?.message || sbErr);
-  }
 
-  // ── 3. TERTIARY FALLBACK: Fast Non-Blocking SMTP (2s timeout max to avoid cloud lag) ──
+    // ── 2. SECONDARY FALLBACK: Direct SMTP (5s timeout max) ──
+    try {
+      const { pass } = getCredentials();
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: { user, pass },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000,
+        tls: { rejectUnauthorized: false },
+      });
+
+      const info = await transporter.sendMail({
+        from: `"${senderName}" <${user}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      });
+
+      console.log(`[Gmail SMTP Port 465 SSL] Email sent: ${info.messageId} to ${options.to}`);
+      return true;
+    } catch (smtpErr: any) {
+      console.warn('[Gmail SMTP Fallback Note]:', smtpErr?.message || smtpErr);
+    }
+
+    return false;
+  })();
+
   try {
-    const { pass } = getCredentials();
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user, pass },
-      connectionTimeout: 2000,
-      greetingTimeout: 2000,
-      socketTimeout: 2000,
-      tls: { rejectUnauthorized: false },
-    });
-
-    const info = await transporter.sendMail({
-      from: `"${senderName}" <${user}>`,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-    });
-
-    console.log(`[Gmail SMTP Port 465 SSL] Email sent: ${info.messageId} to ${options.to}`);
-    return true;
-  } catch (smtpErr: any) {
-    console.warn('[Gmail SMTP Fallback Note]:', smtpErr?.message || smtpErr);
+    const success = await Promise.race([dispatchPromise, timeoutPromise]);
+    if (!success) {
+      console.error(`[Email Dispatch] Failed to dispatch email to ${options.to}. Please check GMAIL_* credentials.`);
+    }
+    return success;
+  } catch (err: any) {
+    console.error(`[Email Dispatch Timeout / Error]: ${err?.message || err}`);
+    return false;
   }
-
-  console.log(`[Email Notice] Verification code saved in database for ${options.to}`);
-  return true;
 }
