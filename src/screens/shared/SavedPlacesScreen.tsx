@@ -14,6 +14,7 @@ import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { searchAddress, reverseGeocode } from '../../services/nominatim';
+import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction } from '../../services/googlePlaces';
 import { LocationPoint } from '../../types';
 
 interface SavedPlace {
@@ -217,26 +218,88 @@ export default function SavedPlacesScreen(): React.JSX.Element {
 
     try {
       setIsSearching(true);
-      const results = await searchAddress(query);
-      setSearchResults(results);
+      // 1. Try Google Places Autocomplete (Scoped to Pakistan/Lahore)
+      const googleResults = await getPlaceAutocomplete(query);
+      if (googleResults && googleResults.length > 0) {
+        setSearchResults(
+          googleResults.map((g) => ({
+            source: 'google',
+            placeId: g.placeId,
+            title: g.title,
+            subtitle: g.subtitle,
+            fullText: g.fullText,
+          }))
+        );
+        return;
+      }
+
+      // 2. Fallback to OpenStreetMap / Nominatim search if Google returns empty/quota
+      const osmResults = await searchAddress(query);
+      setSearchResults(
+        (osmResults || []).map((o: any) => ({
+          source: 'osm',
+          title: o.display_name?.split(',')[0] || query,
+          subtitle: o.display_name,
+          fullText: o.display_name,
+          lat: o.lat,
+          lon: o.lon,
+        }))
+      );
     } catch (err) {
-      console.error('Search error:', err);
-      setSearchResults([]);
+      console.warn('Google Places search warning, falling back to OSM:', err);
+      try {
+        const osmResults = await searchAddress(query);
+        setSearchResults(
+          (osmResults || []).map((o: any) => ({
+            source: 'osm',
+            title: o.display_name?.split(',')[0] || query,
+            subtitle: o.display_name,
+            fullText: o.display_name,
+            lat: o.lat,
+            lon: o.lon,
+          }))
+        );
+      } catch (osmErr) {
+        console.error('All geocoding services failed:', osmErr);
+        setSearchResults([]);
+      }
     } finally {
       setIsSearching(false);
     }
   };
 
-  const handleSelectSearchResult = (item: any) => {
-    const lat = parseFloat(item.lat);
-    const lon = parseFloat(item.lon);
-    const shortLabel = item.display_name.split(',')[0];
-    
-    setLatitude(lat.toString());
-    setLongitude(lon.toString());
-    setName(shortLabel);
-    setSearchQuery(shortLabel);
-    setSearchResults([]);
+  const handleSelectSearchResult = async (item: any) => {
+    try {
+      if (item.source === 'google' && item.placeId) {
+        setIsSearching(true);
+        const details = await getPlaceDetailsById(item.placeId);
+        if (details) {
+          setLatitude(details.coordinates.latitude.toString());
+          setLongitude(details.coordinates.longitude.toString());
+          setName(details.name || item.title);
+          setSearchQuery(details.formattedAddress || item.fullText);
+          setSearchResults([]);
+          return;
+        }
+      }
+
+      // Fallback or OSM result handling
+      const lat = item.lat ? parseFloat(item.lat) : 0;
+      const lon = item.lon ? parseFloat(item.lon) : 0;
+      const shortLabel = item.title || (item.display_name ? item.display_name.split(',')[0] : 'Saved Location');
+
+      if (lat && lon) {
+        setLatitude(lat.toString());
+        setLongitude(lon.toString());
+      }
+      setName(shortLabel);
+      setSearchQuery(item.fullText || item.display_name || shortLabel);
+      setSearchResults([]);
+    } catch (selectErr) {
+      console.error('Select place error:', selectErr);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const getLabelIcon = (label: string): string => {
@@ -425,11 +488,15 @@ export default function SavedPlacesScreen(): React.JSX.Element {
                       onPress={() => handleSelectSearchResult(item)}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.searchResultIcon}>📍</Text>
+                      <Text style={styles.searchResultIcon}>
+                        {item.source === 'google' ? '🔍' : '📍'}
+                      </Text>
                       <View style={styles.searchResultTextContainer}>
-                        <Text style={styles.searchResultTitle}>{item.display_name.split(',')[0]}</Text>
+                        <Text style={styles.searchResultTitle}>
+                          {item.title || (item.display_name ? item.display_name.split(',')[0] : 'Selected Place')}
+                        </Text>
                         <Text style={styles.searchResultSubtitle} numberOfLines={2}>
-                          {item.display_name}
+                          {item.subtitle || item.fullText || item.display_name || ''}
                         </Text>
                       </View>
                     </TouchableOpacity>
