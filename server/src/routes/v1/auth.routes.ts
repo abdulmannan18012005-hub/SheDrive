@@ -855,6 +855,198 @@ router.post('/update-password-from-reset', async (req: Request, res: Response) =
   }
 });
 
+/**
+ * POST /api/v1/auth/forgot-password/send-otp
+ * Body: { email: string, role?: string }
+ * Description: Dispatches a 6-digit numeric OTP to email for password reset via Gmail REST API.
+ */
+router.post('/forgot-password/send-otp', passwordResetRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const { email, role } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: 'Email address is required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const userRole = role === 'driver' ? 'driver' : 'passenger';
+
+    // Verify user exists for the requested role
+    const userRes = await query('SELECT id, name, email, role FROM users WHERE email = $1 AND role = $2', [cleanEmail, userRole]);
+    if (userRes.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists with this email, a verification code has been dispatched.',
+      });
+    }
+
+    const user = userRes.rows[0];
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10-minute expiry
+
+    await saveVerificationCode(cleanEmail, otp, `password_reset_otp:${user.role}`, expiresAt);
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 24px; border: 1px solid #e0e0e0; border-radius: 12px;">
+        <h2 style="color: #E91E63; text-align: center;">SheDrive Password Reset</h2>
+        <p>Hello <strong>${user.name || 'SheDrive Member'}</strong>,</p>
+        <p>Your 6-digit verification code to reset your SheDrive ${user.role} password is:</p>
+        <div style="background: #FCE4EC; padding: 18px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #C2185B; border-radius: 8px; margin: 20px 0;">
+          ${otp}
+        </div>
+        <p style="font-size: 13px; color: #666;">This code will expire in 10 minutes. If you did not request this password reset, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #999; text-align: center;">SheDrive Operations Pvt. Ltd. — Lahore, Pakistan</p>
+      </div>
+    `;
+
+    await sendEmail({
+      to: cleanEmail,
+      subject: `Your SheDrive Password Reset Code: ${otp}`,
+      html: emailHtml,
+      fromName: 'SheDrive Support',
+    });
+
+    console.log(`[Gmail REST API] Password reset OTP sent to ${cleanEmail}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset code has been sent to your email address.',
+      cooldownSeconds: 60,
+    });
+  } catch (error: any) {
+    console.error('Send reset OTP error:', error.message || error);
+    res.status(500).json({ error: 'Failed to send password reset code' });
+  }
+});
+
+/**
+ * POST /api/v1/auth/forgot-password/verify-otp
+ * Body: { email: string, otp: string, role?: string }
+ * Description: Verifies the 6-digit password reset OTP and issues a reset token.
+ */
+router.post('/forgot-password/verify-otp', async (req: Request, res: Response) => {
+  try {
+    const { email, otp, role } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and verification code are required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = otp.trim();
+    const userRole = role === 'driver' ? 'driver' : 'passenger';
+
+    const stored = await getUnusedCodeByValue(cleanOtp, `password_reset_otp:${userRole}`);
+    if (!stored || stored.email.toLowerCase() !== cleanEmail) {
+      return res.status(400).json({ error: 'Invalid or expired verification code.' });
+    }
+
+    if (Date.now() > parseInt(stored.expires_at, 10)) {
+      await markCodeUsed(stored.id);
+      return res.status(400).json({ error: 'Verification code has expired. Please request a new code.' });
+    }
+
+    await markCodeVerified(stored.id);
+
+    // Generate a reset token valid for 15 minutes
+    const resetToken = crypto.randomBytes(24).toString('hex');
+    const tokenExpiry = Date.now() + 15 * 60 * 1000;
+    await saveVerificationCode(cleanEmail, resetToken, `password_reset:${userRole}`, tokenExpiry);
+
+    res.status(200).json({
+      success: true,
+      message: 'Code verified successfully',
+      resetToken,
+    });
+  } catch (error: any) {
+    console.error('Verify reset OTP error:', error.message || error);
+    res.status(500).json({ error: 'Failed to verify code' });
+  }
+});
+
+/**
+ * POST /api/v1/auth/reset-password
+ * Body: { email: string, newPassword: string, token?: string, otp?: string, role?: string }
+ * Description: Universal reset-password endpoint supporting both token-based and OTP-based resets.
+ */
+router.post('/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { email, newPassword, token, otp, role } = req.body;
+
+    if (!email || !newPassword || (!token && !otp)) {
+      return res.status(400).json({ error: 'Email, new password, and reset token or verification code are required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const userRole = role === 'driver' ? 'driver' : 'passenger';
+
+    // Verify user exists
+    const userRes = await query('SELECT id, phone, email, name, role, cnic, is_verified, is_blocked FROM users WHERE email = $1 AND role = $2', [cleanEmail, userRole]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found for the specified role' });
+    }
+
+    const user = userRes.rows[0];
+    if (user.is_blocked) {
+      return res.status(403).json({ error: 'Your account has been temporarily blocked.' });
+    }
+
+    // Check reset token or OTP
+    let validRecord = null;
+    if (token) {
+      validRecord = await getUnusedCodeByValue(token.trim(), `password_reset:${user.role}`);
+    } else if (otp) {
+      validRecord = await getUnusedCodeByValue(otp.trim(), `password_reset_otp:${user.role}`);
+    }
+
+    if (!validRecord || validRecord.email.toLowerCase() !== cleanEmail) {
+      return res.status(400).json({ error: 'Invalid or expired password reset credentials. Please request a new reset link/code.' });
+    }
+
+    if (Date.now() > parseInt(validRecord.expires_at, 10)) {
+      await markCodeUsed(validRecord.id);
+      return res.status(400).json({ error: 'Password reset credentials have expired. Please request a new one.' });
+    }
+
+    const passHash = await hashPassword(newPassword);
+    await markCodeUsed(validRecord.id);
+    await query('UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3', [
+      passHash,
+      Date.now(),
+      user.id,
+    ]);
+
+    try {
+      const { data: sbUsers } = await supabase.auth.admin.listUsers();
+      const sbUser = sbUsers?.users?.find((u: any) => u.email === cleanEmail);
+      if (sbUser) {
+        await supabase.auth.admin.updateUserById(sbUser.id, { password: newPassword });
+      }
+    } catch (sbErr: any) {
+      console.warn('[Supabase Auth] Password sync warning:', sbErr?.message || sbErr);
+    }
+
+    const authToken = generateToken({ id: user.id, email: user.email, role: user.role });
+
+    res.status(200).json({
+      success: true,
+      message: 'Password updated successfully',
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        cnic: user.cnic,
+        isVerified: user.is_verified,
+      },
+      token: authToken,
+    });
+  } catch (error: any) {
+    console.error('Reset password error:', error.message || error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
 
 /**
  * POST /api/v1/auth/change-password
