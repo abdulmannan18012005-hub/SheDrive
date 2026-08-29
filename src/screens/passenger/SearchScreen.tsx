@@ -51,14 +51,15 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const { state } = useApp();
 
   const initialPickup = route?.params?.pickupPoint;
-  const initialField = route?.params?.targetField || 'dest';
+  const initialDest = route?.params?.destPoint;
+  const initialField = route?.params?.targetField || (initialDest && !initialPickup ? 'pickup' : 'dest');
 
   const [pickupText, setPickupText] = useState(initialPickup?.label || '');
-  const [destText, setDestText] = useState('');
+  const [destText, setDestText] = useState(initialDest?.label || '');
   const [activeField, setActiveField] = useState<'pickup' | 'dest'>(initialField);
 
   const [pickupPoint, setPickupPoint] = useState<LocationPoint | null>(initialPickup || null);
-  const [destPoint, setDestPoint] = useState<LocationPoint | null>(null);
+  const [destPoint, setDestPoint] = useState<LocationPoint | null>(initialDest || null);
 
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -221,6 +222,26 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
       setPickupPoint(selectedPoint);
       setPickupText(label);
       setSearchResults([]);
+      
+      // If destination already selected (e.g. re-selecting pickup from FareBid), recalculate and navigate
+      if (destPoint) {
+        try {
+          setIsCalculatingRoute(true);
+          const liveRoute = await getLiveTrafficRoute(lat, lon, destPoint.latitude, destPoint.longitude);
+          if (liveRoute) {
+            navigation.navigate('FareBid', {
+              pickup: selectedPoint,
+              destination: destPoint,
+              route: liveRoute,
+            });
+            return;
+          }
+        } catch (e) {
+          console.warn('Auto route calculation error on pickup:', e);
+        } finally {
+          setIsCalculatingRoute(false);
+        }
+      }
       setActiveField('dest');
     } else {
       setDestPoint(selectedPoint);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,16 @@ import {
   SafeAreaView,
   ScrollView,
   TextInput,
+  Animated,
+  PanResponder,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
-import { PassengerStackParamList, RideRequest, VehicleCategory } from '../../types';
+import { PassengerStackParamList, RideRequest, VehicleCategory, LocationPoint, OSRMRoute } from '../../types';
 import Colors from '../../constants/Colors';
 import { VEHICLE_CATEGORIES, DEFAULT_VEHICLE_CATEGORY } from '../../constants/VehicleCategories';
 import { calculateFare, adjustFareStep, validateFareOffer, calculateUrbanTripDuration } from '../../utils/fareCalculator';
@@ -22,6 +26,7 @@ import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { formatCurrency } from '../../utils/helpers';
 import { LeafletMap } from '../../components/LeafletMap';
+import { GoogleMapViewRef } from '../../components/GoogleMapView';
 import { RideBookingSummaryModal } from '../../components/RideBookingSummaryModal';
 
 type FareBidScreenNavigationProp = StackNavigationProp<PassengerStackParamList, 'FareBid'>;
@@ -32,13 +37,30 @@ interface Props {
   route: FareBidScreenRouteProp;
 }
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SNAP_PEEK = Math.round(SCREEN_HEIGHT * 0.22);
+const SNAP_HALF = Math.round(SCREEN_HEIGHT * 0.52);
+const SNAP_FULL = Math.round(SCREEN_HEIGHT * 0.88);
+
 export default function FareBidScreen({ navigation, route }: Props): React.JSX.Element {
-  const { pickup, destination, route: routeData, stops = [], isScheduled: initScheduled = false, scheduledFor: initScheduledFor = null } = route.params;
-  const { state, dispatch } = useApp();
+  const { pickup: initPickup, destination: initDestination, route: initRouteData, stops = [], isScheduled: initScheduled = false, scheduledFor: initScheduledFor = null } = route.params;
+  const { state } = useApp();
   const user = state.user;
 
+  // Reactive state for pickup, destination, and calculated route
+  const [pickup, setPickup] = useState<LocationPoint>(initPickup);
+  const [destination, setDestination] = useState<LocationPoint>(initDestination);
+  const [routeData, setRouteData] = useState<OSRMRoute>(initRouteData);
+
+  // Sync state if navigation params update (e.g. returning from re-selecting location)
+  useEffect(() => {
+    if (route.params.pickup) setPickup(route.params.pickup);
+    if (route.params.destination) setDestination(route.params.destination);
+    if (route.params.route) setRouteData(route.params.route);
+  }, [route.params.pickup, route.params.destination, route.params.route]);
+
   // Route metrics
-  const distanceKm = routeData.distance / 1000;
+  const distanceKm = (routeData?.distance || 0) / 1000;
   const initialDurationMin = calculateUrbanTripDuration(DEFAULT_VEHICLE_CATEGORY.id, distanceKm);
 
   // Vehicle Category Selection State
@@ -54,14 +76,83 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSummaryVisible, setIsSummaryVisible] = useState<boolean>(false);
 
-  // Payment Method Selection (Phase 10: Cash, JazzCash Sandbox, Easypaisa Sandbox)
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'jazzcash' | 'easypaisa'>('cash');
-  const [mobileAccountNo, setMobileAccountNo] = useState<string>(user?.phone || '');
+  // Payment Method Selection (Cash)
+  const [paymentMethod] = useState<'cash' | 'jazzcash' | 'easypaisa'>('cash');
 
-  // Scheduled Booking State (Phase 10: Book in advance)
+  // Scheduled Booking State
   const [isScheduled, setIsScheduled] = useState<boolean>(Boolean(initScheduled));
   const [scheduledHoursAdvance, setScheduledHoursAdvance] = useState<number>(1);
   const scheduledTimestamp = Date.now() + scheduledHoursAdvance * 60 * 60 * 1000;
+
+  // Map Ref for recentering
+  const mapRef = useRef<GoogleMapViewRef>(null);
+
+  // Bottom Sheet Animation & Gestures
+  const sheetHeight = useRef(new Animated.Value(SNAP_HALF)).current;
+  const lastHeight = useRef(SNAP_HALF);
+  const [snapState, setSnapState] = useState<'peek' | 'half' | 'full'>('half');
+
+  const animateToSnap = useCallback(
+    (targetSnap: number, stateName: 'peek' | 'half' | 'full') => {
+      lastHeight.current = targetSnap;
+      setSnapState(stateName);
+      Animated.spring(sheetHeight, {
+        toValue: targetSnap,
+        friction: 8,
+        tension: 50,
+        useNativeDriver: false,
+      }).start();
+    },
+    [sheetHeight]
+  );
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 5,
+      onPanResponderMove: (_, gestureState) => {
+        const newHeight = lastHeight.current - gestureState.dy;
+        if (newHeight >= SNAP_PEEK * 0.85 && newHeight <= SNAP_FULL * 1.05) {
+          sheetHeight.setValue(newHeight);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const currentH = lastHeight.current - gestureState.dy;
+        const vy = gestureState.vy;
+
+        // Fast flick handling
+        if (vy > 0.4) {
+          if (currentH > SNAP_HALF + 40) {
+            animateToSnap(SNAP_HALF, 'half');
+          } else {
+            animateToSnap(SNAP_PEEK, 'peek');
+          }
+          return;
+        }
+        if (vy < -0.4) {
+          if (currentH < SNAP_HALF - 40) {
+            animateToSnap(SNAP_HALF, 'half');
+          } else {
+            animateToSnap(SNAP_FULL, 'full');
+          }
+          return;
+        }
+
+        // Positional snapping
+        const distToPeek = Math.abs(currentH - SNAP_PEEK);
+        const distToHalf = Math.abs(currentH - SNAP_HALF);
+        const distToFull = Math.abs(currentH - SNAP_FULL);
+
+        if (distToPeek <= distToHalf && distToPeek <= distToFull) {
+          animateToSnap(SNAP_PEEK, 'peek');
+        } else if (distToHalf <= distToPeek && distToHalf <= distToFull) {
+          animateToSnap(SNAP_HALF, 'half');
+        } else {
+          animateToSnap(SNAP_FULL, 'full');
+        }
+      },
+    })
+  ).current;
 
   // Switch Vehicle Category
   const handleSelectCategory = (category: VehicleCategory) => {
@@ -188,15 +279,13 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
         });
 
         if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.warn('Backend ride request sync non-200:', errData.error);
+          console.warn('Backend ride request sync non-200 response');
         }
-      } catch (backendErr: any) {
-        console.error('Backend ride request sync error:', backendErr?.message || backendErr);
+      } catch (backendErr) {
+        console.warn('Backend ride request sync warning:', backendErr);
       }
 
       setIsSummaryVisible(false);
-      dispatch({ type: 'SET_ACTIVE_RIDE', payload: rideRequest });
       navigation.navigate('RideTracking', { rideId });
     } catch (error: any) {
       console.error('Failed to create ride request:', error);
@@ -207,7 +296,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
   };
 
   const getLeafletCoordinates = (): [number, number][] => {
-    if (!routeData.geometry || !routeData.geometry.coordinates) return [];
+    if (!routeData?.geometry?.coordinates) return [];
     return routeData.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
   };
 
@@ -224,207 +313,338 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
     { id: 'destination', lat: destination.latitude, lng: destination.longitude, emoji: '🏁', title: 'Destination', isDestination: true },
   ];
 
+  // Recenter Map Camera to Route
+  const handleRecenterRoute = () => {
+    const coords = getLeafletCoordinates();
+    if (mapRef.current && coords.length > 0) {
+      mapRef.current.fitToCoordinates(
+        coords.map((c) => ({ latitude: c[0], longitude: c[1] })),
+        true
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Route Map Preview */}
-      <View style={styles.mapPreview}>
+      {/* Full-Screen Underlying Map */}
+      <View style={styles.mapContainer}>
         <LeafletMap
+          ref={mapRef}
           center={{ lat: pickup.latitude, lng: pickup.longitude }}
           markers={mapMarkers}
           routeCoordinates={getLeafletCoordinates()}
         />
+
+        {/* Floating Top Back Button */}
+        <TouchableOpacity
+          style={styles.floatingBackButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.floatingBackText}>←</Text>
+        </TouchableOpacity>
+
+        {/* Floating Recenter Route Button */}
+        <Animated.View
+          style={[
+            styles.floatingRecenterContainer,
+            {
+              bottom: Animated.add(sheetHeight, 16),
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.recenterButton}
+            onPress={handleRecenterRoute}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.recenterIcon}>🎯</Text>
+            <Text style={styles.recenterText}>Recenter Route</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
 
-      <ScrollView style={styles.detailsCard} contentContainerStyle={styles.scrollContent}>
-        {/* Route header */}
-        <View style={styles.routeHeader}>
-          <View style={styles.locationContainer}>
-            <Text style={styles.dot}>🟢</Text>
-            <Text style={styles.locationText} numberOfLines={1}>{pickup.label}</Text>
-          </View>
-          <View style={styles.locationContainer}>
-            <Text style={styles.dot}>🔴</Text>
-            <Text style={styles.locationText} numberOfLines={1}>{destination.label}</Text>
-          </View>
+      {/* Multi-Snap Gesture-Driven Bottom Sheet */}
+      <Animated.View
+        style={[
+          styles.bottomSheetContainer,
+          {
+            height: sheetHeight,
+          },
+        ]}
+      >
+        {/* Drag Handle & Gesture Target */}
+        <View {...panResponder.panHandlers} style={styles.dragHandleArea}>
+          <View style={styles.dragIndicator} />
         </View>
 
-        {/* Distance/Duration specs */}
-        <View style={styles.specsRow}>
-          <View style={styles.specBox}>
-            <Text style={styles.specVal}>{distanceKm.toFixed(1)} km</Text>
-            <Text style={styles.specLabel}>Distance</Text>
-          </View>
-          <View style={styles.specDivider} />
-          <View style={styles.specBox}>
-            <Text style={styles.specVal}>{Math.round(durationMin)} mins</Text>
-            <Text style={styles.specLabel}>Est. Duration</Text>
-          </View>
-        </View>
-
-        {/* Vehicle Categories Selection */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Select Vehicle Category</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vehicleCategoriesList}>
-            {VEHICLE_CATEGORIES.map((cat) => {
-              const isSelected = cat.id === selectedCategory.id;
-              const catDuration = calculateUrbanTripDuration(cat.id, distanceKm);
-              const catFare = calculateFare(cat, distanceKm, catDuration);
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.categoryCard, isSelected && styles.categoryCardSelected]}
-                  onPress={() => handleSelectCategory(cat)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                  <Text style={[styles.categoryName, isSelected && styles.categoryNameSelected]}>{cat.name}</Text>
-                  <Text style={styles.categoryEta}>⏱ {catDuration} mins trip</Text>
-                  <Text style={styles.categoryCapacity}>👥 {cat.capacity} seats</Text>
-                  <Text style={[styles.categoryPrice, isSelected && styles.categoryPriceSelected]}>
-                    {formatCurrency(catFare)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Selected Category Description */}
-        <View style={styles.descriptionBanner}>
-          <Text style={styles.descriptionText}>{selectedCategory.description}</Text>
-          <Text style={styles.minFareNotice}>Min. Fare Protection: PKR {selectedCategory.minimumFare}</Text>
-        </View>
-
-        {/* Fare Control Panel (±5 PKR steps & manual typing) */}
-        <View style={styles.bidPanel}>
-          <Text style={styles.bidHeading}>Offer Your Price</Text>
-          <Text style={styles.estFareLabel}>Est. Fare: {formatCurrency(estimatedFare)}</Text>
-
-          <View style={styles.bidSelector}>
-            <TouchableOpacity
-              style={styles.adjustBtn}
-              onPress={() => handleAdjustStep(-5)}
-              disabled={isLoading || bidAmount <= selectedCategory.minimumFare}
-            >
-              <Text style={styles.adjustText}>-5</Text>
-            </TouchableOpacity>
-
-            <View style={styles.bidAmountBox}>
-              <Text style={styles.bidCurrency}>PKR</Text>
-              <TextInput
-                style={styles.bidInput}
-                value={bidInput}
-                onChangeText={handleInputChange}
-                keyboardType="numeric"
-                selectTextOnFocus
-              />
-            </View>
-
-            <TouchableOpacity
-              style={styles.adjustBtn}
-              onPress={() => handleAdjustStep(5)}
-              disabled={isLoading}
-            >
-              <Text style={styles.adjustText}>+5</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Scheduled Booking Options (Phase 10) */}
-        <View style={styles.sectionContainer}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <Text style={styles.sectionTitle}>Departure Time</Text>
-            <TouchableOpacity 
-              onPress={() => setIsScheduled(!isScheduled)}
-              style={{ backgroundColor: isScheduled ? Colors.light.primary : Colors.light.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: isScheduled ? Colors.light.primary : Colors.light.border }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: '700', color: isScheduled ? Colors.light.textOnPrimary : Colors.light.text }}>
-                {isScheduled ? '🕒 Scheduled' : '⚡ Ride Now'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {isScheduled && (
-            <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.light.border, gap: 10 }}>
-              <Text style={{ fontSize: 13, color: Colors.light.textSecondary }}>Select advance booking window:</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {[
-                  { label: '+1 Hour', hours: 1 },
-                  { label: '+2 Hours', hours: 2 },
-                  { label: '+4 Hours', hours: 4 },
-                  { label: 'Tomorrow', hours: 24 },
-                ].map((preset) => {
-                  const isPresetActive = scheduledHoursAdvance === preset.hours;
-                  return (
-                    <TouchableOpacity
-                      key={preset.label}
-                      onPress={() => setScheduledHoursAdvance(preset.hours)}
-                      style={{
-                        backgroundColor: isPresetActive ? Colors.light.primary : Colors.light.background,
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: isPresetActive ? Colors.light.primary : Colors.light.border,
-                      }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: isPresetActive ? Colors.light.textOnPrimary : Colors.light.text }}>
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.light.primary, marginTop: 4 }}>
-                🕒 Scheduled for: {new Date(scheduledTimestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Payment Method Display (Cash Only) */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Payment Method</Text>
-          <View style={{
-            backgroundColor: '#ECFDF5',
-            borderColor: '#10B981',
-            borderWidth: 1.5,
-            borderRadius: 14,
-            padding: 14,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            marginHorizontal: 20,
-          }}>
-            <Text style={{ fontSize: 22 }}>💵</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#065F46' }}>Cash on Completion</Text>
-              <Text style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>Direct cash payment to driver upon arrival at destination</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Action confirmation button */}
-        <View style={styles.actionContainer}>
+        {/* Peek Mode Compact Preview Bar */}
+        {snapState === 'peek' && (
           <TouchableOpacity
-            style={[
-              styles.requestButton,
-              bidAmount < selectedCategory.minimumFare && styles.requestButtonDisabled,
-            ]}
-            onPress={handleOpenSummary}
-            disabled={isLoading || bidAmount < selectedCategory.minimumFare}
-            activeOpacity={0.8}
+            style={styles.peekBar}
+            onPress={() => animateToSnap(SNAP_HALF, 'half')}
+            activeOpacity={0.9}
           >
-            {isLoading ? (
-              <ActivityIndicator color={Colors.light.textOnPrimary} />
-            ) : (
-              <Text style={styles.requestButtonText}>
-                {isScheduled ? 'Schedule' : 'Request'} {selectedCategory.name} ({formatCurrency(bidAmount)})
-              </Text>
-            )}
+            <View style={styles.peekVehicleInfo}>
+              <Text style={styles.peekIcon}>{selectedCategory.icon}</Text>
+              <View>
+                <Text style={styles.peekTitle}>{selectedCategory.name}</Text>
+                <Text style={styles.peekSub}>
+                  {distanceKm.toFixed(1)} km • {Math.round(durationMin)} mins
+                </Text>
+              </View>
+            </View>
+            <View style={styles.peekActionRow}>
+              <Text style={styles.peekFare}>{formatCurrency(bidAmount)}</Text>
+              <TouchableOpacity
+                style={styles.peekConfirmPill}
+                onPress={handleOpenSummary}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.peekConfirmPillText}>Book</Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
+        )}
+
+        {/* Full / Half Sheet Content ScrollView */}
+        <ScrollView
+          style={styles.sheetScroll}
+          contentContainerStyle={styles.sheetScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Two-Way Interactive Location Re-Selection Header */}
+          <View style={styles.locationCard}>
+            <TouchableOpacity
+              style={styles.locationRow}
+              onPress={() =>
+                navigation.navigate('Search', {
+                  pickupPoint: pickup,
+                  destPoint: destination,
+                  targetField: 'pickup',
+                })
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.locationDotGreen} />
+              <View style={styles.locationTextContainer}>
+                <Text style={styles.locationLabel}>PICKUP LOCATION</Text>
+                <Text style={styles.locationAddress} numberOfLines={1}>
+                  {pickup.label}
+                </Text>
+              </View>
+              <View style={styles.editBadge}>
+                <Text style={styles.editText}>✏️ Edit</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.locationDivider} />
+
+            <TouchableOpacity
+              style={styles.locationRow}
+              onPress={() =>
+                navigation.navigate('Search', {
+                  pickupPoint: pickup,
+                  destPoint: destination,
+                  targetField: 'dest',
+                })
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.locationDotRed} />
+              <View style={styles.locationTextContainer}>
+                <Text style={styles.locationLabel}>DESTINATION</Text>
+                <Text style={styles.locationAddress} numberOfLines={1}>
+                  {destination.label}
+                </Text>
+              </View>
+              <View style={styles.editBadge}>
+                <Text style={styles.editText}>✏️ Edit</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Route Distance & Live Duration Specs */}
+          <View style={styles.specsRow}>
+            <View style={styles.specBox}>
+              <Text style={styles.specVal}>{distanceKm.toFixed(1)} km</Text>
+              <Text style={styles.specLabel}>Distance</Text>
+            </View>
+            <View style={styles.specDivider} />
+            <View style={styles.specBox}>
+              <Text style={styles.specVal}>{Math.round(durationMin)} mins</Text>
+              <Text style={styles.specLabel}>Live Traffic ETA</Text>
+            </View>
+          </View>
+
+          {/* Vehicle Categories Selection Carousel */}
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Select Vehicle Category</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.vehicleCategoriesList}
+            >
+              {VEHICLE_CATEGORIES.map((cat) => {
+                const isSelected = cat.id === selectedCategory.id;
+                const catDuration = calculateUrbanTripDuration(cat.id, distanceKm);
+                const catFare = calculateFare(cat, distanceKm, catDuration);
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[styles.categoryCard, isSelected && styles.categoryCardSelected]}
+                    onPress={() => handleSelectCategory(cat)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                    <Text style={[styles.categoryName, isSelected && styles.categoryNameSelected]}>
+                      {cat.name}
+                    </Text>
+                    <Text style={styles.categoryEta}>⏱ {catDuration} mins trip</Text>
+                    <Text style={styles.categoryCapacity}>👥 {cat.capacity} seats</Text>
+                    <Text style={[styles.categoryPrice, isSelected && styles.categoryPriceSelected]}>
+                      {formatCurrency(catFare)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {/* Selected Category Description Banner */}
+          <View style={styles.descriptionBanner}>
+            <Text style={styles.descriptionText}>{selectedCategory.description}</Text>
+            <Text style={styles.minFareNotice}>Min. Fare Protection: PKR {selectedCategory.minimumFare}</Text>
+          </View>
+
+          {/* Fare Bidding Stepper Control Panel (±5 PKR) */}
+          <View style={styles.bidPanel}>
+            <Text style={styles.bidHeading}>Offer Your Price</Text>
+            <Text style={styles.estFareLabel}>Est. Base: {formatCurrency(estimatedFare)}</Text>
+
+            <View style={styles.bidSelector}>
+              <TouchableOpacity
+                style={styles.adjustBtn}
+                onPress={() => handleAdjustStep(-5)}
+                disabled={isLoading || bidAmount <= selectedCategory.minimumFare}
+              >
+                <Text style={styles.adjustText}>-5</Text>
+              </TouchableOpacity>
+
+              <View style={styles.bidAmountBox}>
+                <Text style={styles.bidCurrency}>PKR</Text>
+                <TextInput
+                  style={styles.bidInput}
+                  value={bidInput}
+                  onChangeText={handleInputChange}
+                  keyboardType="numeric"
+                  selectTextOnFocus
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.adjustBtn}
+                onPress={() => handleAdjustStep(5)}
+                disabled={isLoading}
+              >
+                <Text style={styles.adjustText}>+5</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Departure Time Options (Ride Now vs Scheduled) */}
+          <View style={styles.sectionContainer}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={styles.sectionTitle}>Departure Time</Text>
+              <TouchableOpacity
+                onPress={() => setIsScheduled(!isScheduled)}
+                style={{
+                  backgroundColor: isScheduled ? Colors.light.primary : Colors.light.surface,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: isScheduled ? Colors.light.primary : Colors.light.border,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: isScheduled ? Colors.light.textOnPrimary : Colors.light.text }}>
+                  {isScheduled ? '🕒 Scheduled' : '⚡ Ride Now'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {isScheduled && (
+              <View style={styles.scheduledWindowCard}>
+                <Text style={{ fontSize: 13, color: Colors.light.textSecondary }}>Select advance booking window:</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {[
+                    { label: '+1 Hour', hours: 1 },
+                    { label: '+2 Hours', hours: 2 },
+                    { label: '+4 Hours', hours: 4 },
+                    { label: 'Tomorrow', hours: 24 },
+                  ].map((preset) => {
+                    const isPresetActive = scheduledHoursAdvance === preset.hours;
+                    return (
+                      <TouchableOpacity
+                        key={preset.label}
+                        onPress={() => setScheduledHoursAdvance(preset.hours)}
+                        style={{
+                          backgroundColor: isPresetActive ? Colors.light.primary : Colors.light.background,
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: isPresetActive ? Colors.light.primary : Colors.light.border,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: isPresetActive ? Colors.light.textOnPrimary : Colors.light.text }}>
+                          {preset.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.light.primary, marginTop: 4 }}>
+                  🕒 Scheduled for: {new Date(scheduledTimestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Payment Method Badge (Direct Cash) */}
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Payment Method</Text>
+            <View style={styles.cashPaymentCard}>
+              <Text style={{ fontSize: 22 }}>💵</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#065F46' }}>Cash on Completion</Text>
+                <Text style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>Direct cash payment to driver upon arrival</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Main Action Request Button */}
+          <View style={styles.actionContainer}>
+            <TouchableOpacity
+              style={[
+                styles.requestButton,
+                bidAmount < selectedCategory.minimumFare && styles.requestButtonDisabled,
+              ]}
+              onPress={handleOpenSummary}
+              disabled={isLoading || bidAmount < selectedCategory.minimumFare}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={Colors.light.textOnPrimary} />
+              ) : (
+                <Text style={styles.requestButtonText}>
+                  {isScheduled ? 'Schedule' : 'Request'} {selectedCategory.name} ({formatCurrency(bidAmount)})
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </Animated.View>
 
       {/* Ride Booking Summary Modal */}
       <RideBookingSummaryModal
@@ -453,62 +673,228 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.background,
   },
-  mapPreview: {
-    height: '35%',
-    width: '100%',
+  mapContainer: {
+    ...StyleSheet.absoluteFillObject,
   },
-  detailsCard: {
-    flex: 1,
-    backgroundColor: Colors.light.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    marginTop: -20,
-    paddingTop: 20,
+  floatingBackButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 40,
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 10,
   },
-  scrollContent: {
-    paddingBottom: 40,
+  floatingBackText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
-  routeHeader: {
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 16,
+  floatingRecenterContainer: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
   },
-  locationContainer: {
+  recenterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  dot: {
-    fontSize: 14,
+  recenterIcon: {
+    fontSize: 16,
   },
-  locationText: {
-    fontSize: 15,
-    fontWeight: '600',
+  recenterText: {
+    fontSize: 13,
+    fontWeight: '700',
     color: Colors.light.text,
+  },
+  bottomSheetContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 10,
+    overflow: 'hidden',
+  },
+  dragHandleArea: {
+    width: '100%',
+    height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  dragIndicator: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#D1D5DB',
+  },
+  peekBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  peekVehicleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  peekIcon: {
+    fontSize: 28,
+  },
+  peekTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.light.text,
+  },
+  peekSub: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  peekActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  peekFare: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.light.primary,
+  },
+  peekConfirmPill: {
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  peekConfirmPillText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  sheetScroll: {
     flex: 1,
+  },
+  sheetScrollContent: {
+    paddingBottom: 40,
+  },
+  locationCard: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 14,
+    backgroundColor: Colors.light.background,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: 12,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 12,
+  },
+  locationDotGreen: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10B981',
+  },
+  locationDotRed: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#EF4444',
+  },
+  locationTextContainer: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.light.textSecondary,
+    letterSpacing: 0.5,
+  },
+  locationAddress: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginTop: 2,
+  },
+  editBadge: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  editText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  locationDivider: {
+    height: 1,
+    backgroundColor: Colors.light.border,
+    marginVertical: 4,
+    marginLeft: 24,
   },
   specsRow: {
     flexDirection: 'row',
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: Colors.light.background,
     borderRadius: 14,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   specBox: {
     flex: 1,
     alignItems: 'center',
   },
   specVal: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: Colors.light.text,
-    marginBottom: 2,
   },
   specLabel: {
     fontSize: 12,
     color: Colors.light.textSecondary,
+    marginTop: 2,
   },
   specDivider: {
     width: 1,
@@ -516,124 +902,105 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.border,
   },
   sectionContainer: {
+    marginHorizontal: 16,
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
     color: Colors.light.text,
-    paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 10,
+    letterSpacing: 0.2,
   },
   vehicleCategoriesList: {
-    paddingHorizontal: 20,
     gap: 12,
+    paddingRight: 10,
   },
   categoryCard: {
-    width: 124,
-    padding: 14,
-    borderRadius: 20,
+    width: 110,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    backgroundColor: Colors.light.background,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: Colors.light.border,
-    backgroundColor: Colors.light.surface,
     alignItems: 'center',
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    gap: 4,
   },
   categoryCardSelected: {
+    backgroundColor: '#FFF0F5',
     borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primaryGhost,
-    shadowColor: Colors.light.primary,
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
   },
   categoryIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+    fontSize: 26,
+    marginBottom: 2,
   },
   categoryName: {
     fontSize: 13,
     fontWeight: '700',
     color: Colors.light.text,
-    textAlign: 'center',
-    marginBottom: 4,
   },
   categoryNameSelected: {
     color: Colors.light.primary,
+    fontWeight: '800',
   },
   categoryEta: {
     fontSize: 11,
     color: Colors.light.textSecondary,
-    marginBottom: 2,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   categoryCapacity: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
-    marginBottom: 8,
-    fontWeight: '500',
+    fontSize: 10,
+    color: Colors.light.textTertiary,
   },
   categoryPrice: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '800',
     color: Colors.light.text,
+    marginTop: 4,
   },
   categoryPriceSelected: {
     color: Colors.light.primary,
   },
   descriptionBanner: {
-    marginHorizontal: 20,
-    padding: 14,
-    backgroundColor: Colors.light.primaryGhost,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: Colors.light.glassBorder,
-  },
-  descriptionText: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    textAlign: 'center',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  minFareNotice: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.light.primary,
-    textAlign: 'center',
-  },
-  bidPanel: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 24,
-    backgroundColor: Colors.light.surface,
-    marginHorizontal: 20,
-    borderRadius: 20,
-    paddingVertical: 18,
+    marginHorizontal: 16,
+    padding: 12,
+    backgroundColor: Colors.light.background,
+    borderRadius: 12,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+  },
+  descriptionText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginBottom: 4,
+  },
+  minFareNotice: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  bidPanel: {
+    marginHorizontal: 16,
+    backgroundColor: Colors.light.background,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   bidHeading: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: Colors.light.text,
-    marginBottom: 2,
   },
   estFareLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.light.textSecondary,
-    marginBottom: 16,
-    fontWeight: '500',
+    marginTop: 2,
+    marginBottom: 12,
   },
   bidSelector: {
     flexDirection: 'row',
@@ -641,66 +1008,85 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   adjustBtn: {
-    width: 56,
-    height: 48,
-    borderRadius: 14,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1.5,
     borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primaryGhost,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   adjustText: {
-    color: Colors.light.primary,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
+    color: Colors.light.primary,
   },
   bidAmountBox: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    minWidth: 120,
     justifyContent: 'center',
-    minWidth: 110,
-    borderBottomWidth: 2.5,
-    borderBottomColor: Colors.light.primary,
-    paddingHorizontal: 12,
+    gap: 6,
   },
   bidCurrency: {
-    fontSize: 11,
-    color: Colors.light.primary,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
   },
   bidInput: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: '800',
     color: Colors.light.text,
-    textAlign: 'center',
-    minWidth: 80,
-    paddingVertical: 2,
+    padding: 0,
+  },
+  scheduledWindowCard: {
+    backgroundColor: Colors.light.background,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    gap: 8,
+  },
+  cashPaymentCard: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   actionContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: 16,
+    marginTop: 10,
   },
   requestButton: {
     backgroundColor: Colors.light.primary,
-    paddingVertical: 18,
-    borderRadius: 18,
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: 'center',
     shadowColor: Colors.light.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   requestButtonDisabled: {
-    backgroundColor: Colors.light.border,
+    backgroundColor: '#D1D5DB',
     shadowOpacity: 0,
     elevation: 0,
   },
   requestButtonText: {
-    color: Colors.light.textOnPrimary,
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
   },
 });
