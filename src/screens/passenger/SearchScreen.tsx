@@ -50,11 +50,14 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const { location: gpsCoords } = useLocation();
   const { state } = useApp();
 
-  const [pickupText, setPickupText] = useState('');
-  const [destText, setDestText] = useState('');
-  const [activeField, setActiveField] = useState<'pickup' | 'dest'>('dest');
+  const initialPickup = route?.params?.pickupPoint;
+  const initialField = route?.params?.targetField || 'dest';
 
-  const [pickupPoint, setPickupPoint] = useState<LocationPoint | null>(null);
+  const [pickupText, setPickupText] = useState(initialPickup?.label || '');
+  const [destText, setDestText] = useState('');
+  const [activeField, setActiveField] = useState<'pickup' | 'dest'>(initialField);
+
+  const [pickupPoint, setPickupPoint] = useState<LocationPoint | null>(initialPickup || null);
   const [destPoint, setDestPoint] = useState<LocationPoint | null>(null);
 
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
@@ -83,8 +86,23 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
         });
 
         const data = await res.json();
-        if (res.ok) {
-          setSavedPlaces(data.places || []);
+        if (res.ok && Array.isArray(data.places)) {
+          setSavedPlaces(data.places);
+          // If quick targetLabel passed (e.g. 'home' or 'work'), auto-select matching place
+          const target = route?.params?.targetLabel;
+          if (target) {
+            const matched = data.places.find((p: any) => p?.label === target);
+            if (matched) {
+              const matchedLat = parseFloat(matched.latitude) || 0;
+              const matchedLon = parseFloat(matched.longitude) || 0;
+              setDestPoint({
+                latitude: matchedLat,
+                longitude: matchedLon,
+                label: matched.name || (target === 'home' ? 'Home' : 'Work'),
+              });
+              setDestText(matched.name || (target === 'home' ? 'Home' : 'Work'));
+            }
+          }
         } else {
           setSavedPlaces([]);
         }
@@ -97,13 +115,13 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
     };
 
     fetchSavedPlaces();
-  }, [state.token]);
+  }, [state.token, route?.params?.targetLabel]);
 
-  // Auto-reverse geocode current position for Pickup
+  // Auto-reverse geocode current position for Pickup if not provided
   useEffect(() => {
     const initPickup = async () => {
-      if (gpsCoords) {
-        setPickupText('My Location');
+      if (!pickupPoint && gpsCoords) {
+        setPickupText('Current Location');
         const readableAddress = await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude);
         const labelName = readableAddress || 'Current Location';
         setPickupPoint({
@@ -111,10 +129,11 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           longitude: gpsCoords.longitude,
           label: labelName,
         });
+        setPickupText(labelName);
       }
     };
     initPickup();
-  }, [gpsCoords]);
+  }, [gpsCoords, pickupPoint]);
 
   // Execute address search query when debounced text updates using Google Places (New)
   useEffect(() => {
@@ -405,25 +424,28 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                 </View>
               ) : (
                 <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 12, marginBottom: 24, gap: 8, borderWidth: 1, borderColor: Colors.light.border }}>
-                  {savedPlaces.map((place) => {
-                    const icon = place.label === 'home' ? '🏠' : place.label === 'work' ? '💼' : '📍';
+                  {savedPlaces.map((place, idx) => {
+                    const icon = place?.label === 'home' ? '🏠' : place?.label === 'work' ? '💼' : '📍';
+                    const numLat = parseFloat(place?.latitude) || 0;
+                    const numLon = parseFloat(place?.longitude) || 0;
+                    const placeName = place?.name || (place?.label === 'home' ? 'Home' : place?.label === 'work' ? 'Work' : 'Saved Place');
                     const placePoint: LocationPoint = { 
-                      latitude: place.latitude, 
-                      longitude: place.longitude, 
-                      label: place.name 
+                      latitude: numLat, 
+                      longitude: numLon, 
+                      label: placeName 
                     };
                     return (
                       <TouchableOpacity
-                        key={place.id}
+                        key={place?.id || `saved_${idx}`}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8 }}
                         onPress={() => {
                           if (activeField === 'pickup') { 
                             setPickupPoint(placePoint); 
-                            setPickupText(place.name); 
+                            setPickupText(placeName); 
                             setActiveField('dest'); 
                           } else { 
                             setDestPoint(placePoint); 
-                            setDestText(place.name); 
+                            setDestText(placeName); 
                           }
                         }}
                       >
@@ -431,9 +453,9 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                           <Text style={{ fontSize: 18 }}>{icon}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text }}>{place.name}</Text>
+                          <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text }}>{placeName}</Text>
                           <Text style={{ fontSize: 13, color: Colors.light.textSecondary }} numberOfLines={1}>
-                            {place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}
+                            {numLat.toFixed(4)}, {numLon.toFixed(4)}
                           </Text>
                         </View>
                       </TouchableOpacity>

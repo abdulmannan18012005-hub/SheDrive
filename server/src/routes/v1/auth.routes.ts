@@ -503,6 +503,34 @@ router.post('/register', async (req: Request, res: Response) => {
 
     const token = generateToken({ id: userId, email: cleanEmail, role });
 
+    let driverPayload: any = {};
+    if (role === 'driver') {
+      driverPayload = {
+        vehicleInfo: {
+          make: vehicleInfo?.make || '',
+          model: vehicleInfo?.model || '',
+          plate: vehicleInfo?.plate || '',
+          plateNumber: vehicleInfo?.plate || '',
+          color: vehicleInfo?.color || '',
+          year: vehicleInfo?.year || '2022',
+          category: vehicleInfo?.category || 'mini',
+        },
+        vehicleCategory: vehicleInfo?.category || 'mini',
+        isOnline: false,
+        isAvailable: true,
+        rating: 5.0,
+        totalRides: 0,
+        isFeeSuspended: false,
+        verificationStatus: 'pending',
+        licenseFrontUrl: finalLicenseFrontUrl || null,
+        licenseBackUrl: finalLicenseBackUrl || null,
+        selfieUrl: finalSelfieUrl || null,
+        vehiclePhotoUrl: finalVehiclePhotoUrl || null,
+        cnicFrontUrl: finalCnicFrontUrl || null,
+        cnicBackUrl: finalCnicBackUrl || null,
+      };
+    }
+
     res.status(201).json({
       user: {
         id: userId,
@@ -513,6 +541,7 @@ router.post('/register', async (req: Request, res: Response) => {
         cnic: cnic.trim(),
         dateOfBirth: dateOfBirth || null,
         isVerified: role === 'passenger',
+        ...driverPayload,
       },
       token,
     });
@@ -562,14 +591,14 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
       
       if (hoursSinceRejection < 24) {
         const hoursRemaining = Math.ceil(24 - hoursSinceRejection);
-        return res.status(403).json({
+        return res.status(403).json({ 
           error: `Your driver application was rejected. You can re-register after ${hoursRemaining} hours.`,
           rejectionReason: user.rejection_reason,
           canReRegisterAt: user.rejection_timestamp + (24 * 60 * 60 * 1000),
           isRejected: true,
         });
       } else {
-        return res.status(403).json({
+        return res.status(403).json({ 
           error: 'Your driver application was previously rejected. You can now re-register with updated documents.',
           rejectionReason: user.rejection_reason,
           canReRegisterNow: true,
@@ -587,6 +616,32 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
 
     let driverData: any = {};
     if (user.role === 'driver') {
+      // Default fallback driver data
+      driverData = {
+        vehicleInfo: {
+          make: '',
+          model: '',
+          plate: '',
+          plateNumber: '',
+          color: '',
+          year: '2022',
+          category: 'mini',
+        },
+        vehicleCategory: 'mini',
+        isOnline: false,
+        isAvailable: true,
+        rating: 5.0,
+        totalRides: 0,
+        isFeeSuspended: false,
+        verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+        licenseFrontUrl: null,
+        licenseBackUrl: null,
+        selfieUrl: user.photo_url || null,
+        vehiclePhotoUrl: null,
+        cnicFrontUrl: user.cnic_front_url || null,
+        cnicBackUrl: user.cnic_back_url || null,
+      };
+
       try {
         const driverRes = await query('SELECT * FROM drivers WHERE driver_id = $1', [user.id]);
         if (driverRes.rows.length > 0) {
@@ -596,6 +651,7 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
               make: d.vehicle_make || '',
               model: d.vehicle_model || '',
               plate: d.vehicle_plate || '',
+              plateNumber: d.vehicle_plate || '',
               color: d.vehicle_color || '',
               year: d.vehicle_year || '2022',
               category: d.vehicle_category || 'mini',
@@ -603,12 +659,14 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
             vehicleCategory: d.vehicle_category || 'mini',
             isOnline: Boolean(d.is_online),
             isAvailable: Boolean(d.is_available),
-            rating: parseFloat(d.rating || '5.0'),
+            rating: typeof d.rating === 'number' ? d.rating : parseFloat(d.rating || '5.0'),
             totalRides: parseInt(d.total_rides || '0', 10),
             isFeeSuspended: Boolean(d.is_fee_suspended),
             verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
             licenseFrontUrl: d.license_front_url || null,
             licenseBackUrl: d.license_back_url || null,
+            selfieUrl: d.selfie_url || user.photo_url || null,
+            vehiclePhotoUrl: d.vehicle_photo_url || null,
             cnicFrontUrl: user.cnic_front_url || null,
             cnicBackUrl: user.cnic_back_url || null,
           };

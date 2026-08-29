@@ -238,7 +238,14 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
       <View style={styles.searchCard}>
         <TouchableOpacity
           style={styles.searchButton}
-          onPress={() => navigation.navigate('Search')}
+          onPress={() => navigation.navigate('Search', {
+            pickupPoint: currentCoords ? {
+              latitude: currentCoords.latitude,
+              longitude: currentCoords.longitude,
+              label: 'Current Location',
+            } : undefined,
+            targetField: 'dest',
+          })}
           activeOpacity={0.9}
         >
           <View style={styles.searchIconBadge}>
@@ -257,7 +264,14 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         <View style={styles.quickPillsRow}>
           <TouchableOpacity
             style={styles.quickPill}
-            onPress={() => navigation.navigate('Search')}
+            onPress={() => navigation.navigate('Search', {
+              pickupPoint: currentCoords ? {
+                latitude: currentCoords.latitude,
+                longitude: currentCoords.longitude,
+                label: 'Current Location',
+              } : undefined,
+              targetLabel: 'home',
+            })}
             activeOpacity={0.8}
           >
             <Text style={styles.quickPillIcon}>🏠</Text>
@@ -266,7 +280,14 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
 
           <TouchableOpacity
             style={styles.quickPill}
-            onPress={() => navigation.navigate('Search')}
+            onPress={() => navigation.navigate('Search', {
+              pickupPoint: currentCoords ? {
+                latitude: currentCoords.latitude,
+                longitude: currentCoords.longitude,
+                label: 'Current Location',
+              } : undefined,
+              targetLabel: 'work',
+            })}
             activeOpacity={0.8}
           >
             <Text style={styles.quickPillIcon}>💼</Text>

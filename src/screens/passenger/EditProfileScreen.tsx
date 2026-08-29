@@ -150,12 +150,24 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
         await AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser));
       }
 
-      Alert.alert('Profile Updated', 'Your profile name and picture have been updated successfully.', [
+      const isNameChanged = fullName !== user?.name;
+      const isAvatarChanged = Boolean(imageUri);
+
+      let successMessage = 'Profile updated successfully';
+      if (isNameChanged && isAvatarChanged) {
+        successMessage = 'Profile updated successfully';
+      } else if (isNameChanged) {
+        successMessage = 'Name updated successfully';
+      } else if (isAvatarChanged) {
+        successMessage = 'Profile photo updated';
+      }
+
+      Alert.alert('Success', successMessage, [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
       console.error('Update profile failed:', error);
-      Alert.alert('Update Failed', error.message || 'Unable to save profile details. Please try again.');
+      Alert.alert('Update Failed', error.message || 'Unable to save changes.');
     } finally {
       setIsLoading(false);
     }

@@ -265,7 +265,7 @@ export type AuthStackParamList = {
 
 export type PassengerStackParamList = {
   PassengerHome: undefined;
-  Search: undefined;
+  Search?: { pickupPoint?: LocationPoint; targetField?: 'pickup' | 'dest'; targetLabel?: string } | undefined;
   FareBid: { pickup: LocationPoint; destination: LocationPoint; route: OSRMRoute; stops?: RideStop[]; isScheduled?: boolean; scheduledFor?: number };
   RideTracking: { rideId: string };
   RideHistory: undefined;

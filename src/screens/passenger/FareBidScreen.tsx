@@ -17,7 +17,7 @@ import { db } from '../../config/firebaseConfig';
 import { PassengerStackParamList, RideRequest, VehicleCategory } from '../../types';
 import Colors from '../../constants/Colors';
 import { VEHICLE_CATEGORIES, DEFAULT_VEHICLE_CATEGORY } from '../../constants/VehicleCategories';
-import { calculateFare, adjustFareStep, validateFareOffer } from '../../utils/fareCalculator';
+import { calculateFare, adjustFareStep, validateFareOffer, calculateUrbanTripDuration } from '../../utils/fareCalculator';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { formatCurrency } from '../../utils/helpers';
@@ -39,10 +39,11 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
 
   // Route metrics
   const distanceKm = routeData.distance / 1000;
-  const durationMin = routeData.duration / 60;
+  const initialDurationMin = calculateUrbanTripDuration(DEFAULT_VEHICLE_CATEGORY.id, distanceKm);
 
   // Vehicle Category Selection State
   const [selectedCategory, setSelectedCategory] = useState<VehicleCategory>(DEFAULT_VEHICLE_CATEGORY);
+  const [durationMin, setDurationMin] = useState<number>(initialDurationMin);
 
   // Compute estimated fare for current selection
   const estimatedFare = calculateFare(selectedCategory, distanceKm, durationMin);
@@ -65,7 +66,9 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
   // Switch Vehicle Category
   const handleSelectCategory = (category: VehicleCategory) => {
     setSelectedCategory(category);
-    const newEstFare = calculateFare(category, distanceKm, durationMin);
+    const newDuration = calculateUrbanTripDuration(category.id, distanceKm);
+    setDurationMin(newDuration);
+    const newEstFare = calculateFare(category, distanceKm, newDuration);
     setBidAmount(newEstFare);
     setBidInput(newEstFare.toString());
   };
@@ -264,7 +267,8 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vehicleCategoriesList}>
             {VEHICLE_CATEGORIES.map((cat) => {
               const isSelected = cat.id === selectedCategory.id;
-              const catFare = calculateFare(cat, distanceKm, durationMin);
+              const catDuration = calculateUrbanTripDuration(cat.id, distanceKm);
+              const catFare = calculateFare(cat, distanceKm, catDuration);
               return (
                 <TouchableOpacity
                   key={cat.id}
@@ -274,7 +278,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
                 >
                   <Text style={styles.categoryIcon}>{cat.icon}</Text>
                   <Text style={[styles.categoryName, isSelected && styles.categoryNameSelected]}>{cat.name}</Text>
-                  <Text style={styles.categoryEta}>⏱ {cat.estimatedEtaMins} min</Text>
+                  <Text style={styles.categoryEta}>⏱ {catDuration} mins trip</Text>
                   <Text style={styles.categoryCapacity}>👥 {cat.capacity} seats</Text>
                   <Text style={[styles.categoryPrice, isSelected && styles.categoryPriceSelected]}>
                     {formatCurrency(catFare)}

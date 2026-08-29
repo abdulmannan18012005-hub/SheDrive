@@ -350,7 +350,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
             {ride.status === 'scheduled' && `🕒 Scheduled Ride: Departure at ${ride.scheduledFor ? new Date(ride.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'set time'}`}
             {ride.status === 'pending' && '🔍 Searching for nearby verified drivers...'}
             {ride.status === 'negotiating' && '💬 Negotiating fare...'}
-            {ride.status === 'accepted' && '🚗 Driver is navigating to pickup point...'}
+            {ride.status === 'accepted' && '🚗 Driver arriving in ~3-5 mins (navigating to pickup)...'}
             {ride.status === 'arrived' && '📍 Driver has arrived! Share PIN to board.'}
             {ride.status === 'boarded' && '🔑 Ride Verification PIN Confirmed!'}
             {ride.status === 'started' && '🏎️ Ride Started! Driving to destination...'}

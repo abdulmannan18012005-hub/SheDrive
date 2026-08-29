@@ -502,7 +502,8 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
         return;
       }
 
-      const newUserProfile = {
+      const isDriver = regData.user.role === 'driver';
+      const newUserProfile: any = {
         uid: regData.user.id,
         phone: regData.user.phone,
         email: regData.user.email,
@@ -510,16 +511,42 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
         role: regData.user.role,
         cnic: regData.user.cnic || cnicNumber.trim(),
         gender: 'female' as const,
-        dateOfBirth: regData.user.dateOfBirth || (role === 'driver' ? dateOfBirth : undefined),
-        isVerified: regData.user.isVerified ?? (role === 'passenger'),
+        dateOfBirth: regData.user.dateOfBirth || (isDriver ? dateOfBirth : undefined),
+        isVerified: Boolean(regData.user.isVerified ?? (role === 'passenger')),
+        verificationStatus: regData.user.verificationStatus || (isDriver ? 'pending' : 'approved'),
         photoURL: regData.user.photo_url || regData.user.photoURL || undefined,
         createdAt: Date.now(),
       };
+
+      if (isDriver) {
+        newUserProfile.vehicleInfo = regData.user.vehicleInfo || {
+          make: vehicleMake || '',
+          model: vehicleModel || '',
+          plate: vehiclePlate || '',
+          plateNumber: vehiclePlate || '',
+          color: vehicleColor || '',
+          year: vehicleYear || '2022',
+          category: vehicleType || 'mini',
+        };
+        newUserProfile.vehicleCategory = regData.user.vehicleCategory || vehicleType || 'mini';
+        newUserProfile.isOnline = false;
+        newUserProfile.isAvailable = true;
+        newUserProfile.rating = 5.0;
+        newUserProfile.totalRides = 0;
+        newUserProfile.isFeeSuspended = false;
+        newUserProfile.licenseFrontUrl = regData.user.licenseFrontUrl || licenseFrontUri || null;
+        newUserProfile.licenseBackUrl = regData.user.licenseBackUrl || licenseBackUri || null;
+        newUserProfile.selfieUrl = regData.user.selfieUrl || selfieUri || null;
+        newUserProfile.vehiclePhotoUrl = regData.user.vehiclePhotoUrl || vehiclePhotoUri || null;
+        newUserProfile.cnicFrontUrl = regData.user.cnicFrontUrl || cnicFrontUri || null;
+        newUserProfile.cnicBackUrl = regData.user.cnicBackUrl || cnicBackUri || null;
+      }
 
       if (regData.token) {
         dispatch({ type: 'SET_TOKEN', payload: regData.token });
         AsyncStorage.setItem('@shedrive_auth_token', regData.token).catch(() => {});
         AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(newUserProfile)).catch(() => {});
+        AsyncStorage.setItem('@shedrive_last_active_role', regData.user.role).catch(() => {});
         AsyncStorage.setItem('@shedrive_remember_me', formattedEmail).catch(() => {});
         AsyncStorage.setItem('@shedrive_remember_me_flag', 'true').catch(() => {});
       }

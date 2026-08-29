@@ -47,27 +47,47 @@ export function getFareBreakdown(
 }
 
 /**
+ * Calculates realistic urban trip duration in minutes based on category speed and traffic signals.
+ * - Bike: Avg speed = 25 km/h + 2 min signal buffer (10 km -> ~26 mins)
+ * - Auto / Rickshaw: Avg speed = 20 km/h + 3 min signal buffer (10 km -> ~33 mins)
+ * - Car / Mini / Sedan: Avg speed = 20 km/h + 5 min traffic buffer (10 km -> ~35 mins)
+ */
+export function calculateUrbanTripDuration(
+  categoryType: string,
+  distanceKm: number
+): number {
+  const cat = (categoryType || 'mini').toLowerCase();
+  let speedKmh = 20;
+  let signalBuffer = 5;
+
+  if (cat.includes('bike')) {
+    speedKmh = 25;
+    signalBuffer = 2;
+  } else if (cat.includes('rickshaw') || cat.includes('auto')) {
+    speedKmh = 20;
+    signalBuffer = 3;
+  } else {
+    // Mini, Sedan, Car
+    speedKmh = 20;
+    signalBuffer = 5;
+  }
+
+  const travelMinutes = (distanceKm / speedKmh) * 60;
+  return Math.max(3, Math.round(travelMinutes + signalBuffer));
+}
+
+/**
  * Calculates realistic city speed ETAs by applying OSRM duration and dynamic traffic multipliers.
  */
 export function calculateRealisticEta(
   osrmDurationMin: number,
   distanceKm: number
 ): { etaMins: number; trafficStatus: 'Light' | 'Moderate' | 'Heavy' } {
-  // Urban traffic factor for Lahore city traffic (~25-35 km/h)
-  let trafficMultiplier = 1.25;
+  // Urban traffic factor for Lahore city traffic (~20-25 km/h average)
+  const realisticMins = calculateUrbanTripDuration('mini', distanceKm);
   let status: 'Light' | 'Moderate' | 'Heavy' = 'Moderate';
-
-  const avgSpeedKmH = distanceKm / (osrmDurationMin / 60);
-
-  if (avgSpeedKmH < 20) {
-    trafficMultiplier = 1.45;
-    status = 'Heavy';
-  } else if (avgSpeedKmH > 40) {
-    trafficMultiplier = 1.1;
-    status = 'Light';
-  }
-
-  const realisticMins = Math.max(3, Math.round(osrmDurationMin * trafficMultiplier));
+  if (distanceKm > 10) status = 'Heavy';
+  else if (distanceKm < 3) status = 'Light';
 
   return {
     etaMins: realisticMins,
