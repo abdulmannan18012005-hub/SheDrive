@@ -21,7 +21,7 @@ import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction } from
 import { searchAddress, reverseGeocode } from '../../services/nominatim';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useLocation } from '../../hooks/useLocation';
-import { getRoute, getMultiStopRoute } from '../../services/osrm';
+import { getLiveTrafficRoute, getLiveTrafficMultiStopRoute } from '../../services/googleRoutes';
 import { SkeletonLoader } from '../../components/SkeletonLoader';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
@@ -237,12 +237,12 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
       if (pPoint) {
         try {
           setIsCalculatingRoute(true);
-          const osrmRoute = await getRoute(pPoint.latitude, pPoint.longitude, lat, lon);
-          if (osrmRoute) {
+          const liveRoute = await getLiveTrafficRoute(pPoint.latitude, pPoint.longitude, lat, lon);
+          if (liveRoute) {
             navigation.navigate('FareBid', {
               pickup: pPoint,
               destination: selectedPoint,
-              route: osrmRoute,
+              route: liveRoute,
             });
           } else {
             Alert.alert('Routing Failed', 'Could not calculate road route between these points. Please check locations.');
@@ -265,7 +265,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
     try {
       setIsCalculatingRoute(true);
 
-      let osrmRoute;
+      let liveRoute;
 
       if (intermediateStops.length > 0) {
         // Build ordered waypoints: pickup -> stops -> destination
@@ -274,10 +274,10 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           ...intermediateStops,
           destPoint,
         ];
-        osrmRoute = await getMultiStopRoute(waypoints);
+        liveRoute = await getLiveTrafficMultiStopRoute(waypoints);
       } else {
         // Standard point-to-point routing
-        osrmRoute = await getRoute(
+        liveRoute = await getLiveTrafficRoute(
           pickupPoint.latitude,
           pickupPoint.longitude,
           destPoint.latitude,
@@ -285,7 +285,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
         );
       }
 
-      if (!osrmRoute) {
+      if (!liveRoute) {
         throw new Error('Could not calculate a viable driving route.');
       }
 
@@ -301,7 +301,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
       navigation.navigate('FareBid', {
         pickup: pickupPoint,
         destination: destPoint,
-        route: osrmRoute,
+        route: liveRoute,
         stops: rideStops.length > 0 ? rideStops : undefined,
       });
     } catch (error) {

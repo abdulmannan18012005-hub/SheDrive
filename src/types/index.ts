@@ -241,6 +241,9 @@ export interface OSRMRoute {
     type: string;
     coordinates: Array<[number, number]>;
   };
+  encodedPolyline?: string;
+  source?: 'google_routes_api' | 'osrm' | 'osrm_fallback';
+  trafficStatus?: string;
 }
 
 // ─── App State ─────────────────────────────────────────────

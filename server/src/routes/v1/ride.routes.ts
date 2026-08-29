@@ -3,6 +3,7 @@ import { query } from '../../config/db';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { sendPushNotification, notifyNearbyDrivers } from '../../services/notificationService';
 import { createRateLimiter, rideRequestRateLimiter } from '../../middleware/rateLimiter';
+import { computeRoute } from '../../services/routing.service';
 
 const router = Router();
 
@@ -12,6 +13,36 @@ const trackRateLimiter = createRateLimiter(
   60 * 60 * 1000, // per hour
   (req) => req.ip || 'unknown'
 );
+
+/**
+ * POST /api/v1/rides/compute-route
+ * Body: { origin: { latitude, longitude }, destination: { latitude, longitude }, intermediates?, vehicleCategory? }
+ * Description: Computes live traffic-aware route via Google Routes API v2 with automatic OSRM fallback.
+ */
+router.post('/compute-route', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { origin, destination, intermediates = [], vehicleCategory = 'mini' } = req.body;
+
+    if (!origin?.latitude || !origin?.longitude || !destination?.latitude || !destination?.longitude) {
+      return res.status(400).json({ error: 'Origin and destination coordinates are required' });
+    }
+
+    const routeResult = await computeRoute({
+      origin,
+      destination,
+      intermediates,
+      vehicleCategory,
+    });
+
+    res.status(200).json({
+      success: true,
+      route: routeResult,
+    });
+  } catch (error: any) {
+    console.error('[Compute Route Error]:', error);
+    res.status(500).json({ error: error?.message || 'Failed to compute route' });
+  }
+});
 
 /**
  * POST /api/v1/rides/calculate-fare
