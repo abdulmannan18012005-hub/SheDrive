@@ -88,13 +88,13 @@ export default function SOSPanicButton({
   const getPositionStyles = () => {
     switch (position) {
       case 'bottom-right':
-        return { bottom: 20, right: 20 };
+        return { bottom: 30, right: 16 };
       case 'bottom-left':
-        return { bottom: 20, left: 20 };
+        return { bottom: 30, left: 16 };
       case 'top-right':
-        return { top: 20, right: 20 };
+        return { top: 85, right: 16 };
       case 'top-left':
-        return { top: 20, left: 20 };
+        return { top: 85, left: 16 };
     }
   };
 

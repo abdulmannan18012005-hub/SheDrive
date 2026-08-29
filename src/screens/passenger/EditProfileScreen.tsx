@@ -83,32 +83,6 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
       return;
     }
 
-    if (!email.trim()) {
-      Alert.alert('Validation Error', 'Email cannot be empty.');
-      return;
-    }
-
-    if (!isValidPhone(phone)) {
-      Alert.alert('Validation Error', 'Please enter a valid Pakistani phone number (e.g. 03001234567).');
-      return;
-    }
-
-    // CNIC Validation (if provided or changing)
-    const cleanCnic = cnic.trim();
-    if (cleanCnic) {
-      const cnicRegex = /^\d{5}-\d{7}-\d{1}$|^\d{13}$/;
-      if (!cnicRegex.test(cleanCnic)) {
-        Alert.alert('Invalid CNIC', 'Please enter a valid 13-digit Pakistani CNIC number (e.g., 12345-1234567-2).');
-        return;
-      }
-      const cnicDigits = cleanCnic.replace(/\D/g, '');
-      const lastDigit = parseInt(cnicDigits.slice(-1), 10);
-      if (lastDigit % 2 !== 0) {
-        Alert.alert('CNIC Gender Mismatch', 'This CNIC indicates male gender. SheDrive is strictly dedicated to female users.');
-        return;
-      }
-    }
-
     try {
       setIsLoading(true);
       const token = state.token || (await AsyncStorage.getItem('@shedrive_auth_token')) || (await AsyncStorage.getItem('shedrive_token'));
@@ -141,10 +115,6 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
 
       const requestBody: any = {
         name: fullName,
-        email: email.trim(),
-        phone: phone.trim(),
-        cnic: cleanCnic,
-        gender,
       };
 
       if (uploadedPhotoUrl) {
@@ -166,25 +136,21 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
         throw new Error(data.error || 'Failed to update profile');
       }
 
-      // Update local AppContext and AsyncStorage
+      // Update local AppContext and AsyncStorage immediately
       if (user) {
         const updatedUser = {
           ...user,
           name: fullName,
-          email: email.trim(),
-          phone: phone.trim(),
-          cnic: cleanCnic,
-          gender,
           photoURL: uploadedPhotoUrl || user.photoURL,
         };
         dispatch({
           type: 'SET_USER',
           payload: updatedUser,
         });
-        AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser)).catch(() => {});
+        await AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser));
       }
 
-      Alert.alert('Profile Updated', 'Your profile details have been saved successfully.', [
+      Alert.alert('Profile Updated', 'Your profile name and picture have been updated successfully.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
@@ -226,7 +192,7 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
 
         {/* Input Form */}
         <View style={styles.card}>
-          <Text style={styles.cardHeaderTitle}>Personal Information</Text>
+          <Text style={styles.cardHeaderTitle}>Editable Profile Information</Text>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>First Name</Text>
@@ -259,59 +225,52 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
               />
             </View>
           </View>
+        </View>
+
+        {/* Verified Immutable Identity Section */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={styles.cardHeaderTitle}>Verified Identity</Text>
+            <View style={styles.lockedBadge}>
+              <Text style={styles.lockedBadgeText}>🔒 Immutable</Text>
+            </View>
+          </View>
+          <Text style={styles.lockedNotice}>
+            For passenger security and safety verification, email address, mobile number, and CNIC cannot be changed after registration.
+          </Text>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email Address</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, styles.readOnlyInputWrapper]}>
               <Text style={styles.inputIcon}>📧</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Enter your email"
-                placeholderTextColor={Colors.light.textTertiary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!isLoading}
-              />
+              <Text style={styles.readOnlyText} numberOfLines={1} ellipsizeMode="tail">
+                {user?.email || email || 'Not provided'}
+              </Text>
+              <Text style={styles.lockIconMini}>🔒</Text>
             </View>
           </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Phone Number</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, styles.readOnlyInputWrapper]}>
               <Text style={styles.inputIcon}>📱</Text>
-              <TextInput
-                style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="e.g. 03001234567"
-                placeholderTextColor={Colors.light.textTertiary}
-                keyboardType="phone-pad"
-                editable={!isLoading}
-              />
+              <Text style={styles.readOnlyText} numberOfLines={1}>
+                {user?.phone || phone || 'Not provided'}
+              </Text>
+              <Text style={styles.lockIconMini}>🔒</Text>
             </View>
           </View>
 
           {/* CNIC Number Bar */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>National Identity Card (CNIC)</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, styles.readOnlyInputWrapper]}>
               <Text style={styles.inputIcon}>🪪</Text>
-              <TextInput
-                style={styles.input}
-                value={cnic}
-                onChangeText={setCnic}
-                placeholder="e.g. 35201-1234567-2"
-                placeholderTextColor={Colors.light.textTertiary}
-                keyboardType="numeric"
-                maxLength={15}
-                editable={!isLoading}
-              />
+              <Text style={styles.readOnlyText} numberOfLines={1}>
+                {user?.cnic || cnic || 'Verified On File'}
+              </Text>
+              <Text style={styles.lockIconMini}>🔒</Text>
             </View>
-            <Text style={styles.helperText}>
-              Verified Pakistani CNIC with female indicator (last digit even)
-            </Text>
           </View>
 
           {/* Gender Display */}
@@ -320,6 +279,7 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
             <View style={[styles.inputWrapper, styles.readOnlyInputWrapper]}>
               <Text style={styles.inputIcon}>👩</Text>
               <Text style={styles.readOnlyText}>Female (Verified Exclusive)</Text>
+              <Text style={styles.lockIconMini}>🔒</Text>
             </View>
           </View>
         </View>
@@ -598,5 +558,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: Colors.light.textSecondary,
+  },
+  lockedBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  lockedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+  },
+  lockedNotice: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginBottom: 16,
+    lineHeight: 16,
+    backgroundColor: '#F9FAFB',
+    padding: 10,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.light.primary,
+  },
+  lockIconMini: {
+    fontSize: 14,
+    marginLeft: 8,
+    opacity: 0.6,
   },
 });

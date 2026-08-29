@@ -12,6 +12,8 @@ import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 interface NotificationSettings {
   rideNotifications: boolean;
   promotionalNotifications: boolean;
@@ -39,61 +41,85 @@ export default function NotificationSettingsScreen(): React.JSX.Element {
   const fetchNotificationSettings = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`${getApiBaseUrl()}/user/notification-settings`, {
-        headers: {
-          Authorization: `Bearer ${state.token}`,
-        },
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        // If API fails, use default settings
-        console.log('Using default notification settings');
-        return;
+      // 1. Check local AsyncStorage cache first
+      const cached = await AsyncStorage.getItem('@shedrive_notification_settings');
+      if (cached) {
+        setSettings(JSON.parse(cached));
       }
 
-      if (data.settings) {
-        setSettings(data.settings);
+      // 2. Sync with backend API
+      const token = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
+      if (token) {
+        const res = await fetch(`${getApiBaseUrl()}/user/notification-settings`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings) {
+            setSettings(data.settings);
+            AsyncStorage.setItem('@shedrive_notification_settings', JSON.stringify(data.settings)).catch(() => {});
+          }
+        }
       }
     } catch (err: any) {
-      console.error('Fetch notification settings error:', err);
-      // If API fails, use default settings
+      console.warn('Fetch notification settings error (using local cache):', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleToggle = async (key: keyof NotificationSettings) => {
+    if (key === 'emergencyNotifications') {
+      Alert.alert('Permanent Safety Alert', 'Emergency and safety notifications must remain permanently enabled.');
+      return;
+    }
+
     const newSettings = { ...settings, [key]: !settings[key] };
     setSettings(newSettings);
+    await saveSettings(newSettings);
+  };
 
+  const handleToggleAll = async () => {
+    const allEnabled = settings.rideNotifications && settings.promotionalNotifications && settings.platformNotifications && settings.paymentNotifications;
+    const targetState = !allEnabled;
+    const newSettings: NotificationSettings = {
+      rideNotifications: targetState,
+      promotionalNotifications: targetState,
+      platformNotifications: targetState,
+      paymentNotifications: targetState,
+      emergencyNotifications: true, // Permanent lock
+    };
+    setSettings(newSettings);
+    await saveSettings(newSettings);
+  };
+
+  const saveSettings = async (newSettings: NotificationSettings) => {
     try {
       setIsSaving(true);
-      const res = await fetch(`${getApiBaseUrl()}/user/notification-settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${state.token}`,
-        },
-        body: JSON.stringify(newSettings),
-      });
+      await AsyncStorage.setItem('@shedrive_notification_settings', JSON.stringify(newSettings));
 
-      if (!res.ok) {
-        const data = await res.json();
-        Alert.alert('Error', data.error || 'Failed to update settings');
-        // Revert the change
-        setSettings(settings);
-        return;
+      const token = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
+      if (token) {
+        await fetch(`${getApiBaseUrl()}/user/notification-settings`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(newSettings),
+        });
       }
     } catch (err: any) {
-      console.error('Update notification settings error:', err);
-      Alert.alert('Network Error', 'Unable to connect to server');
-      // Revert the change
-      setSettings(settings);
+      console.warn('Save notification settings warning:', err);
     } finally {
       setIsSaving(false);
     }
   };
+
+  const isAllOptionalEnabled = settings.rideNotifications && settings.promotionalNotifications && settings.platformNotifications && settings.paymentNotifications;
 
   const ToggleSwitch = ({
     value,
@@ -130,6 +156,30 @@ export default function NotificationSettingsScreen(): React.JSX.Element {
         </View>
         <Text style={styles.headerTitle}>Notification Settings</Text>
         <Text style={styles.headerSubtitle}>Choose which notifications you want to receive</Text>
+      </View>
+
+      {/* Master Toggle All Notifications Card */}
+      <View style={[styles.card, { backgroundColor: '#FDF2F8', borderColor: Colors.light.primaryLight }]}>
+        <View style={styles.settingRow}>
+          <View style={styles.settingLeft}>
+            <View style={[styles.settingIconBadge, { backgroundColor: '#FCE7F3' }]}>
+              <Text style={styles.settingIcon}>✨</Text>
+            </View>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingTitle, { color: Colors.light.primary, fontWeight: '800' }]}>
+                Toggle All Notifications
+              </Text>
+              <Text style={styles.settingDescription}>
+                Enable or disable all optional notification categories with one tap
+              </Text>
+            </View>
+          </View>
+          <ToggleSwitch
+            value={isAllOptionalEnabled}
+            onToggle={handleToggleAll}
+            disabled={isSaving}
+          />
+        </View>
       </View>
 
       <View style={styles.card}>

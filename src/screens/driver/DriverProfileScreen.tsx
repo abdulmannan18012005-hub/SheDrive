@@ -21,6 +21,7 @@ import { useApp } from '../../contexts/AppContext';
 import { signOutUser } from '../../firebase/auth';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { DriverVerificationStatusModal } from '../../components/DriverVerificationStatusModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type DriverProfileNavigationProp = StackNavigationProp<DriverStackParamList, 'DriverProfile'>;
 
@@ -41,9 +42,67 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
       if (!user) return;
       try {
         setIsLoading(true);
-        const driverSnap = await getDoc(doc(db, 'drivers', user.uid));
-        if (driverSnap.exists()) {
-          setDriverProfile(driverSnap.data() as DriverProfile);
+        const token = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
+        
+        // 1. Fetch live profile and documents from PostgreSQL backend
+        if (token) {
+          try {
+            const res = await fetch(`${getApiBaseUrl()}/driver/profile`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.driver) {
+                const d = data.driver;
+                const formattedProfile: DriverProfile = {
+                  uid: d.id,
+                  name: d.name,
+                  email: d.email,
+                  phone: d.phone,
+                  role: 'driver',
+                  createdAt: Date.now(),
+                  photoURL: d.photo_url || d.selfie_url,
+                  cnicFrontUrl: d.cnic_front_url,
+                  cnicBackUrl: d.cnic_back_url,
+                  licenseFrontUrl: d.license_front_url,
+                  licenseBackUrl: d.license_back_url,
+                  selfieUrl: d.selfie_url,
+                  vehiclePhotoUrl: d.vehicle_photo_url,
+                  acOption: d.ac_option,
+                  isOnline: d.is_online,
+                  isAvailable: d.is_available,
+                  isActive: d.is_active,
+                  rating: Number(d.rating) || 5.0,
+                  totalRides: Number(d.total_rides) || 0,
+                  vehicleInfo: {
+                    make: d.vehicle_make || '',
+                    model: d.vehicle_model || '',
+                    plate: d.vehicle_plate || '',
+                    color: d.vehicle_color || '',
+                    year: d.vehicle_year || '',
+                    category: d.vehicle_category || 'car',
+                    photoUrl: d.vehicle_photo_url,
+                  },
+                };
+                setDriverProfile(formattedProfile);
+              }
+            }
+          } catch (apiErr) {
+            console.warn('Backend driver profile fetch error:', apiErr);
+          }
+        }
+
+        // 2. Fallback / supplementary check from Firestore
+        try {
+          const driverSnap = await getDoc(doc(db, 'drivers', user.uid));
+          if (driverSnap.exists()) {
+            setDriverProfile(prev => ({
+              ...driverSnap.data() as DriverProfile,
+              ...(prev || {}),
+            }));
+          }
+        } catch (fsErr) {
+          console.warn('Firestore driver fetch error:', fsErr);
         }
       } catch (error) {
         console.error('Error fetching driver profile:', error);
@@ -78,29 +137,60 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         const base64Data = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        const finalUrl = `data:image/jpeg;base64,${base64Data}`;
+        const formattedBase64 = `data:image/jpeg;base64,${base64Data}`;
+        const token = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
+        const API_BASE_URL = getApiBaseUrl();
 
-        // 1. Update Firestore
-        const driverDocRef = doc(db, 'drivers', user.uid);
-        await updateDoc(driverDocRef, { [fieldKey]: finalUrl });
+        // 1. Upload document image to Cloudinary storage
+        let finalCdnUrl = formattedBase64;
+        try {
+          const uploadRes = await fetch(`${API_BASE_URL}/upload/document`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              base64Data: formattedBase64,
+              folder: 'shedrive/documents',
+            }),
+          });
+          const uploadData = await uploadRes.json();
+          if (uploadRes.ok && uploadData.url) {
+            finalCdnUrl = uploadData.url;
+          }
+        } catch (uploadErr) {
+          console.warn('Cloudinary upload warning (using fallback base64):', uploadErr);
+        }
 
         // 2. Update PostgreSQL backend
         try {
-          await fetch(`${getApiBaseUrl()}/driver/documents`, {
+          await fetch(`${API_BASE_URL}/driver/documents`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${state.token}`,
+              Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ [fieldKey]: finalUrl }),
+            body: JSON.stringify({ [fieldKey]: finalCdnUrl }),
           });
         } catch (apiErr) {
           console.warn('Backend document update warning:', apiErr);
         }
 
-        // 3. Update local state
-        setDriverProfile((prev) => (prev ? { ...prev, [fieldKey]: finalUrl } : prev));
-        Alert.alert('Document Updated', `Your ${docLabel} has been updated successfully.`);
+        // 3. Update Firestore if accessible
+        try {
+          const driverDocRef = doc(db, 'drivers', user.uid);
+          await updateDoc(driverDocRef, { [fieldKey]: finalCdnUrl });
+        } catch (fsErr) {
+          console.warn('Firestore document update warning:', fsErr);
+        }
+
+        // 4. Update local state
+        setDriverProfile((prev) => (prev ? { ...prev, [fieldKey]: finalCdnUrl, isActive: false } : prev));
+        Alert.alert(
+          'Document Submitted',
+          `Your ${docLabel} has been updated and submitted for review by the admin team.`
+        );
       }
     } catch (err) {
       Alert.alert('Update Error', `Could not update ${docLabel}. Please try again.`);
@@ -127,17 +217,41 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         const base64Data = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        const finalUrl = `data:image/jpeg;base64,${base64Data}`;
+        const formattedBase64 = `data:image/jpeg;base64,${base64Data}`;
+        const token = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
+        const API_BASE_URL = getApiBaseUrl();
 
-        // 1. Update PostgreSQL backend
+        // 1. Upload avatar image to Cloudinary storage
+        let finalCdnUrl = formattedBase64;
         try {
-          await fetch(`${getApiBaseUrl()}/driver/documents`, {
+          const uploadRes = await fetch(`${API_BASE_URL}/upload/document`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              base64Data: formattedBase64,
+              folder: 'shedrive/avatars',
+            }),
+          });
+          const uploadData = await uploadRes.json();
+          if (uploadRes.ok && uploadData.url) {
+            finalCdnUrl = uploadData.url;
+          }
+        } catch (uploadErr) {
+          console.warn('Avatar upload warning (using fallback base64):', uploadErr);
+        }
+
+        // 2. Update PostgreSQL backend
+        try {
+          await fetch(`${API_BASE_URL}/driver/documents`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${state.token}`,
+              Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ photoURL: finalUrl }),
+            body: JSON.stringify({ photoURL: finalCdnUrl, selfieUrl: finalCdnUrl }),
           });
         } catch (apiErr) {
           console.error('Backend profile picture update error:', apiErr);
@@ -145,15 +259,18 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
           return;
         }
 
-        // 2. Update local AppContext
+        // 3. Update local AppContext
+        const updatedUser = {
+          ...user,
+          photoURL: finalCdnUrl,
+        };
         dispatch({
           type: 'SET_USER',
-          payload: {
-            ...user,
-            photoURL: finalUrl,
-          },
+          payload: updatedUser,
         });
+        AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser)).catch(() => {});
 
+        setDriverProfile((prev) => (prev ? { ...prev, photoURL: finalCdnUrl, selfieUrl: finalCdnUrl } : prev));
         Alert.alert('Profile Picture Updated', 'Your profile picture has been updated successfully.');
       }
     } catch (err) {

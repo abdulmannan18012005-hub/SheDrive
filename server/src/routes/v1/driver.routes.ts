@@ -155,7 +155,9 @@ router.put('/documents', authenticateToken, async (req: AuthRequest, res: Respon
 
     const { cnicFrontUrl, cnicBackUrl, licenseFrontUrl, licenseBackUrl, selfieUrl, vehiclePhotoUrl, acOption, photoURL } = req.body;
 
-    if (cnicFrontUrl || cnicBackUrl || photoURL) {
+    const isDocUpdate = Boolean(cnicFrontUrl || cnicBackUrl || licenseFrontUrl || licenseBackUrl || vehiclePhotoUrl);
+
+    if (cnicFrontUrl || cnicBackUrl || photoURL || isDocUpdate) {
       const uParams: any[] = [];
       const uUpdates: string[] = [];
       if (cnicFrontUrl) {
@@ -170,6 +172,13 @@ router.put('/documents', authenticateToken, async (req: AuthRequest, res: Respon
         uParams.push(photoURL);
         uUpdates.push(`photo_url = $${uParams.length}`);
       }
+      if (isDocUpdate) {
+        uUpdates.push(`verification_status = 'pending'`);
+        uUpdates.push(`is_verified = false`);
+      }
+      uParams.push(Date.now());
+      uUpdates.push(`updated_at = $${uParams.length}`);
+
       uParams.push(userId);
       await query(`UPDATE users SET ${uUpdates.join(', ')} WHERE id = $${uParams.length}`, uParams);
     }
@@ -201,7 +210,7 @@ router.put('/documents', authenticateToken, async (req: AuthRequest, res: Respon
       await query(`UPDATE drivers SET ${dUpdates.join(', ')} WHERE driver_id = $${dParams.length}`, dParams);
     }
 
-    res.status(200).json({ success: true, message: 'Driver documents updated successfully' });
+    res.status(200).json({ success: true, message: 'Driver documents updated successfully and submitted for review' });
   } catch (error) {
     console.error('Update driver documents error:', error);
     res.status(500).json({ error: 'Failed to update driver documents' });

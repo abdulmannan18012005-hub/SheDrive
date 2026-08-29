@@ -305,8 +305,8 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
           onSOSTriggered={() => {
             console.log('SOS triggered');
           }}
-          size="medium"
-          position="bottom-right"
+          size="small"
+          position="top-right"
         />
       )}
     </SafeAreaView>

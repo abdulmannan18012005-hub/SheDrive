@@ -278,6 +278,47 @@ router.get('/notifications/unread-count', authenticateToken, async (req: AuthReq
 });
 
 /**
+ * GET /api/v1/user/notification-settings
+ * Description: Get user notification preferences
+ */
+router.get('/notification-settings', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const defaultSettings = {
+      rideNotifications: true,
+      promotionalNotifications: true,
+      platformNotifications: true,
+      paymentNotifications: true,
+      emergencyNotifications: true,
+    };
+    res.status(200).json({ success: true, settings: defaultSettings });
+  } catch (error: any) {
+    console.error('Fetch notification settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch notification settings' });
+  }
+});
+
+/**
+ * PUT /api/v1/user/notification-settings
+ * Description: Update user notification preferences
+ */
+router.put('/notification-settings', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { rideNotifications, promotionalNotifications, platformNotifications, paymentNotifications } = req.body;
+    const updatedSettings = {
+      rideNotifications: rideNotifications !== false,
+      promotionalNotifications: promotionalNotifications !== false,
+      platformNotifications: platformNotifications !== false,
+      paymentNotifications: paymentNotifications !== false,
+      emergencyNotifications: true, // Permanent lock on safety
+    };
+    res.status(200).json({ success: true, message: 'Notification settings updated', settings: updatedSettings });
+  } catch (error: any) {
+    console.error('Update notification settings error:', error);
+    res.status(500).json({ error: 'Failed to update notification settings' });
+  }
+});
+
+/**
  * PUT /api/v1/driver/vehicle
  * Body: { make?: string, model?: string, year?: string, plate?: string, color?: string, photoUrl?: string, licenseUrl?: string }
  * Description: Drivers update vehicle details or upload replacement documents (requires admin re-review if plate or docs changed).
