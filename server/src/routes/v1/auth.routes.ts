@@ -585,6 +585,39 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
 
     const token = generateToken({ id: user.id, email: user.email, role: user.role });
 
+    let driverData: any = {};
+    if (user.role === 'driver') {
+      try {
+        const driverRes = await query('SELECT * FROM drivers WHERE driver_id = $1', [user.id]);
+        if (driverRes.rows.length > 0) {
+          const d = driverRes.rows[0];
+          driverData = {
+            vehicleInfo: {
+              make: d.vehicle_make || '',
+              model: d.vehicle_model || '',
+              plate: d.vehicle_plate || '',
+              color: d.vehicle_color || '',
+              year: d.vehicle_year || '2022',
+              category: d.vehicle_category || 'mini',
+            },
+            vehicleCategory: d.vehicle_category || 'mini',
+            isOnline: Boolean(d.is_online),
+            isAvailable: Boolean(d.is_available),
+            rating: parseFloat(d.rating || '5.0'),
+            totalRides: parseInt(d.total_rides || '0', 10),
+            isFeeSuspended: Boolean(d.is_fee_suspended),
+            verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+            licenseFrontUrl: d.license_front_url || null,
+            licenseBackUrl: d.license_back_url || null,
+            cnicFrontUrl: user.cnic_front_url || null,
+            cnicBackUrl: user.cnic_back_url || null,
+          };
+        }
+      } catch (err: any) {
+        console.warn('[Login Driver Enrichment Warning]:', err?.message);
+      }
+    }
+
     res.status(200).json({
       user: {
         id: user.id,
@@ -594,6 +627,7 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
         role: user.role,
         cnic: user.cnic,
         isVerified: user.is_verified,
+        ...driverData,
       },
       token,
     });

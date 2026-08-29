@@ -38,17 +38,27 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Label, location name, latitude, and longitude are required' });
     }
 
+    const lat = typeof latitude === 'number' ? latitude : parseFloat(latitude);
+    const lon = typeof longitude === 'number' ? longitude : parseFloat(longitude);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: 'Valid numerical latitude and longitude are required' });
+    }
+
     const id = `sp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const now = Date.now();
 
     await query(
       `INSERT INTO saved_places (id, user_id, label, name, latitude, longitude, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, userId, label.trim(), name.trim(), latitude, longitude, now]
+      [id, userId, label.trim(), name.trim(), lat, lon, now]
     );
 
+    const createdPlace = { id, userId, label: label.trim(), name: name.trim(), latitude: lat, longitude: lon, createdAt: now };
     res.status(201).json({
-      savedPlace: { id, userId, label, name, latitude, longitude, createdAt: now },
+      success: true,
+      savedPlace: createdPlace,
+      place: createdPlace,
     });
   } catch (error) {
     console.error('Add saved place error:', error);

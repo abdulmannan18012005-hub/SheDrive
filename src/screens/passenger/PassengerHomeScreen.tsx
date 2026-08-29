@@ -123,7 +123,7 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
 
     // Add online driver markers within 5 KM radius
     onlineDrivers.forEach((driver) => {
-      if (driver.latitude && driver.longitude && currentCoords && driver.isOnline && driver.isAvailable !== false) {
+      if (driver?.latitude && driver?.longitude && currentCoords && driver?.isOnline && driver?.isAvailable !== false) {
         const distanceKm = haversineDistance(
           currentCoords.latitude,
           currentCoords.longitude,
@@ -132,12 +132,15 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         );
 
         if (distanceKm <= 5) {
+          const make = driver.vehicleInfo?.make || '';
+          const model = driver.vehicleInfo?.model || '';
+          const vehicleDesc = make || model ? ` (${[make, model].filter(Boolean).join(' ')})` : '';
           markersList.push({
-            id: driver.uid,
+            id: driver.uid || `driver_${Math.random()}`,
             lat: driver.latitude,
             lng: driver.longitude,
             emoji: '🚗',
-            title: `${driver.name} (${driver.vehicleInfo.make} ${driver.vehicleInfo.model}) - ${distanceKm.toFixed(1)} km`,
+            title: `${driver.name || 'Driver'}${vehicleDesc} - ${distanceKm.toFixed(1)} km`,
           });
         }
       }
@@ -229,14 +232,6 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         >
           <Text style={styles.currentLocationIcon}>📍</Text>
         </TouchableOpacity>
-
-        {/* Live Drivers Badge */}
-        <View style={styles.onlineBadgeChip}>
-          <View style={styles.onlineDot} />
-          <Text style={styles.onlineBadgeText}>
-            {onlineDrivers.length} female {onlineDrivers.length === 1 ? 'driver' : 'drivers'} online
-          </Text>
-        </View>
       </View>
 
       {/* Floating Luxury Search Card */}
@@ -310,7 +305,7 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
           onSOSTriggered={() => {
             console.log('SOS triggered');
           }}
-          size="large"
+          size="medium"
           position="bottom-right"
         />
       )}

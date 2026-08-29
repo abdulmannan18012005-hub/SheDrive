@@ -75,21 +75,26 @@ export default function SavedPlacesScreen(): React.JSX.Element {
   };
 
   const handleAddPlace = async () => {
-    if (!name.trim() || !latitude.trim() || !longitude.trim()) {
+    let lat = parseFloat(latitude);
+    let lon = parseFloat(longitude);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      // Auto-resolve coordinates from location name if user typed directly
+      try {
+        const osmResults = await searchAddress(name.trim());
+        if (osmResults && osmResults.length > 0 && osmResults[0].lat && osmResults[0].lon) {
+          lat = parseFloat(osmResults[0].lat);
+          lon = parseFloat(osmResults[0].lon);
+          setLatitude(lat.toString());
+          setLongitude(lon.toString());
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lon) || lon < -180 || lon > 180) {
       Alert.alert('Location Required', 'Please search and select a location from the search results dropdown.');
-      return;
-    }
-
-    const lat = parseFloat(latitude);
-    const lon = parseFloat(longitude);
-
-    if (isNaN(lat) || lat < -90 || lat > 90) {
-      Alert.alert('Invalid Latitude', 'Please enter a valid latitude (-90 to 90).');
-      return;
-    }
-
-    if (isNaN(lon) || lon < -180 || lon > 180) {
-      Alert.alert('Invalid Longitude', 'Please enter a valid longitude (-180 to 180).');
       return;
     }
 
@@ -111,11 +116,17 @@ export default function SavedPlacesScreen(): React.JSX.Element {
         ? `${getApiBaseUrl()}/user/saved-places/${editingPlace.id}`
         : `${getApiBaseUrl()}/user/saved-places`;
 
+      let token = state.token;
+      if (!token) {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        token = (await AsyncStorage.getItem('@shedrive_auth_token')) || undefined;
+      }
+
       const res = await fetch(url, {
         method: editingPlace ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${state.token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           label,

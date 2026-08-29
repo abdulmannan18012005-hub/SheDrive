@@ -88,13 +88,15 @@ export default function AppNavigator(): React.JSX.Element {
       try {
         const savedToken = await AsyncStorage.getItem('@shedrive_auth_token');
         const savedUserJson = await AsyncStorage.getItem('@shedrive_user_profile');
+        const savedLastRole = await AsyncStorage.getItem('@shedrive_last_active_role');
 
         if (savedToken && savedUserJson) {
           const userProfile = JSON.parse(savedUserJson);
+          const activeRole = (savedLastRole as any) || userProfile.role || 'passenger';
           if (isMounted) {
             dispatch({ type: 'SET_TOKEN', payload: savedToken });
             dispatch({ type: 'SET_USER', payload: userProfile });
-            dispatch({ type: 'SET_ROLE', payload: userProfile.role });
+            dispatch({ type: 'SET_ROLE', payload: activeRole });
             dispatch({ type: 'SET_AUTHENTICATED', payload: true });
             dispatch({ type: 'SET_LOADING', payload: false });
           }
@@ -109,18 +111,53 @@ export default function AppNavigator(): React.JSX.Element {
             if (res.ok) {
               const data = await res.json();
               if (data.user && isMounted) {
-                const refreshedUser = {
+                const isDriver = (data.user.role || activeRole) === 'driver';
+                const dInfo = data.user.driverInfo || {};
+
+                const refreshedUser: any = {
+                  ...userProfile,
                   uid: data.user.id,
-                  phone: data.user.phone,
-                  email: data.user.email,
-                  name: data.user.name,
-                  role: data.user.role,
-                  cnic: data.user.cnic || '',
+                  phone: data.user.phone || userProfile.phone || '',
+                  email: data.user.email || userProfile.email || '',
+                  name: data.user.name || userProfile.name || '',
+                  role: data.user.role || activeRole,
+                  cnic: data.user.cnic || userProfile.cnic || '',
                   gender: 'female',
-                  isVerified: data.user.is_verified ?? true,
-                  photoURL: data.user.photo_url || undefined,
-                  createdAt: Date.now(),
+                  isVerified: Boolean(data.user.is_verified ?? userProfile.isVerified ?? (!isDriver)),
+                  verificationStatus: data.user.verification_status || userProfile.verificationStatus || (data.user.is_verified ? 'approved' : 'pending'),
+                  photoURL: data.user.photo_url || userProfile.photoURL || undefined,
+                  createdAt: userProfile.createdAt || Date.now(),
                 };
+
+                if (isDriver) {
+                  refreshedUser.vehicleInfo = dInfo.vehicle_make ? {
+                    make: dInfo.vehicle_make || '',
+                    model: dInfo.vehicle_model || '',
+                    plate: dInfo.vehicle_plate || '',
+                    color: dInfo.vehicle_color || '',
+                    year: dInfo.vehicle_year || '2022',
+                    category: dInfo.vehicle_category || 'mini',
+                  } : (userProfile.vehicleInfo || {
+                    make: '',
+                    model: '',
+                    plate: '',
+                    color: '',
+                    year: '2022',
+                    category: 'mini',
+                  });
+                  refreshedUser.vehicleCategory = dInfo.vehicle_category || refreshedUser.vehicleInfo.category || 'mini';
+                  refreshedUser.isOnline = Boolean(dInfo.is_online ?? userProfile.isOnline ?? false);
+                  refreshedUser.isAvailable = Boolean(dInfo.is_available ?? userProfile.isAvailable ?? true);
+                  refreshedUser.rating = typeof dInfo.rating === 'number' ? dInfo.rating : (userProfile.rating || 5.0);
+                  refreshedUser.totalRides = typeof dInfo.total_rides === 'number' ? dInfo.total_rides : (userProfile.totalRides || 0);
+                  refreshedUser.earningsToday = typeof userProfile.earningsToday === 'number' ? userProfile.earningsToday : 0;
+                  refreshedUser.isFeeSuspended = Boolean(dInfo.is_fee_suspended ?? userProfile.isFeeSuspended ?? false);
+                  refreshedUser.licenseFrontUrl = dInfo.license_front_url || userProfile.licenseFrontUrl || null;
+                  refreshedUser.licenseBackUrl = dInfo.license_back_url || userProfile.licenseBackUrl || null;
+                  refreshedUser.cnicFrontUrl = data.user.cnic_front_url || userProfile.cnicFrontUrl || null;
+                  refreshedUser.cnicBackUrl = data.user.cnic_back_url || userProfile.cnicBackUrl || null;
+                }
+
                 dispatch({ type: 'SET_USER', payload: refreshedUser });
                 AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(refreshedUser)).catch(() => {});
               }
@@ -128,6 +165,7 @@ export default function AppNavigator(): React.JSX.Element {
               // Token genuinely rejected by backend -> logout
               await AsyncStorage.removeItem('@shedrive_auth_token');
               await AsyncStorage.removeItem('@shedrive_user_profile');
+              await AsyncStorage.removeItem('@shedrive_last_active_role');
               if (isMounted) {
                 dispatch({ type: 'LOGOUT' });
               }

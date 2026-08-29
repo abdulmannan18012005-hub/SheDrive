@@ -93,11 +93,12 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         snapshot.forEach((docSnap) => {
           offersList.push(docSnap.data() as RideRequest);
         });
-        // Filter rides to match driver's registered vehicle category
+        // Filter rides to match driver's registered vehicle category safely
         const driverProfile = user as DriverProfile | null;
+        const driverCategory = driverProfile?.vehicleInfo?.category || (driverProfile as any)?.vehicleCategory;
         const matchingRides = offersList.filter((ride) => {
-          if (driverProfile?.vehicleInfo?.category && ride.vehicleCategory) {
-            return ride.vehicleCategory === driverProfile.vehicleInfo.category;
+          if (driverCategory && ride?.vehicleCategory) {
+            return ride.vehicleCategory === driverCategory;
           }
           return true;
         });
@@ -107,9 +108,11 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         const now = Date.now();
         const newTimers: Record<string, number> = {};
         matchingRides.forEach((ride) => {
-          const rideAge = now - (ride.createdAt || now);
-          const remainingTime = Math.max(0, 10 - Math.floor(rideAge / 1000));
-          newTimers[ride.rideId] = remainingTime;
+          if (ride?.rideId) {
+            const rideAge = now - (ride.createdAt || now);
+            const remainingTime = Math.max(0, 10 - Math.floor(rideAge / 1000));
+            newTimers[ride.rideId] = remainingTime;
+          }
         });
         setRideTimers(newTimers);
       },
@@ -421,16 +424,18 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       });
     }
 
-    // Show pickup markers for available rides on the map
+    // Show pickup markers for available rides on the map safely
     availableRides.forEach((ride) => {
-      markers.push({
-        id: ride.rideId,
-        lat: ride.pickup.latitude,
-        lng: ride.pickup.longitude,
-        emoji: '📍',
-        title: `Ride Offer: ${formatCurrency(ride.currentFare)}`,
-        isCustomer: true,
-      });
+      if (ride?.rideId && ride?.pickup?.latitude && ride?.pickup?.longitude) {
+        markers.push({
+          id: ride.rideId,
+          lat: ride.pickup.latitude,
+          lng: ride.pickup.longitude,
+          emoji: '📍',
+          title: `Ride Offer: ${formatCurrency(ride.currentFare || 0)}`,
+          isCustomer: true,
+        });
+      }
     });
 
     return markers;

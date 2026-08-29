@@ -12,6 +12,7 @@ import {
   Alert,
   SafeAreaView,
   Linking,
+  ScrollView,
 } from 'react-native';
 import Colors from '../constants/Colors';
 import { UserProfile } from '../types';
@@ -123,167 +124,173 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
           ]}
         >
           <SafeAreaView style={styles.safeArea}>
-            {/* Header User Profile Section */}
-            <View style={styles.headerSection}>
-              <TouchableOpacity
-                style={styles.avatarContainer}
-                onPress={() => handleNavigate(role === 'driver' ? 'DriverProfile' : 'Profile')}
-                activeOpacity={0.8}
-              >
-                {user?.photoURL ? (
-                  <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Text style={styles.avatarText}>
-                      {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              {/* Header User Profile Section */}
+              <View style={styles.headerSection}>
+                <TouchableOpacity
+                  style={styles.avatarContainer}
+                  onPress={() => handleNavigate(role === 'driver' ? 'DriverProfile' : 'Profile')}
+                  activeOpacity={0.8}
+                >
+                  {user?.photoURL ? (
+                    <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+                  ) : (
+                    <View style={styles.avatarPlaceholder}>
+                      <Text style={styles.avatarText}>
+                        {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
 
-              <Text style={styles.userName} numberOfLines={1}>
-                {user?.name || 'Valued User'}
-              </Text>
-              <Text style={styles.userEmail} numberOfLines={1}>
-                {user?.email || user?.phone || 'Account Verified'}
-              </Text>
-
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>
-                  {role === 'driver' ? '🚗 Driver Partner' : '👩 Passenger Account'}
+                <Text style={styles.userName} numberOfLines={1}>
+                  {user?.name || 'Valued User'}
                 </Text>
+                <Text style={styles.userEmail} numberOfLines={1}>
+                  {user?.email || user?.phone || 'Account Verified'}
+                </Text>
+
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>
+                    {role === 'driver' ? '🚗 Driver Partner' : '👩 Passenger Account'}
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            {/* Menu Links */}
-            <View style={styles.menuContainer}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate(role === 'driver' ? 'DriverProfile' : 'Profile')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>👤</Text>
-                <Text style={styles.menuText}>My Profile</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate(role === 'driver' ? 'DriverRideHistory' : 'RideHistory')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>📋</Text>
-                <Text style={styles.menuText}>Trip History</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate('NotificationCenter')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>🔔</Text>
-                <Text style={styles.menuText}>Notifications</Text>
-              </TouchableOpacity>
-
-              {role === 'driver' && (
+              {/* Menu Links */}
+              <View style={styles.menuContainer}>
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={() => handleNavigate('MonthlyPayment')}
+                  onPress={() => handleNavigate(role === 'driver' ? 'DriverProfile' : 'Profile')}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.menuIcon}>💳</Text>
-                  <Text style={styles.menuText}>Monthly Platform Fee</Text>
+                  <Text style={styles.menuIcon}>👤</Text>
+                  <Text style={styles.menuText}>My Profile</Text>
                 </TouchableOpacity>
-              )}
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate(role === 'driver' ? 'DriverSettings' : 'Settings')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>⚙️</Text>
-                <Text style={styles.menuText}>Settings & Legal</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate(role === 'driver' ? 'DriverRideHistory' : 'RideHistory')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>📋</Text>
+                  <Text style={styles.menuText}>Trip History</Text>
+                </TouchableOpacity>
 
-              <View style={styles.divider} />
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate('NotificationCenter')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>🔔</Text>
+                  <Text style={styles.menuText}>Notifications</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate('AboutUs')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>🚗</Text>
-                <Text style={styles.menuText}>About SheDrive</Text>
-              </TouchableOpacity>
+                {role === 'driver' && (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => handleNavigate('MonthlyPayment')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.menuIcon}>💳</Text>
+                    <Text style={styles.menuText}>Monthly Platform Fee</Text>
+                  </TouchableOpacity>
+                )}
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate('UserAgreement')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>📄</Text>
-                <Text style={styles.menuText}>User Agreement</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate(role === 'driver' ? 'DriverSettings' : 'Settings')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>⚙️</Text>
+                  <Text style={styles.menuText}>Settings & Legal</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate('TermsAndConditions')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>⚖️</Text>
-                <Text style={styles.menuText}>Terms & Conditions</Text>
-              </TouchableOpacity>
+                <View style={styles.divider} />
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleNavigate('PrivacyPolicy')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>🔒</Text>
-                <Text style={styles.menuText}>Privacy Policy</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate('AboutUs')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>🚗</Text>
+                  <Text style={styles.menuText}>About SheDrive</Text>
+                </TouchableOpacity>
 
-              {/* Official Website Link */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  onClose();
-                  Linking.openURL(CONTACT_INFO.websiteUrl).catch(() => {
-                    Alert.alert('Unable to Open Link', 'Could not open official website.');
-                  });
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>🌐</Text>
-                <Text style={[styles.menuText, { color: Colors.light.primary, fontWeight: '700' }]}>
-                  Official Website
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate('UserAgreement')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>📄</Text>
+                  <Text style={styles.menuText}>User Agreement</Text>
+                </TouchableOpacity>
 
-              {/* In-App Feedback Button */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => setFeedbackVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.menuIcon}>💬</Text>
-                <Text style={[styles.menuText, { color: '#4A2060', fontWeight: '700' }]}>
-                  Share App Feedback
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate('TermsAndConditions')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>⚖️</Text>
+                  <Text style={styles.menuText}>Terms & Conditions</Text>
+                </TouchableOpacity>
 
-              <View style={styles.divider} />
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate('PrivacyPolicy')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>🔒</Text>
+                  <Text style={styles.menuText}>Privacy Policy</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity style={styles.logoutItem} onPress={handleLogout} activeOpacity={0.7}>
-                <Text style={styles.logoutIcon}>🚪</Text>
-                <Text style={styles.logoutText}>Sign Out</Text>
-              </TouchableOpacity>
-            </View>
+                {/* Official Website Link */}
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    onClose();
+                    Linking.openURL(CONTACT_INFO.websiteUrl).catch(() => {
+                      Alert.alert('Unable to Open Link', 'Could not open official website.');
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>🌐</Text>
+                  <Text style={[styles.menuText, { color: Colors.light.primary, fontWeight: '700' }]}>
+                    Official Website
+                  </Text>
+                </TouchableOpacity>
 
-            {/* Footer */}
-            <View style={styles.footerSection}>
-              <Text style={styles.footerBrand}>SheDrive Pakistan</Text>
-              <Text style={styles.footerSub}>Women-Only Ride Hailing • v1.0.0</Text>
-            </View>
+                {/* In-App Feedback Button */}
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => setFeedbackVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>💬</Text>
+                  <Text style={[styles.menuText, { color: '#4A2060', fontWeight: '700' }]}>
+                    Share App Feedback
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity style={styles.logoutItem} onPress={handleLogout} activeOpacity={0.7}>
+                  <Text style={styles.logoutIcon}>🚪</Text>
+                  <Text style={styles.logoutText}>Sign Out</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Footer */}
+              <View style={styles.footerSection}>
+                <Text style={styles.footerBrand}>SheDrive Pakistan</Text>
+                <Text style={styles.footerSub}>Women-Only Ride Hailing • v1.0.0</Text>
+              </View>
+            </ScrollView>
           </SafeAreaView>
         </Animated.View>
 

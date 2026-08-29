@@ -111,13 +111,30 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
 
     try {
       setIsLoading(true);
-      const token = await AsyncStorage.getItem('shedrive_token') || await AsyncStorage.getItem('@shedrive_auth_token');
-      const API_BASE_URL = await getApiBaseUrl();
+      const token = state.token || (await AsyncStorage.getItem('@shedrive_auth_token')) || (await AsyncStorage.getItem('shedrive_token'));
+      const API_BASE_URL = getApiBaseUrl();
 
-      // Convert image to base64 if selected
-      let photoURL = user?.photoURL;
+      let uploadedPhotoUrl = user?.photoURL;
       if (imageUri) {
-        photoURL = await convertToBase64(imageUri);
+        const base64Data = await convertToBase64(imageUri);
+        // Upload avatar image to Cloudinary storage
+        const uploadRes = await fetch(`${API_BASE_URL}/upload/document`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            base64Data,
+            folder: 'shedrive/avatars',
+          }),
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || !uploadData.url) {
+          throw new Error(uploadData.error || 'Failed to upload profile picture to storage');
+        }
+        uploadedPhotoUrl = uploadData.url;
       }
 
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
@@ -130,9 +147,8 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
         gender,
       };
 
-      // Include photoURL if a new image was selected
-      if (imageUri) {
-        requestBody.photoURL = photoURL;
+      if (uploadedPhotoUrl) {
+        requestBody.photoURL = uploadedPhotoUrl;
       }
 
       const response = await fetch(`${API_BASE_URL}/user/profile`, {
@@ -150,23 +166,25 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
         throw new Error(data.error || 'Failed to update profile');
       }
 
-      // Update local AppContext
+      // Update local AppContext and AsyncStorage
       if (user) {
+        const updatedUser = {
+          ...user,
+          name: fullName,
+          email: email.trim(),
+          phone: phone.trim(),
+          cnic: cleanCnic,
+          gender,
+          photoURL: uploadedPhotoUrl || user.photoURL,
+        };
         dispatch({
           type: 'SET_USER',
-          payload: {
-            ...user,
-            name: fullName,
-            email: email.trim(),
-            phone: phone.trim(),
-            cnic: cleanCnic,
-            gender,
-            photoURL: photoURL || user.photoURL,
-          },
+          payload: updatedUser,
         });
+        AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser)).catch(() => {});
       }
 
-      Alert.alert('Profile Updated', 'Your profile details and CNIC have been saved successfully.', [
+      Alert.alert('Profile Updated', 'Your profile details have been saved successfully.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {

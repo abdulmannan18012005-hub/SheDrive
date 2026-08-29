@@ -27,6 +27,19 @@ const getActionColor = (action) => {
   }
 };
 
+// Formats raw user-agent or device_info into a clean concise badge
+const formatUserAgentBadge = (deviceInfo) => {
+  if (!deviceInfo) return { label: 'Web', icon: '🌐', bg: '#F1F5F9', color: '#475569' };
+  const str = String(deviceInfo).toLowerCase();
+  if (str.includes('android')) return { label: 'Android App', icon: '🤖', bg: '#DCFCE7', color: '#15803D' };
+  if (str.includes('iphone') || str.includes('ios') || str.includes('ipad')) return { label: 'iOS App', icon: '🍎', bg: '#EEF2FF', color: '#4338CA' };
+  if (str.includes('windows')) return { label: 'Windows Web', icon: '🪟', bg: '#E0F2FE', color: '#0369A1' };
+  if (str.includes('mac') || str.includes('darwin')) return { label: 'macOS Web', icon: '🍏', bg: '#F8FAFC', color: '#334155' };
+  if (str.includes('linux')) return { label: 'Linux Web', icon: '🐧', bg: '#FEF3C7', color: '#B45309' };
+  if (str.includes('mobile')) return { label: 'Mobile Web', icon: '📱', bg: '#CCFBF1', color: '#0F766E' };
+  return { label: 'Web Visitor', icon: '🌐', bg: '#F1F5F9', color: '#475569' };
+};
+
 export default function App() {
   const [token, setToken] = useState(getAuthToken());
   const [loginEmail, setLoginEmail] = useState('');
@@ -1464,21 +1477,21 @@ export default function App() {
                     .filter(p => {
                       if (!passengerSearchQuery.trim()) return true;
                       const q = passengerSearchQuery.toLowerCase();
-                      return (p.name || '').toLowerCase().includes(q) ||
-                             (p.email || '').toLowerCase().includes(q) ||
-                             (p.phone || '').toLowerCase().includes(q) ||
-                             (p.id || '').toLowerCase().includes(q);
+                      return (p?.name || '').toLowerCase().includes(q) ||
+                             (p?.email || '').toLowerCase().includes(q) ||
+                             (p?.phone || '').toLowerCase().includes(q) ||
+                             String(p?.id || '').toLowerCase().includes(q);
                     })
-                    .map((p) => (
-                    <tr key={p.id}>
-                      <td>#{p.id.substring(0, 8)}</td>
-                      <td><strong>{p.name}</strong></td>
-                      <td>{p.email}</td>
-                      <td>{p.phone}</td>
-                      <td>{p.cnic || 'N/A'}</td>
-                      <td>{p.total_rides || 0}</td>
+                    .map((p, idx) => (
+                    <tr key={p?.id || `pass_${idx}`}>
+                      <td>#{p?.id ? String(p.id).substring(0, 8) : 'N/A'}</td>
+                      <td><strong>{p?.name || 'Unnamed Passenger'}</strong></td>
+                      <td>{p?.email || 'N/A'}</td>
+                      <td>{p?.phone || 'N/A'}</td>
+                      <td>{p?.cnic || 'N/A'}</td>
+                      <td>{p?.total_rides || 0}</td>
                       <td>
-                        {p.is_blocked ? (
+                        {p?.is_blocked ? (
                           <span style={styles.statusRed}>Blocked</span>
                         ) : (
                           <span style={styles.statusGreen}>Active</span>
@@ -1499,7 +1512,7 @@ export default function App() {
                             }}
                             onClick={() =>
                               setUserWarningModal({
-                                user: { id: p.id, name: p.name, role: 'passenger', phone: p.phone },
+                                user: { id: p?.id, name: p?.name || 'Passenger', role: 'passenger', phone: p?.phone || '' },
                                 warningType: 'cancellation_rate',
                                 message: '',
                               })
@@ -2150,11 +2163,15 @@ export default function App() {
                           }
                           return true;
                         })
-                        .map((f) => (
+                        .map((f) => {
+                          const dev = formatUserAgentBadge(f.device_info);
+                          return (
                           <tr key={f.id}>
                             <td>
                               <strong style={{ color: '#181C32' }}>{f.user_name || 'Community Member'}</strong>
-                              {f.user_phone && <div style={{ fontSize: '12px', color: '#7E8299' }}>{f.user_phone}</div>}
+                              <div style={{ fontSize: '12px', color: '#7E8299' }}>
+                                {f.user_phone ? f.user_phone : (f.user_email ? f.user_email : 'Website Visitor')}
+                              </div>
                             </td>
                             <td>
                               <span
@@ -2165,10 +2182,10 @@ export default function App() {
                                   fontSize: '11px',
                                   fontWeight: '800',
                                   color: '#FFFFFF',
-                                  backgroundColor: f.user_role === 'driver' ? '#6366F1' : '#0D9488',
+                                  backgroundColor: f.user_role === 'driver' ? '#6366F1' : (f.user_role === 'passenger' ? '#0D9488' : '#64748B'),
                                 }}
                               >
-                                {f.user_role === 'driver' ? '🚘 DRIVER' : '👩 PASSENGER'}
+                                {f.user_role === 'driver' ? '🚘 DRIVER' : (f.user_role === 'passenger' ? '👩 PASSENGER' : '🌐 VISITOR')}
                               </span>
                             </td>
                             <td>
@@ -2197,8 +2214,22 @@ export default function App() {
                               </p>
                             </td>
                             <td>
-                              <span style={{ fontSize: '11px', color: '#7E8299' }}>
-                                {f.device_info || 'Mobile App'} • v{f.app_version || '1.0.0'}
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  backgroundColor: dev.bg,
+                                  color: dev.color,
+                                }}
+                                title={f.device_info || 'Unknown device'}
+                              >
+                                <span>{dev.icon}</span>
+                                <span>{dev.label}</span>
                               </span>
                             </td>
                             <td>
@@ -2207,7 +2238,8 @@ export default function App() {
                               </span>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>

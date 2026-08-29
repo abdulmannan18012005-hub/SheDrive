@@ -167,18 +167,43 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
         rememberMe
       );
 
-      const userProfile = {
+      // Build defensive user profile object
+      const isDriver = data.user.role === 'driver';
+      const userProfile: any = {
         uid: data.user.id,
-        phone: data.user.phone,
-        email: data.user.email,
-        name: data.user.name,
+        phone: data.user.phone || '',
+        email: data.user.email || '',
+        name: data.user.name || '',
         role: data.user.role,
         cnic: data.user.cnic || '',
-        gender: data.user.gender || (data.user.role === 'driver' ? 'female' : 'female'),
-        isVerified: data.user.isVerified ?? (data.user.role === 'passenger'),
+        gender: data.user.gender || 'female',
+        isVerified: Boolean(data.user.isVerified ?? data.user.is_verified ?? (!isDriver)),
+        verificationStatus: data.user.verificationStatus || data.user.verification_status || (data.user.is_verified ? 'approved' : 'pending'),
         photoURL: data.user.photo_url || data.user.photoURL || undefined,
         createdAt: Date.now(),
       };
+
+      if (isDriver) {
+        userProfile.vehicleInfo = data.user.vehicleInfo || {
+          make: data.user.vehicle_make || '',
+          model: data.user.vehicle_model || '',
+          plate: data.user.vehicle_plate || '',
+          color: data.user.vehicle_color || '',
+          year: data.user.vehicle_year || '2022',
+          category: data.user.vehicle_category || data.user.vehicleCategory || 'mini',
+        };
+        userProfile.vehicleCategory = data.user.vehicleCategory || data.user.vehicle_category || userProfile.vehicleInfo.category || 'mini';
+        userProfile.isOnline = Boolean(data.user.isOnline ?? data.user.is_online ?? false);
+        userProfile.isAvailable = Boolean(data.user.isAvailable ?? data.user.is_available ?? true);
+        userProfile.rating = typeof data.user.rating === 'number' ? data.user.rating : parseFloat(data.user.rating || '5.0');
+        userProfile.totalRides = typeof data.user.totalRides === 'number' ? data.user.totalRides : parseInt(data.user.total_rides || '0', 10);
+        userProfile.earningsToday = typeof data.user.earningsToday === 'number' ? data.user.earningsToday : 0;
+        userProfile.isFeeSuspended = Boolean(data.user.isFeeSuspended ?? data.user.is_fee_suspended ?? false);
+        userProfile.licenseFrontUrl = data.user.licenseFrontUrl || data.user.license_front_url || null;
+        userProfile.licenseBackUrl = data.user.licenseBackUrl || data.user.license_back_url || null;
+        userProfile.cnicFrontUrl = data.user.cnicFrontUrl || data.user.cnic_front_url || null;
+        userProfile.cnicBackUrl = data.user.cnicBackUrl || data.user.cnic_back_url || null;
+      }
 
       if (rememberMe) {
         AsyncStorage.setItem('@shedrive_remember_me', identifier.trim()).catch(() => {});
@@ -187,6 +212,9 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
         AsyncStorage.removeItem('@shedrive_remember_me').catch(() => {});
         AsyncStorage.setItem('@shedrive_remember_me_flag', 'false').catch(() => {});
       }
+
+      // Persist last active role & user session for seamless auto-restore
+      AsyncStorage.setItem('@shedrive_last_active_role', data.user.role).catch(() => {});
 
       if (data.token) {
         dispatch({ type: 'SET_TOKEN', payload: data.token });

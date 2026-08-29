@@ -100,24 +100,24 @@ export default function ProfileScreen({ navigation }: Props): React.JSX.Element 
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>📧 Email Address</Text>
-          <Text style={styles.infoValue}>{user?.email || 'N/A'}</Text>
+          <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">{user?.email || 'N/A'}</Text>
         </View>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>📱 Phone Number</Text>
-          <Text style={styles.infoValue}>{user?.phone || 'N/A'}</Text>
+          <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">{user?.phone || 'N/A'}</Text>
         </View>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>🪪 CNIC Number</Text>
-          <Text style={[styles.infoValue, !user?.cnic && { color: Colors.light.textTertiary, fontStyle: 'italic' }]}>
+          <Text style={[styles.infoValue, !user?.cnic && { color: Colors.light.textTertiary, fontStyle: 'italic' }]} numberOfLines={1} ellipsizeMode="tail">
             {user?.cnic || 'Not Added (Tap Edit Profile)'}
           </Text>
         </View>
 
         <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
           <Text style={styles.infoLabel}>👩 Gender</Text>
-          <Text style={styles.infoValue}>Female (Verified)</Text>
+          <Text style={styles.infoValue} numberOfLines={1} ellipsizeMode="tail">Female (Verified)</Text>
         </View>
       </View>
 
@@ -317,19 +317,24 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.divider,
+    gap: 12,
   },
   infoLabel: {
     fontSize: 14,
     color: Colors.light.textSecondary,
     fontWeight: '500',
+    flexShrink: 0,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.light.text,
+    flex: 1,
+    textAlign: 'right',
   },
   actionsContainer: {
     paddingHorizontal: 20,
