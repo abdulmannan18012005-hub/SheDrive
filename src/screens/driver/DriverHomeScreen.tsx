@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -39,6 +39,25 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   const isFocused = useIsFocused();
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Safe fallback driver profile values
+  const driverProfile = (user as DriverProfile) || null;
+  const vehicle = driverProfile?.vehicleInfo || (driverProfile as any)?.vehicle_info || {
+    make: (driverProfile as any)?.vehicle_make || '',
+    model: (driverProfile as any)?.vehicle_model || '',
+    plate: (driverProfile as any)?.vehicle_plate || '',
+    plateNumber: (driverProfile as any)?.vehicle_plate || '',
+    category: (driverProfile as any)?.vehicle_category || 'mini',
+    color: (driverProfile as any)?.vehicle_color || '',
+    year: (driverProfile as any)?.vehicle_year || '2022',
+  };
+  const driverCategory = vehicle.category || (driverProfile as any)?.vehicleCategory || 'mini';
+  const verificationStatus =
+    (driverProfile as any)?.verificationStatus ||
+    (driverProfile as any)?.verification_status ||
+    (user?.isVerified ? 'approved' : 'pending');
+  const isDriverVerified = Boolean(user?.isVerified || verificationStatus === 'approved');
+  const rejectionReason = (driverProfile as any)?.rejectionReason || (driverProfile as any)?.rejection_reason;
+
   useEffect(() => {
     const fetchUnread = async () => {
       if (!state.token) return;
@@ -47,9 +66,11 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           headers: { Authorization: `Bearer ${state.token}` },
         });
         const data = await res.json();
-        if (res.ok) setUnreadCount(data.count || 0);
+        if (res.ok && typeof data.count === 'number') {
+          setUnreadCount(data.count);
+        }
       } catch (err) {
-        // Non-critical: badge simply stays at previous value
+        // Non-critical: unread badge simply remains at current state
       }
     };
     if (isFocused) fetchUnread();
@@ -80,64 +101,72 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       return;
     }
 
-    const ridesRef = collection(db, 'rides');
-    const q = query(
-      ridesRef,
-      where('status', 'in', ['pending', 'negotiating'])
-    );
+    try {
+      const ridesRef = collection(db, 'rides');
+      const q = query(
+        ridesRef,
+        where('status', 'in', ['pending', 'negotiating'])
+      );
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const offersList: RideRequest[] = [];
-        snapshot.forEach((docSnap) => {
-          offersList.push(docSnap.data() as RideRequest);
-        });
-        // Filter rides to match driver's registered vehicle category safely
-        const driverProfile = user as DriverProfile | null;
-        const driverCategory = driverProfile?.vehicleInfo?.category || (driverProfile as any)?.vehicleCategory;
-        const matchingRides = offersList.filter((ride) => {
-          if (driverCategory && ride?.vehicleCategory) {
-            return ride.vehicleCategory === driverCategory;
-          }
-          return true;
-        });
-        setAvailableRides(matchingRides);
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const offersList: RideRequest[] = [];
+          snapshot.forEach((docSnap) => {
+            const rData = docSnap.data();
+            if (rData && rData.rideId) {
+              offersList.push(rData as RideRequest);
+            }
+          });
 
-        // Initialize timers for new rides (10 seconds from ride creation)
-        const now = Date.now();
-        const newTimers: Record<string, number> = {};
-        matchingRides.forEach((ride) => {
-          if (ride?.rideId) {
-            const rideAge = now - (ride.createdAt || now);
-            const remainingTime = Math.max(0, 10 - Math.floor(rideAge / 1000));
-            newTimers[ride.rideId] = remainingTime;
-          }
-        });
-        setRideTimers(newTimers);
-      },
-      (error) => {
-        console.error('Subscription to ride offers failed:', error);
-      }
-    );
+          // Filter rides to match driver's registered vehicle category safely
+          const matchingRides = offersList.filter((ride) => {
+            if (!ride) return false;
+            if (driverCategory && ride.vehicleCategory) {
+              return ride.vehicleCategory === driverCategory;
+            }
+            return true;
+          });
 
-    return () => unsubscribe();
-  }, [isOnline]);
+          setAvailableRides(matchingRides);
+
+          // Initialize timers for new rides (10 seconds countdown from ride creation)
+          const now = Date.now();
+          const newTimers: Record<string, number> = {};
+          matchingRides.forEach((ride) => {
+            if (ride?.rideId) {
+              const rideAge = now - (ride.createdAt || now);
+              const remainingTime = Math.max(0, 10 - Math.floor(rideAge / 1000));
+              newTimers[ride.rideId] = remainingTime;
+            }
+          });
+          setRideTimers(newTimers);
+        },
+        (error) => {
+          console.warn('[DriverHome] Subscription to ride offers warning:', error);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn('[DriverHome] Failed to initialize Firestore listener:', e);
+    }
+  }, [isOnline, driverCategory]);
 
   // Countdown timer effect
   useEffect(() => {
-    if (!isOnline || availableRides.length === 0) return;
+    if (!isOnline || !Array.isArray(availableRides) || availableRides.length === 0) return;
 
     const interval = setInterval(() => {
       setRideTimers((prevTimers) => {
         const updatedTimers: Record<string, number> = {};
-        let hasActiveRides = false;
 
         availableRides.forEach((ride) => {
-          const currentTime = prevTimers[ride.rideId] || 10;
-          if (currentTime > 0) {
-            updatedTimers[ride.rideId] = currentTime - 1;
-            hasActiveRides = true;
+          if (ride?.rideId) {
+            const currentTime = prevTimers[ride.rideId] ?? 10;
+            if (currentTime > 0) {
+              updatedTimers[ride.rideId] = currentTime - 1;
+            }
           }
         });
 
@@ -153,12 +182,16 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     return () => {
       if (locationWatcherRef.current) {
         locationWatcherRef.current.remove();
+        locationWatcherRef.current = null;
       }
     };
   }, []);
 
   const handleToggleOnline = async () => {
-    if (!user) return;
+    if (!user) {
+      Alert.alert('Authentication Error', 'Driver user session not found. Please log in again.');
+      return;
+    }
 
     try {
       setIsUpdatingStatus(true);
@@ -184,12 +217,12 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${tokenToUse}`,
+            Authorization: `Bearer ${tokenToUse}`,
           },
           body: JSON.stringify({
             isOnline: true,
-            latitude: currentCoords?.latitude,
-            longitude: currentCoords?.longitude,
+            latitude: currentCoords?.latitude || 31.5204,
+            longitude: currentCoords?.longitude || 74.3587,
             heading: 0,
           }),
         });
@@ -206,51 +239,63 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         }
 
         // Start location watcher if backend approves
-        const watcher = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 2500,
-            distanceInterval: 2,
-          },
-          async (newLocation) => {
-            const { latitude, longitude, heading } = newLocation.coords;
+        try {
+          const watcher = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.BestForNavigation,
+              timeInterval: 2500,
+              distanceInterval: 2,
+            },
+            async (newLocation) => {
+              try {
+                if (!newLocation || !newLocation.coords) return;
+                const { latitude, longitude, heading } = newLocation.coords;
 
-            const nowMs = Date.now();
-            // Update backend with new coordinates throttled to once per 15 seconds to prevent battery drain & network flooding
-            if (nowMs - lastHttpLocationSyncRef.current >= 15000) {
-              lastHttpLocationSyncRef.current = nowMs;
-              fetch(`${getApiBaseUrl()}/driver/online`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${state.token}`,
-                },
-                body: JSON.stringify({
-                  isOnline: true,
-                  latitude,
-                  longitude,
-                  heading: heading || 0,
-                }),
-              }).catch(err => console.warn('[Driver Location Sync Warning]:', err?.message));
+                const nowMs = Date.now();
+                // Update backend with new coordinates throttled to once per 15 seconds to prevent battery drain & network flooding
+                if (nowMs - lastHttpLocationSyncRef.current >= 15000) {
+                  lastHttpLocationSyncRef.current = nowMs;
+                  fetch(`${getApiBaseUrl()}/driver/online`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${state.token}`,
+                    },
+                    body: JSON.stringify({
+                      isOnline: true,
+                      latitude,
+                      longitude,
+                      heading: heading || 0,
+                    }),
+                  }).catch((err) => console.warn('[Driver Location Sync Warning]:', err?.message));
+                }
+
+                // Also update Firestore for real-time passenger visibility
+                if (user?.uid) {
+                  const driverRef = doc(db, 'drivers', user.uid);
+                  await updateDoc(driverRef, {
+                    isOnline: true,
+                    latitude,
+                    longitude,
+                    heading: heading || 0,
+                    lastUpdated: Date.now(),
+                  }).catch(() => {});
+                }
+
+                if (mapRef.current) {
+                  mapRef.current.setCenter(latitude, longitude);
+                }
+              } catch (locErr) {
+                console.warn('[Driver Location Watcher Callback Warning]:', locErr);
+              }
             }
+          );
 
-            // Also update Firestore for real-time passenger visibility
-            const driverRef = doc(db, 'drivers', user.uid);
-            await updateDoc(driverRef, {
-              isOnline: true,
-              latitude,
-              longitude,
-              heading: heading || 0,
-              lastUpdated: Date.now(),
-            });
+          locationWatcherRef.current = watcher;
+        } catch (watchErr) {
+          console.warn('[Driver Location Watcher Init Warning]:', watchErr);
+        }
 
-            if (mapRef.current) {
-              mapRef.current.setCenter(latitude, longitude);
-            }
-          }
-        );
-
-        locationWatcherRef.current = watcher;
         setIsOnline(true);
       } else {
         // Go Offline
@@ -264,19 +309,21 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${state.token}`,
+            Authorization: `Bearer ${state.token}`,
           },
           body: JSON.stringify({
             isOnline: false,
           }),
-        });
+        }).catch(() => {});
 
         // Also update Firestore
-        const driverRef = doc(db, 'drivers', user.uid);
-        await updateDoc(driverRef, {
-          isOnline: false,
-          lastUpdated: Date.now(),
-        });
+        if (user?.uid) {
+          const driverRef = doc(db, 'drivers', user.uid);
+          await updateDoc(driverRef, {
+            isOnline: false,
+            lastUpdated: Date.now(),
+          }).catch(() => {});
+        }
 
         setIsOnline(false);
       }
@@ -289,30 +336,30 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   };
 
   const handleAcceptRide = async (ride: RideRequest) => {
-    if (!user) return;
+    if (!user || !ride) return;
 
     try {
       const rideRef = doc(db, 'rides', ride.rideId);
-      const vehicleDetails = user.role === 'driver' ? 'Sedan' : 'Vehicle';
+      const vehicleDetails = vehicle.make ? `${vehicle.make} ${vehicle.model} (${vehicle.plate})` : 'Registered Vehicle';
 
       await updateDoc(rideRef, {
         status: 'accepted',
         driverId: user.uid,
-        driverName: user.name,
-        driverPhone: user.phone,
+        driverName: user.name || 'Driver',
+        driverPhone: user.phone || '',
         driverVehicle: vehicleDetails,
         autoMessageSent: true,
         updatedAt: Date.now(),
       });
 
-        // Auto-send welcoming message to ride chat
+      // Auto-send welcoming message to ride chat
       try {
         const chatCollectionRef = collection(db, 'rides', ride.rideId, 'messages');
         await addDoc(chatCollectionRef, {
           senderId: user.uid,
-          senderName: user.name,
+          senderName: user.name || 'Driver',
           senderRole: 'driver',
-          text: `Assalam-o-Alaikum! I have accepted your SheDrive booking and I am on my way to your pickup location (${ride.pickup.label}). See you soon!`,
+          text: `Assalam-o-Alaikum! I have accepted your SheDrive booking and I am on my way to your pickup location (${ride.pickup?.label || 'pickup point'}). See you soon!`,
           timestamp: Date.now(),
         });
       } catch (chatErr) {
@@ -340,7 +387,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         console.warn('Backend ride accept sync warning:', backendErr);
       }
 
-      Alert.alert('Success', 'Ride accepted! Navigating to ride progress dashboard.');
+      Alert.alert('Success', 'Ride accepted! Navigating to trip tracking.');
       navigation.navigate('ActiveRide', { rideId: ride.rideId });
     } catch (error) {
       console.error('Accept ride failed:', error);
@@ -349,17 +396,18 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   };
 
   const openCounterModal = (ride: RideRequest) => {
+    if (!ride) return;
     setSelectedRide(ride);
-    setCounterAmount((ride.currentFare + 50).toString());
+    setCounterAmount(((ride.currentFare || 0) + 50).toString());
     setCounterModalVisible(true);
   };
 
   const handleSendCounterOffer = async () => {
     if (!user || !selectedRide) return;
 
-    const amountNum = parseInt(counterAmount);
-    if (isNaN(amountNum) || amountNum <= selectedRide.currentFare) {
-      Alert.alert('Invalid Fare', `Counter bid must be greater than current fare: ${formatCurrency(selectedRide.currentFare)}`);
+    const amountNum = parseInt(counterAmount, 10);
+    if (isNaN(amountNum) || amountNum <= (selectedRide.currentFare || 0)) {
+      Alert.alert('Invalid Fare', `Counter bid must be greater than current fare: ${formatCurrency(selectedRide.currentFare || 0)}`);
       return;
     }
 
@@ -375,10 +423,12 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         timestamp: Date.now(),
       };
 
+      const existingOffers = Array.isArray(selectedRide.offers) ? selectedRide.offers : [];
+
       await updateDoc(rideRef, {
         status: 'negotiating',
         currentFare: amountNum,
-        offers: [...selectedRide.offers, driverOffer],
+        offers: [...existingOffers, driverOffer],
         updatedAt: Date.now(),
       });
 
@@ -411,9 +461,9 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   };
 
   // Build marker array for the map
-  const getMapMarkers = (): MapMarker[] => {
+  const mapMarkers = useMemo((): MapMarker[] => {
     const markers: MapMarker[] = [];
-    if (currentCoords) {
+    if (currentCoords && typeof currentCoords.latitude === 'number' && typeof currentCoords.longitude === 'number') {
       markers.push({
         id: 'driver_current',
         lat: currentCoords.latitude,
@@ -425,21 +475,30 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     }
 
     // Show pickup markers for available rides on the map safely
-    availableRides.forEach((ride) => {
-      if (ride?.rideId && ride?.pickup?.latitude && ride?.pickup?.longitude) {
-        markers.push({
-          id: ride.rideId,
-          lat: ride.pickup.latitude,
-          lng: ride.pickup.longitude,
-          emoji: '📍',
-          title: `Ride Offer: ${formatCurrency(ride.currentFare || 0)}`,
-          isCustomer: true,
-        });
-      }
-    });
+    if (Array.isArray(availableRides)) {
+      availableRides.forEach((ride) => {
+        if (ride?.rideId && ride.pickup && typeof ride.pickup.latitude === 'number' && typeof ride.pickup.longitude === 'number') {
+          markers.push({
+            id: ride.rideId,
+            lat: ride.pickup.latitude,
+            lng: ride.pickup.longitude,
+            emoji: '📍',
+            title: `Ride Offer: ${formatCurrency(ride.currentFare || 0)}`,
+            isCustomer: true,
+          });
+        }
+      });
+    }
 
     return markers;
-  };
+  }, [currentCoords, availableRides]);
+
+  const defaultCenter = useMemo(() => {
+    if (currentCoords && typeof currentCoords.latitude === 'number' && typeof currentCoords.longitude === 'number') {
+      return { lat: currentCoords.latitude, lng: currentCoords.longitude };
+    }
+    return { lat: 31.5204, lng: 74.3587 };
+  }, [currentCoords]);
 
   if (isLocationLoading) {
     return (
@@ -449,10 +508,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       </View>
     );
   }
-
-  const defaultCenter = currentCoords
-    ? { lat: currentCoords.latitude, lng: currentCoords.longitude }
-    : { lat: 31.5204, lng: 74.3587 };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -492,7 +547,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       </View>
 
       {/* Driver Verification Status Banner */}
-      {!user?.isVerified && (
+      {!isDriverVerified && (
         <TouchableOpacity
           style={styles.verificationBanner}
           onPress={() => setVerificationModalVisible(true)}
@@ -513,12 +568,12 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         </View>
       )}
 
-      {/* Embedded Leaflet Map */}
+      {/* Embedded Map */}
       <View style={styles.mapContainer}>
         <LeafletMap
           ref={mapRef}
           center={defaultCenter}
-          markers={getMapMarkers()}
+          markers={mapMarkers}
         />
       </View>
 
@@ -526,10 +581,10 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       {isOnline && (
         <View style={styles.offersContainer}>
           <Text style={styles.offersHeading}>
-            Available Ride Offers ({availableRides.length})
+            Available Ride Offers ({Array.isArray(availableRides) ? availableRides.length : 0})
           </Text>
 
-          {availableRides.length === 0 ? (
+          {!Array.isArray(availableRides) || availableRides.length === 0 ? (
             <View style={styles.emptyOffersBox}>
               <Text style={styles.emptyText}>Waiting for passenger ride requests...</Text>
             </View>
@@ -541,25 +596,25 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.offersList}
               renderItem={({ item }) => {
-                const timeRemaining = rideTimers[item.rideId] || 10;
+                const timeRemaining = rideTimers[item.rideId] ?? 10;
                 const isExpired = timeRemaining <= 0;
 
                 return (
                   <View style={[styles.rideCard, isExpired && styles.rideCardExpired]}>
                     <View style={styles.cardHeader}>
-                      <Text style={styles.passengerLabel}>👩 {item.passengerName}</Text>
-                      <Text style={styles.fareLabel}>{formatCurrency(item.currentFare)}</Text>
+                      <Text style={styles.passengerLabel}>👩 {item.passengerName || 'Passenger'}</Text>
+                      <Text style={styles.fareLabel}>{formatCurrency(item.currentFare || 0)}</Text>
                     </View>
 
                     <View style={styles.routeContainer}>
-                      <Text style={styles.routeText} numberOfLines={1}>🟢 {item.pickup.label}</Text>
-                      <Text style={styles.routeText} numberOfLines={1}>🔴 {item.dropoff.label}</Text>
+                      <Text style={styles.routeText} numberOfLines={1}>🟢 {item.pickup?.label || 'Pickup point'}</Text>
+                      <Text style={styles.routeText} numberOfLines={1}>🔴 {item.dropoff?.label || 'Drop-off point'}</Text>
                     </View>
 
                     <View style={styles.cardDetails}>
-                      <Text style={styles.detailText}>{item.distanceKm.toFixed(1)} km</Text>
+                      <Text style={styles.detailText}>{(item.distanceKm || 0).toFixed(1)} km</Text>
                       <View style={styles.dotSeparator} />
-                      <Text style={styles.detailText}>{Math.round(item.durationMin)} mins</Text>
+                      <Text style={styles.detailText}>{Math.round(item.durationMin || 0)} mins</Text>
                     </View>
 
                     {/* Timer Display */}
@@ -627,7 +682,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
             <Text style={styles.modalHeading}>Propose Counter Fare</Text>
             {selectedRide && (
               <Text style={styles.modalSubheading}>
-                Passenger current bid: {formatCurrency(selectedRide.currentFare)}
+                Passenger current bid: {formatCurrency(selectedRide.currentFare || 0)}
               </Text>
             )}
 
@@ -684,9 +739,9 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       <DriverVerificationStatusModal
         visible={verificationModalVisible}
         onClose={() => setVerificationModalVisible(false)}
-        driverProfile={user as any}
-        verificationStatus={(user as any)?.verificationStatus || (user?.isVerified ? 'approved' : 'pending')}
-        rejectionReason={(user as any)?.rejectionReason}
+        driverProfile={driverProfile}
+        verificationStatus={verificationStatus}
+        rejectionReason={rejectionReason}
         onRefresh={() => refreshLocation()}
       />
     </SafeAreaView>
@@ -752,22 +807,22 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   welcomeText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: Colors.light.text,
   },
   verificationBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF8F9',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    backgroundColor: '#FEF3C7',
     borderBottomWidth: 1,
-    borderBottomColor: '#FFD1E3',
+    borderBottomColor: '#FDE68A',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 10,
   },
   verificationBannerIcon: {
-    fontSize: 20,
-    marginRight: 10,
+    fontSize: 18,
   },
   verificationBannerTextContainer: {
     flex: 1,
@@ -775,243 +830,219 @@ const styles = StyleSheet.create({
   verificationBannerTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#4A2060',
+    color: '#92400E',
   },
   verificationBannerSub: {
     fontSize: 11,
-    color: '#666666',
+    color: '#B45309',
     marginTop: 1,
-    fontWeight: '500',
   },
   verificationBannerChevron: {
     fontSize: 20,
-    color: '#4A2060',
     fontWeight: '700',
-    marginLeft: 8,
+    color: '#92400E',
   },
   errorBanner: {
-    backgroundColor: Colors.light.errorLight,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: '#FEE2E2',
+    padding: 8,
     alignItems: 'center',
   },
   errorText: {
-    color: Colors.light.error,
-    fontSize: 13,
+    fontSize: 12,
+    color: '#DC2626',
     fontWeight: '600',
-    textAlign: 'center',
   },
   mapContainer: {
     flex: 1,
   },
   offersContainer: {
     position: 'absolute',
-    bottom: 96,
+    bottom: 84,
     left: 0,
     right: 0,
-    paddingVertical: 12,
-    backgroundColor: 'transparent',
+    maxHeight: 220,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   offersHeading: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.light.text,
-    marginLeft: 20,
+    paddingHorizontal: 16,
     marginBottom: 8,
-    textShadowColor: 'rgba(255, 255, 255, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  },
+  emptyOffersBox: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
   },
   offersList: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     gap: 12,
   },
   rideCard: {
-    backgroundColor: Colors.light.surface,
-    borderRadius: 18,
-    padding: 16,
-    width: 280,
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    width: 260,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   rideCardExpired: {
     opacity: 0.6,
-    backgroundColor: Colors.light.background,
-  },
-  timerContainer: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  timerText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.light.primary,
-  },
-  timerTextExpired: {
-    color: Colors.light.textTertiary,
-  },
-  actionBtnDisabled: {
-    opacity: 0.5,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   passengerLabel: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.light.text,
   },
   fareLabel: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '800',
     color: Colors.light.primary,
   },
   routeContainer: {
-    gap: 6,
-    marginBottom: 12,
+    gap: 3,
+    marginBottom: 6,
   },
   routeText: {
-    fontSize: 13,
+    fontSize: 11,
     color: Colors.light.textSecondary,
-    fontWeight: '500',
   },
   cardDetails: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
+    gap: 6,
+    marginBottom: 6,
   },
   detailText: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.light.textTertiary,
     fontWeight: '600',
   },
   dotSeparator: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.light.border,
-    marginHorizontal: 8,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.light.textTertiary,
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  timerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  timerTextExpired: {
+    color: '#EF4444',
   },
   cardActions: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
+    marginTop: 4,
   },
   counterBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: Colors.light.primary,
+    paddingVertical: 7,
+    borderRadius: 8,
     backgroundColor: Colors.light.primaryGhost,
+    borderWidth: 1,
+    borderColor: Colors.light.primary,
     alignItems: 'center',
   },
   counterBtnText: {
-    color: Colors.light.primary,
+    fontSize: 12,
     fontWeight: '700',
-    fontSize: 14,
+    color: Colors.light.primary,
   },
   acceptBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
     backgroundColor: Colors.light.primary,
     alignItems: 'center',
   },
   acceptBtnText: {
-    color: Colors.light.textOnPrimary,
+    fontSize: 12,
     fontWeight: '700',
-    fontSize: 14,
+    color: '#FFFFFF',
   },
-  emptyOffersBox: {
-    backgroundColor: Colors.light.surface,
-    borderRadius: 16,
-    paddingVertical: 20,
-    marginHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    fontWeight: '500',
+  actionBtnDisabled: {
+    opacity: 0.4,
   },
   bottomPanel: {
-    backgroundColor: Colors.light.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
-    alignItems: 'center',
-    shadowColor: Colors.light.shadow,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 8,
   },
   toggleButton: {
-    width: '100%',
-    paddingVertical: 16,
-    borderRadius: 18,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 5,
   },
   buttonOnline: {
-    backgroundColor: Colors.light.success,
-    shadowColor: Colors.light.success,
+    backgroundColor: Colors.light.primary,
   },
   buttonOffline: {
-    backgroundColor: Colors.light.primary,
-    shadowColor: Colors.light.primary,
+    backgroundColor: '#EF4444',
   },
   buttonDisabled: {
-    opacity: 0.8,
+    opacity: 0.6,
   },
   toggleButtonText: {
-    color: '#FFF',
-    fontSize: 17,
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 0.3,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: Colors.light.surface,
-    borderRadius: 20,
-    padding: 24,
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
     alignItems: 'center',
   },
   modalHeading: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.light.text,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   modalSubheading: {
     fontSize: 13,
     color: Colors.light.textSecondary,
-    marginBottom: 20,
-    textAlign: 'center',
+    marginBottom: 16,
   },
   modalInputRow: {
     flexDirection: 'row',
@@ -1019,22 +1050,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.light.primary,
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    marginBottom: 24,
-    width: '100%',
+    marginBottom: 20,
+    gap: 8,
   },
   modalCurrency: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.light.primary,
-    marginRight: 10,
+    color: Colors.light.textSecondary,
   },
   modalInput: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: Colors.light.text,
+    minWidth: 100,
+    textAlign: 'center',
     padding: 0,
   },
   modalActions: {
@@ -1045,23 +1076,27 @@ const styles = StyleSheet.create({
   modalCancelBtn: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.light.border,
+    borderRadius: 12,
+    backgroundColor: Colors.light.background,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   modalCancelText: {
-    color: Colors.light.textSecondary,
+    fontSize: 14,
     fontWeight: '700',
+    color: Colors.light.textSecondary,
   },
   modalSubmitBtn: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: Colors.light.primary,
     alignItems: 'center',
   },
   modalSubmitText: {
-    color: Colors.light.textOnPrimary,
+    fontSize: 14,
     fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

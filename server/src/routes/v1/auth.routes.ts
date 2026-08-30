@@ -505,29 +505,53 @@ router.post('/register', async (req: Request, res: Response) => {
 
     let driverPayload: any = {};
     if (role === 'driver') {
-      driverPayload = {
-        vehicleInfo: {
-          make: vehicleInfo?.make || '',
-          model: vehicleInfo?.model || '',
-          plate: vehicleInfo?.plate || '',
-          plateNumber: vehicleInfo?.plate || '',
-          color: vehicleInfo?.color || '',
-          year: vehicleInfo?.year || '2022',
-          category: vehicleInfo?.category || 'mini',
-        },
-        vehicleCategory: vehicleInfo?.category || 'mini',
+      const vInfo = {
+        make: vehicleInfo?.make || '',
+        model: vehicleInfo?.model || '',
+        plate: vehicleInfo?.plate || '',
+        plateNumber: vehicleInfo?.plate || '',
+        plate_number: vehicleInfo?.plate || '',
+        color: vehicleInfo?.color || '',
+        year: vehicleInfo?.year || '2022',
+        category: vehicleInfo?.category || 'mini',
+      };
+
+      const dProfile = {
+        verificationStatus: 'pending',
+        verification_status: 'pending',
         isOnline: false,
+        is_online: false,
         isAvailable: true,
+        is_available: true,
+        isFeeSuspended: false,
+        is_fee_suspended: false,
         rating: 5.0,
         totalRides: 0,
-        isFeeSuspended: false,
-        verificationStatus: 'pending',
+        total_rides: 0,
+        vehicleInfo: vInfo,
+        vehicle_info: vInfo,
+        vehicleCategory: vehicleInfo?.category || 'mini',
+        vehicle_category: vehicleInfo?.category || 'mini',
         licenseFrontUrl: finalLicenseFrontUrl || null,
+        license_front_url: finalLicenseFrontUrl || null,
         licenseBackUrl: finalLicenseBackUrl || null,
+        license_back_url: finalLicenseBackUrl || null,
         selfieUrl: finalSelfieUrl || null,
+        selfie_url: finalSelfieUrl || null,
         vehiclePhotoUrl: finalVehiclePhotoUrl || null,
+        vehicle_photo_url: finalVehiclePhotoUrl || null,
         cnicFrontUrl: finalCnicFrontUrl || null,
+        cnic_front_url: finalCnicFrontUrl || null,
         cnicBackUrl: finalCnicBackUrl || null,
+        cnic_back_url: finalCnicBackUrl || null,
+        earnings: { today: 0, week: 0, total: 0 },
+        earningsToday: 0,
+      };
+
+      driverPayload = {
+        ...dProfile,
+        driverProfile: dProfile,
+        driver_profile: dProfile,
       };
     }
 
@@ -540,7 +564,9 @@ router.post('/register', async (req: Request, res: Response) => {
         role,
         cnic: cnic.trim(),
         dateOfBirth: dateOfBirth || null,
+        date_of_birth: dateOfBirth || null,
         isVerified: role === 'passenger',
+        is_verified: role === 'passenger',
         ...driverPayload,
       },
       token,
@@ -616,64 +642,105 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
 
     let driverData: any = {};
     if (user.role === 'driver') {
-      // Default fallback driver data
-      driverData = {
-        vehicleInfo: {
-          make: '',
-          model: '',
-          plate: '',
-          plateNumber: '',
-          color: '',
-          year: '2022',
-          category: 'mini',
-        },
-        vehicleCategory: 'mini',
+      let vInfo = {
+        make: '',
+        model: '',
+        plate: '',
+        plateNumber: '',
+        plate_number: '',
+        color: '',
+        year: '2022',
+        category: 'mini',
+      };
+
+      let dProfile: any = {
+        verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+        verification_status: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
         isOnline: false,
+        is_online: false,
         isAvailable: true,
+        is_available: true,
+        isFeeSuspended: false,
+        is_fee_suspended: false,
         rating: 5.0,
         totalRides: 0,
-        isFeeSuspended: false,
-        verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+        total_rides: 0,
+        vehicleInfo: vInfo,
+        vehicle_info: vInfo,
+        vehicleCategory: 'mini',
+        vehicle_category: 'mini',
         licenseFrontUrl: null,
+        license_front_url: null,
         licenseBackUrl: null,
+        license_back_url: null,
         selfieUrl: user.photo_url || null,
+        selfie_url: user.photo_url || null,
         vehiclePhotoUrl: null,
+        vehicle_photo_url: null,
         cnicFrontUrl: user.cnic_front_url || null,
+        cnic_front_url: user.cnic_front_url || null,
         cnicBackUrl: user.cnic_back_url || null,
+        cnic_back_url: user.cnic_back_url || null,
+        earnings: { today: 0, week: 0, total: 0 },
+        earningsToday: 0,
       };
 
       try {
         const driverRes = await query('SELECT * FROM drivers WHERE driver_id = $1', [user.id]);
         if (driverRes.rows.length > 0) {
           const d = driverRes.rows[0];
-          driverData = {
-            vehicleInfo: {
-              make: d.vehicle_make || '',
-              model: d.vehicle_model || '',
-              plate: d.vehicle_plate || '',
-              plateNumber: d.vehicle_plate || '',
-              color: d.vehicle_color || '',
-              year: d.vehicle_year || '2022',
-              category: d.vehicle_category || 'mini',
-            },
-            vehicleCategory: d.vehicle_category || 'mini',
+          vInfo = {
+            make: d.vehicle_make || '',
+            model: d.vehicle_model || '',
+            plate: d.vehicle_plate || '',
+            plateNumber: d.vehicle_plate || '',
+            plate_number: d.vehicle_plate || '',
+            color: d.vehicle_color || '',
+            year: d.vehicle_year || '2022',
+            category: d.vehicle_category || 'mini',
+          };
+
+          dProfile = {
+            verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+            verification_status: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
             isOnline: Boolean(d.is_online),
+            is_online: Boolean(d.is_online),
             isAvailable: Boolean(d.is_available),
+            is_available: Boolean(d.is_available),
             rating: typeof d.rating === 'number' ? d.rating : parseFloat(d.rating || '5.0'),
             totalRides: parseInt(d.total_rides || '0', 10),
+            total_rides: parseInt(d.total_rides || '0', 10),
             isFeeSuspended: Boolean(d.is_fee_suspended),
-            verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+            is_fee_suspended: Boolean(d.is_fee_suspended),
+            vehicleInfo: vInfo,
+            vehicle_info: vInfo,
+            vehicleCategory: d.vehicle_category || 'mini',
+            vehicle_category: d.vehicle_category || 'mini',
             licenseFrontUrl: d.license_front_url || null,
+            license_front_url: d.license_front_url || null,
             licenseBackUrl: d.license_back_url || null,
+            license_back_url: d.license_back_url || null,
             selfieUrl: d.selfie_url || user.photo_url || null,
+            selfie_url: d.selfie_url || user.photo_url || null,
             vehiclePhotoUrl: d.vehicle_photo_url || null,
+            vehicle_photo_url: d.vehicle_photo_url || null,
             cnicFrontUrl: user.cnic_front_url || null,
+            cnic_front_url: user.cnic_front_url || null,
             cnicBackUrl: user.cnic_back_url || null,
+            cnic_back_url: user.cnic_back_url || null,
+            earnings: { today: 0, week: 0, total: 0 },
+            earningsToday: 0,
           };
         }
       } catch (err: any) {
         console.warn('[Login Driver Enrichment Warning]:', err?.message);
       }
+
+      driverData = {
+        ...dProfile,
+        driverProfile: dProfile,
+        driver_profile: dProfile,
+      };
     }
 
     res.status(200).json({
@@ -684,7 +751,12 @@ router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         cnic: user.cnic,
+        dateOfBirth: user.date_of_birth || null,
+        date_of_birth: user.date_of_birth || null,
         isVerified: user.is_verified,
+        is_verified: user.is_verified,
+        verificationStatus: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
+        verification_status: user.verification_status || (user.is_verified ? 'approved' : 'pending'),
         ...driverData,
       },
       token,

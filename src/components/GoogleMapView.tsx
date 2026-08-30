@@ -103,18 +103,20 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
     const mapRef = useRef<MapView>(null);
     const [isReady, setIsReady] = useState(false);
 
-    const centerLat = 'latitude' in center ? center.latitude : center.lat;
-    const centerLng = 'longitude' in center ? center.longitude : center.lng;
+    const rawLat = center ? ('latitude' in center ? (center as any).latitude : (center as any).lat) : 31.5204;
+    const rawLng = center ? ('longitude' in center ? (center as any).longitude : (center as any).lng) : 74.3587;
+    const centerLat = typeof rawLat === 'number' && !isNaN(rawLat) ? rawLat : 31.5204;
+    const centerLng = typeof rawLng === 'number' && !isNaN(rawLng) ? rawLng : 74.3587;
 
     const initialRegion: Region = useMemo(() => {
       const { latitudeDelta, longitudeDelta } = zoomToDeltas(zoom);
       return {
-        latitude: centerLat || 31.5204,
-        longitude: centerLng || 74.3587,
+        latitude: centerLat,
+        longitude: centerLng,
         latitudeDelta,
         longitudeDelta,
       };
-    }, []);
+    }, [centerLat, centerLng, zoom]);
 
     // Format route coordinates for Polyline component
     const parsedRouteCoordinates: LatLng[] = useMemo(() => {

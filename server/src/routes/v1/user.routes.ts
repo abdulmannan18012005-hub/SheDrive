@@ -11,7 +11,7 @@ const router = Router();
 router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const userRes = await query('SELECT id, name, email, phone, role, cnic, cnic_front_url, cnic_back_url, photo_url, is_verified, is_active, created_at FROM users WHERE id = $1', [userId]);
+    const userRes = await query('SELECT id, name, email, phone, role, cnic, cnic_front_url, cnic_back_url, photo_url, is_verified, verification_status, is_active, created_at FROM users WHERE id = $1', [userId]);
 
     if (userRes.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -27,6 +27,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
       );
       if (driverRes.rows.length > 0) {
         user.driverInfo = driverRes.rows[0];
+        user.driver_info = driverRes.rows[0];
       }
     }
 
