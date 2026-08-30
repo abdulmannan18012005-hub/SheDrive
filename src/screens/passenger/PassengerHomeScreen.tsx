@@ -59,7 +59,7 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   
   const mapRef = useRef<LeafletMapRef>(null);
-  const hasCenteredRef = useRef(false);
+  const isInitialMapReady = useRef(false);
   const lastBackPressRef = useRef<number>(0);
 
   // Android hardware back handler
@@ -89,13 +89,13 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
     return () => backHandler.remove();
   }, [drawerVisible, isFocused]);
 
-  // Auto-center map once real GPS location is acquired
+  // Auto-center map strictly ONCE when initial real GPS location is acquired
   useEffect(() => {
-    if (currentCoords && mapRef.current && !hasCenteredRef.current) {
-      hasCenteredRef.current = true;
+    if (!isInitialMapReady.current && currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
+      isInitialMapReady.current = true;
       mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 15);
     }
-  }, [currentCoords]);
+  }, [currentCoords?.latitude, currentCoords?.longitude]);
 
   // Subscribe to real-time online drivers from Firestore
   useEffect(() => {
@@ -136,8 +136,8 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
     fetchEmergencyContacts();
   }, [user?.uid]);
 
-  // Assemble map markers: passenger + online drivers
-  const getMapMarkers = (): MapMarker[] => {
+  // Memoize map markers: passenger + online drivers
+  const mapMarkers = React.useMemo((): MapMarker[] => {
     const markersList: MapMarker[] = [];
 
     // Add passenger current marker
@@ -178,20 +178,13 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
     });
 
     return markersList;
-  };
+  }, [currentCoords, onlineDrivers]);
 
-  if (isLocationLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-        <Text style={styles.loadingText}>Loading Lahore Map GPS...</Text>
-      </View>
-    );
-  }
-
-  const defaultCenter = currentCoords
-    ? { lat: currentCoords.latitude, lng: currentCoords.longitude }
-    : { lat: 31.5204, lng: 74.3587 }; // default Lahore Center
+  const defaultCenter = React.useMemo(() => {
+    return currentCoords
+      ? { lat: currentCoords.latitude, lng: currentCoords.longitude }
+      : { lat: 31.5204, lng: 74.3587 }; // default Lahore Center
+  }, [currentCoords]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -248,8 +241,16 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         <LeafletMap
           ref={mapRef}
           center={defaultCenter}
-          markers={getMapMarkers()}
+          markers={mapMarkers}
         />
+
+        {/* Non-blocking smooth loading indicator over map */}
+        {isLocationLoading && !currentCoords && (
+          <View style={styles.mapLoadingBadge}>
+            <ActivityIndicator size="small" color={Colors.light.primary} />
+            <Text style={styles.mapLoadingText}>Loading map...</Text>
+          </View>
+        )}
 
         {/* Current Location Button */}
         <TouchableOpacity
@@ -438,6 +439,32 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     position: 'relative',
+  },
+  mapLoadingBadge: {
+    position: 'absolute',
+    top: 16,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    zIndex: 10,
+  },
+  mapLoadingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    marginLeft: 6,
   },
   onlineBadgeChip: {
     position: 'absolute',

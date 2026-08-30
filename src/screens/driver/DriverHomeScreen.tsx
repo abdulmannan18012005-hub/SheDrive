@@ -93,9 +93,18 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   const [rideTimers, setRideTimers] = useState<Record<string, number>>({});
 
   const mapRef = useRef<LeafletMapRef>(null);
+  const isInitialMapReady = useRef(false);
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
   const lastHttpLocationSyncRef = useRef<number>(0);
   const lastBackPressRef = useRef<number>(0);
+
+  // Auto-center map strictly ONCE when initial real GPS location is acquired
+  useEffect(() => {
+    if (!isInitialMapReady.current && currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
+      isInitialMapReady.current = true;
+      mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 15);
+    }
+  }, [currentCoords?.latitude, currentCoords?.longitude]);
 
   // Android hardware back handler
   useEffect(() => {
@@ -539,15 +548,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     return { lat: 31.5204, lng: 74.3587 };
   }, [currentCoords]);
 
-  if (isLocationLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-        <Text style={styles.loadingText}>Fetching GPS Location...</Text>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Upper Status Panel with Hamburger Menu & Platform Fee Shortcut */}
@@ -614,6 +614,13 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           center={defaultCenter}
           markers={mapMarkers}
         />
+        {/* Non-blocking smooth loading indicator over map */}
+        {isLocationLoading && !currentCoords && (
+          <View style={styles.mapLoadingBadge}>
+            <ActivityIndicator size="small" color={Colors.light.primary} />
+            <Text style={styles.mapLoadingText}>Loading map...</Text>
+          </View>
+        )}
       </View>
 
       {/* Available Ride Offers Dashboard */}
@@ -893,6 +900,33 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
+    position: 'relative',
+  },
+  mapLoadingBadge: {
+    position: 'absolute',
+    top: 16,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    zIndex: 10,
+  },
+  mapLoadingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    marginLeft: 6,
   },
   offersContainer: {
     position: 'absolute',
