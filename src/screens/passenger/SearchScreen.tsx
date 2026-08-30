@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  BackHandler,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
@@ -60,12 +61,24 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
 
   const [pickupPoint, setPickupPoint] = useState<LocationPoint | null>(initialPickup || null);
   const [destPoint, setDestPoint] = useState<LocationPoint | null>(initialDest || null);
+  const [isManualPickupOverride, setIsManualPickupOverride] = useState<boolean>(Boolean(initialPickup));
+  const hasAutoInitializedRef = useRef<boolean>(false);
 
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
+
+  // Hardware/Gesture Back Handler
+  useEffect(() => {
+    const backAction = () => {
+      navigation.goBack();
+      return true;
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, [navigation]);
 
   // Intermediate stops state (Phase 10: Multi-stop rides, max 3 intermediate stops)
   const [intermediateStops, setIntermediateStops] = useState<LocationPoint[]>([]);
@@ -118,10 +131,11 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
     fetchSavedPlaces();
   }, [state.token, route?.params?.targetLabel]);
 
-  // Auto-reverse geocode current position for Pickup if not provided
+  // Auto-reverse geocode current position for Pickup on initial mount only
   useEffect(() => {
     const initPickup = async () => {
-      if (!pickupPoint && gpsCoords) {
+      if (!hasAutoInitializedRef.current && !initialPickup && !isManualPickupOverride && gpsCoords) {
+        hasAutoInitializedRef.current = true;
         setPickupText('Current Location');
         const readableAddress = await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude);
         const labelName = readableAddress || 'Current Location';
@@ -134,7 +148,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
       }
     };
     initPickup();
-  }, [gpsCoords, pickupPoint]);
+  }, [gpsCoords, initialPickup, isManualPickupOverride]);
 
   // Execute address search query when debounced text updates using Google Places (New)
   useEffect(() => {
@@ -221,6 +235,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
     if (activeField === 'pickup') {
       setPickupPoint(selectedPoint);
       setPickupText(label);
+      setIsManualPickupOverride(true);
       setSearchResults([]);
       
       // If destination already selected (e.g. re-selecting pickup from FareBid), recalculate and navigate
@@ -355,6 +370,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                 value={pickupText}
                 onChangeText={(text) => {
                   setPickupText(text);
+                  setIsManualPickupOverride(true);
                   if (pickupPoint) setPickupPoint(null);
                 }}
                 onFocus={() => setActiveField('pickup')}
@@ -365,6 +381,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                   onPress={() => {
                     setPickupText('');
                     setPickupPoint(null);
+                    setIsManualPickupOverride(true);
                   }}
                 >
                   <Text style={styles.clearBtnText}>✕</Text>
@@ -432,6 +449,53 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
             />
           ) : (
             <ScrollView style={{ flex: 1, padding: 20 }}>
+              {/* Quick GPS Location Button */}
+              {gpsCoords && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: Colors.light.surface,
+                    borderRadius: 16,
+                    padding: 14,
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: '#BAE6FD',
+                    gap: 14,
+                  }}
+                  onPress={async () => {
+                    try {
+                      setIsCalculatingRoute(true);
+                      const readableAddress = await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude);
+                      const label = readableAddress || 'Current Location';
+                      const currentPt = { latitude: gpsCoords.latitude, longitude: gpsCoords.longitude, label };
+                      if (activeField === 'pickup') {
+                        setPickupPoint(currentPt);
+                        setPickupText(label);
+                        setIsManualPickupOverride(false);
+                        setActiveField('dest');
+                      } else {
+                        setDestPoint(currentPt);
+                        setDestText(label);
+                      }
+                    } catch (e) {
+                      // Fallback
+                    } finally {
+                      setIsCalculatingRoute(false);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E0F2FE', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 18 }}>🎯</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.light.text }}>Use Current Location</Text>
+                    <Text style={{ fontSize: 12, color: Colors.light.textSecondary }}>Live GPS positioning</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
               {/* Saved Places Section */}
               <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Saved Places</Text>
               {isLoadingPlaces ? (
@@ -463,6 +527,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                           if (activeField === 'pickup') { 
                             setPickupPoint(placePoint); 
                             setPickupText(placeName); 
+                            setIsManualPickupOverride(true);
                             setActiveField('dest'); 
                           } else { 
                             setDestPoint(placePoint); 

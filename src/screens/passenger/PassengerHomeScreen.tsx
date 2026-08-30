@@ -7,6 +7,9 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Image,
+  BackHandler,
+  ToastAndroid,
+  Platform,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useIsFocused } from '@react-navigation/native';
@@ -57,6 +60,34 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
   
   const mapRef = useRef<LeafletMapRef>(null);
   const hasCenteredRef = useRef(false);
+  const lastBackPressRef = useRef<number>(0);
+
+  // Android hardware back handler
+  useEffect(() => {
+    const onBackPress = () => {
+      if (drawerVisible) {
+        setDrawerVisible(false);
+        return true;
+      }
+
+      if (!isFocused) return false;
+
+      const now = Date.now();
+      if (now - lastBackPressRef.current < 2000) {
+        BackHandler.exitApp();
+        return true;
+      }
+
+      lastBackPressRef.current = now;
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
+      }
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backHandler.remove();
+  }, [drawerVisible, isFocused]);
 
   // Auto-center map once real GPS location is acquired
   useEffect(() => {

@@ -17,7 +17,7 @@ interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  category: 'system' | 'ride' | 'safety' | 'payment' | 'promotional';
+  category: 'system' | 'ride' | 'safety' | 'payment' | 'promotional' | 'promo' | string;
   is_read: boolean;
   created_at: number;
 }
@@ -80,6 +80,7 @@ export default function NotificationCenterScreen(): React.JSX.Element {
         return '🚨';
       case 'payment':
         return '💳';
+      case 'promo':
       case 'promotional':
         return '🎁';
       default:
@@ -89,6 +90,9 @@ export default function NotificationCenterScreen(): React.JSX.Element {
 
   const filteredNotifications = notifications.filter((n) => {
     if (selectedCategory === 'all') return true;
+    if (selectedCategory === 'promo' || selectedCategory === 'promotional') {
+      return n.category === 'promo' || n.category === 'promotional';
+    }
     return n.category === selectedCategory;
   });
 
@@ -123,14 +127,14 @@ export default function NotificationCenterScreen(): React.JSX.Element {
       {/* Category Pills & Mark Read Bar */}
       <View style={styles.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          {['all', 'ride', 'safety', 'payment', 'system', 'promotional'].map((cat) => (
+          {['all', 'ride', 'safety', 'payment', 'system', 'promo'].map((cat) => (
             <TouchableOpacity
               key={cat}
               style={[styles.filterPill, selectedCategory === cat && styles.filterPillActive]}
               onPress={() => setSelectedCategory(cat)}
             >
               <Text style={[styles.filterPillText, selectedCategory === cat && styles.filterPillTextActive]}>
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                {cat === 'promo' ? 'Promo' : cat.charAt(0).toUpperCase() + cat.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}

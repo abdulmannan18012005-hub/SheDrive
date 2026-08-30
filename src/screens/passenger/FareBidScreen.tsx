@@ -13,6 +13,7 @@ import {
   PanResponder,
   Dimensions,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
@@ -154,6 +155,20 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
     })
   ).current;
 
+  // Android hardware/gesture back handler
+  useEffect(() => {
+    const backAction = () => {
+      if (isSummaryVisible) {
+        setIsSummaryVisible(false);
+        return true;
+      }
+      navigation.goBack();
+      return true;
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
+  }, [isSummaryVisible, navigation]);
+
   // Switch Vehicle Category
   const handleSelectCategory = (category: VehicleCategory) => {
     setSelectedCategory(category);
@@ -164,9 +179,10 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
     setBidInput(newEstFare.toString());
   };
 
-  // Adjust fare by ±5 PKR
+  // Adjust fare by ±5 PKR respecting dynamic minimum floor
   const handleAdjustStep = (delta: number) => {
-    const nextFare = adjustFareStep(bidAmount, delta, selectedCategory.minimumFare);
+    const dynamicFloor = Math.max(selectedCategory.minimumFare, Math.round(calculateFare(selectedCategory, distanceKm, durationMin) * 0.85));
+    const nextFare = adjustFareStep(bidAmount, delta, dynamicFloor);
     setBidAmount(nextFare);
     setBidInput(nextFare.toString());
   };
@@ -186,9 +202,10 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       return;
     }
 
-    const validation = validateFareOffer(bidAmount, selectedCategory.minimumFare);
+    const dynamicFloor = Math.max(selectedCategory.minimumFare, Math.round(calculateFare(selectedCategory, distanceKm, durationMin) * 0.85));
+    const validation = validateFareOffer(bidAmount, dynamicFloor);
     if (!validation.isValid) {
-      Alert.alert('Minimum Fare Protection', validation.errorMessage || 'Invalid fare offer.');
+      Alert.alert('Fare Floor Protection', `Your offered fare cannot be lower than PKR ${dynamicFloor} for this ${distanceKm.toFixed(1)} km trip.`);
       return;
     }
 
@@ -692,11 +709,16 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
     zIndex: 10,
+    padding: 0,
   },
   floatingBackText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: Colors.light.text,
+    textAlign: 'center',
+    lineHeight: Platform.OS === 'ios' ? 24 : 26,
+    includeFontPadding: false,
+    marginTop: Platform.OS === 'ios' ? -2 : -1,
   },
   floatingRecenterContainer: {
     position: 'absolute',

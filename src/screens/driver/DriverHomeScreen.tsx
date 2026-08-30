@@ -10,6 +10,9 @@ import {
   FlatList,
   Modal,
   TextInput,
+  BackHandler,
+  ToastAndroid,
+  Platform,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useIsFocused } from '@react-navigation/native';
@@ -92,6 +95,42 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   const mapRef = useRef<LeafletMapRef>(null);
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
   const lastHttpLocationSyncRef = useRef<number>(0);
+  const lastBackPressRef = useRef<number>(0);
+
+  // Android hardware back handler
+  useEffect(() => {
+    const onBackPress = () => {
+      if (counterModalVisible) {
+        setCounterModalVisible(false);
+        return true;
+      }
+      if (verificationModalVisible) {
+        setVerificationModalVisible(false);
+        return true;
+      }
+      if (drawerVisible) {
+        setDrawerVisible(false);
+        return true;
+      }
+
+      if (!isFocused) return false;
+
+      const now = Date.now();
+      if (now - lastBackPressRef.current < 2000) {
+        BackHandler.exitApp();
+        return true;
+      }
+
+      lastBackPressRef.current = now;
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
+      }
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backHandler.remove();
+  }, [counterModalVisible, verificationModalVisible, drawerVisible, isFocused]);
 
   // Subscribe to available rides when online
   useEffect(() => {

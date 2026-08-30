@@ -1082,7 +1082,7 @@ router.get('/rides/history', authenticateToken, requireAdmin, async (req: Reques
  */
 router.post('/notifications/send', authenticateToken, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { title, body, target, userId } = req.body;
+    const { title, body, target, userId, category = 'system' } = req.body;
 
     if (!title || !body || !target) {
       return res.status(400).json({ error: 'Title, body, and target are required' });
@@ -1095,6 +1095,10 @@ router.post('/notifications/send', authenticateToken, requireAdmin, async (req: 
     if (target === 'specific' && !userId) {
       return res.status(400).json({ error: 'userId is required when target is specific' });
     }
+
+    // Validate category
+    const validCategories = ['ride', 'safety', 'payment', 'system', 'promo'];
+    const safeCategory = validCategories.includes(category) ? category : 'system';
 
     let recipients: string[] = [];
 
@@ -1122,8 +1126,8 @@ router.post('/notifications/send', authenticateToken, requireAdmin, async (req: 
       const notifId = `notif_${now}_${Math.random().toString(36).substring(2, 7)}`;
       query(
         `INSERT INTO user_notifications (id, user_id, title, message, category, is_read, created_at)
-         VALUES ($1, $2, $3, $4, 'system', false, $5)`,
-        [notifId, recipientId, title, body, now]
+         VALUES ($1, $2, $3, $4, $5, false, $6)`,
+        [notifId, recipientId, title, body, safeCategory, now]
       ).catch((e: any) => console.warn('In-app notification write failed:', e?.message));
     }
 
@@ -1133,7 +1137,7 @@ router.post('/notifications/send', authenticateToken, requireAdmin, async (req: 
         userId: recipientId,
         title,
         body,
-        data: { type: 'ADMIN_NOTIFICATION', target },
+        data: { type: 'ADMIN_NOTIFICATION', target, category: safeCategory },
       }).catch(err => console.warn(`[FCM] Failed to send to ${recipientId}:`, err))
     );
 

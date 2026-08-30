@@ -231,6 +231,7 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
           style={styles.map}
           initialRegion={initialRegion}
           customMapStyle={GOOGLE_MAP_STYLE}
+          mapPadding={{ top: Platform.OS === 'ios' ? 85 : 90, right: 16, bottom: 20, left: 16 }}
           showsUserLocation={showsUserLocation}
           showsMyLocationButton={showsMyLocationButton}
           followsUserLocation={followsUserLocation}

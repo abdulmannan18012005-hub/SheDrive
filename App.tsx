@@ -25,8 +25,13 @@ export default function App(): React.JSX.Element {
     try {
       // Dynamic import to prevent crash if module not available
       const notificationService = await import('./src/services/notificationService');
-      const { getFCMToken, initializeNotificationListeners } = notificationService;
+      const { getFCMToken, initializeNotificationListeners, registerBackgroundMessageHandler } = notificationService;
       
+      // Register background handler for lock-screen & background push
+      if (typeof registerBackgroundMessageHandler === 'function') {
+        registerBackgroundMessageHandler();
+      }
+
       // Request permission and get token
       const token = await getFCMToken();
       if (token) {

@@ -54,6 +54,16 @@ export async function sendPushNotification({
       body,
     });
 
+    const notifType = data?.type || '';
+    let targetChannel = 'ride_updates';
+    if (notifType === 'new_ride_request' || notifType === 'ride_offer') {
+      targetChannel = 'ride_requests';
+    } else if (notifType === 'chat_message' || notifType === 'chat_notify') {
+      targetChannel = 'chat_messages';
+    } else if (notifType === 'sos_alert' || notifType === 'emergency') {
+      targetChannel = 'safety_alerts';
+    }
+
     // 2. Construct FCM payload optimized for background/minimized/heads-up display
     const message = {
       notification: {
@@ -65,9 +75,10 @@ export async function sendPushNotification({
       android: {
         priority: 'high' as 'high' | 'normal',
         notification: {
-          channelId: 'shedrive_ride_alerts',
+          channelId: targetChannel,
           sound: 'default',
           priority: 'max' as any,
+          visibility: 'public' as any, // Shows on lock screen
           defaultVibrateTimings: true,
           defaultSound: true,
         },

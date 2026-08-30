@@ -138,6 +138,7 @@ export default function App() {
     body: '',
     target: 'all',
     userId: '',
+    category: 'system',
   });
   const [isSendingNotification, setIsSendingNotification] = useState(false);
   const [notificationConfirmModal, setNotificationConfirmModal] = useState(false);
@@ -3069,6 +3070,30 @@ export default function App() {
                   )}
 
                   <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#181C32', marginBottom: '6px' }}>
+                      Notification Category *
+                    </label>
+                    <select
+                      value={notificationForm.category}
+                      onChange={(e) => setNotificationForm(prev => ({ ...prev, category: e.target.value }))}
+                      style={{
+                        ...styles.input,
+                        backgroundColor: '#FFFFFF',
+                        cursor: 'pointer',
+                        padding: '10px 12px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                      }}
+                    >
+                      <option value="system">⚙️ Platform & Maintenance Updates (System)</option>
+                      <option value="ride">🚗 Ride Updates & Booking Status (Ride)</option>
+                      <option value="safety">🛡️ Safety & Security Alerts (Safety)</option>
+                      <option value="payment">💳 Payments, Invoices & Wallet (Payment)</option>
+                      <option value="promo">🎁 Promotions & Exclusive Offers (Promo)</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <label style={{ fontSize: '13px', fontWeight: '700', color: '#181C32' }}>
                         Notification Title *
@@ -3290,9 +3315,12 @@ export default function App() {
               Confirm Broadcast Notification
             </h3>
             <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#5E6278', lineHeight: 1.5 }}>
-              Are you sure you want to broadcast this notification to <strong>{notificationForm.target.toUpperCase()}</strong>?
+              Are you sure you want to broadcast this <strong>{notificationForm.category.toUpperCase()}</strong> notification to <strong>{notificationForm.target.toUpperCase()}</strong>?
             </p>
             <div style={{ padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '700', color: '#4A2060', textTransform: 'uppercase', marginBottom: '4px' }}>
+                Category: {notificationForm.category}
+              </div>
               <div style={{ fontSize: '13px', fontWeight: '700', color: '#181C32', marginBottom: '4px' }}>{notificationForm.title}</div>
               <div style={{ fontSize: '12px', color: '#5E6278' }}>{notificationForm.body}</div>
             </div>
@@ -3309,11 +3337,12 @@ export default function App() {
                       notificationForm.title,
                       notificationForm.body,
                       notificationForm.target,
-                      notificationForm.target === 'specific' ? notificationForm.userId : undefined
+                      notificationForm.target === 'specific' ? notificationForm.userId : undefined,
+                      notificationForm.category
                     );
                     addToast(res.message || 'Broadcast notification sent successfully!', 'success');
                     setNotificationConfirmModal(false);
-                    setNotificationForm({ title: '', body: '', target: 'all', userId: '' });
+                    setNotificationForm({ title: '', body: '', target: 'all', userId: '', category: 'system' });
                   } catch (err) {
                     addToast(err.message || 'Failed to send notification', 'error');
                   } finally {

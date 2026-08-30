@@ -47,7 +47,7 @@ export interface VehicleMake {
 }
 
 // ─── Vehicle Categories ────────────────────────────────────
-export type VehicleCategoryId = 'bike' | 'mini' | 'sedan' | 'premium' | 'family';
+export type VehicleCategoryId = 'bike' | 'auto' | 'mini' | 'sedan' | 'premium' | 'family';
 
 export interface VehicleCategory {
   id: VehicleCategoryId;

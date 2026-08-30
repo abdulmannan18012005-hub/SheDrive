@@ -127,12 +127,12 @@ export const RideBookingSummaryModal: React.FC<Props> = ({
             {/* Fare Breakdown */}
             <View style={styles.fareBreakdownCard}>
               <View style={styles.fareRow}>
-                <Text style={styles.fareRowLabel}>Category Minimum Fare</Text>
-                <Text style={styles.fareRowVal}>{formatCurrency(category.minimumFare)}</Text>
+                <Text style={styles.fareRowLabel}>Recommended Fare</Text>
+                <Text style={styles.fareRowVal}>{formatCurrency(estimatedFare)}</Text>
               </View>
               <View style={styles.fareRow}>
-                <Text style={styles.fareRowLabel}>Standard Est. Fare</Text>
-                <Text style={styles.fareRowVal}>{formatCurrency(estimatedFare)}</Text>
+                <Text style={styles.fareRowLabel}>Dynamic Floor Fare</Text>
+                <Text style={styles.fareRowVal}>{formatCurrency(Math.max(category.minimumFare, Math.round(estimatedFare * 0.85)))}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.fareRowTotal}>

@@ -491,27 +491,34 @@ export default function SavedPlacesScreen(): React.JSX.Element {
 
               {searchResults.length > 0 && (
                 <View style={styles.searchResultsContainer}>
-                  <Text style={styles.searchResultsTitle}>Search Results</Text>
-                  {searchResults.map((item, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.searchResultItem}
-                      onPress={() => handleSelectSearchResult(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.searchResultIcon}>
-                        {item.source === 'google' ? '🔍' : '📍'}
-                      </Text>
-                      <View style={styles.searchResultTextContainer}>
-                        <Text style={styles.searchResultTitle}>
-                          {item.title || (item.display_name ? item.display_name.split(',')[0] : 'Selected Place')}
+                  <Text style={styles.searchResultsTitle}>Search Results ({searchResults.length})</Text>
+                  <ScrollView
+                    style={styles.searchResultsScroll}
+                    nestedScrollEnabled={true}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={true}
+                  >
+                    {searchResults.map((item, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.searchResultItem}
+                        onPress={() => handleSelectSearchResult(item)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.searchResultIcon}>
+                          {item.source === 'google' ? '🔍' : '📍'}
                         </Text>
-                        <Text style={styles.searchResultSubtitle} numberOfLines={2}>
-                          {item.subtitle || item.fullText || item.display_name || ''}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                        <View style={styles.searchResultTextContainer}>
+                          <Text style={styles.searchResultTitle}>
+                            {item.title || (item.display_name ? item.display_name.split(',')[0] : 'Selected Place')}
+                          </Text>
+                          <Text style={styles.searchResultSubtitle} numberOfLines={2}>
+                            {item.subtitle || item.fullText || item.display_name || ''}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
               )}
 
@@ -866,7 +873,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  searchResultsScroll: {
+    maxHeight: 240,
   },
   searchResultsTitle: {
     fontSize: 12,
@@ -876,6 +886,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.divider,
   },
   searchResultItem: {
     flexDirection: 'row',

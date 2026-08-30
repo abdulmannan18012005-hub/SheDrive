@@ -367,10 +367,10 @@ export const adminApi = {
   },
 
   // Send admin notification
-  sendAdminNotification: async (title: string, body: string, target: 'all' | 'drivers' | 'passengers' | 'specific', userId?: string) => {
+  sendAdminNotification: async (title: string, body: string, target: 'all' | 'drivers' | 'passengers' | 'specific', userId?: string, category: string = 'system') => {
     return fetchWithErrorHandling('/admin/notifications/send', {
       method: 'POST',
-      body: JSON.stringify({ title, body, target, userId }),
+      body: JSON.stringify({ title, body, target, userId, category }),
     }, 0);
   },
 

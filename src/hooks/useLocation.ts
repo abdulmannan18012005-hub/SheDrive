@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import * as Location from 'expo-location';
 import { Coordinates } from '../types';
 
@@ -18,6 +19,7 @@ interface UseLocationResult {
  * 3. Immediately obtains cached last known location for instant coordinate availability.
  * 4. Acquires fresh high-accuracy position.
  * 5. Maintains an active position watcher for smooth live updates without coordinate jumping.
+ * 6. Listens to AppState changes to auto-hydrate location when GPS is switched on in settings.
  */
 export function useLocation(enableLiveWatcher: boolean = true): UseLocationResult {
   const [location, setLocation] = useState<Coordinates | null>(null);
@@ -42,7 +44,7 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
       setIsGpsEnabled(servicesEnabled);
 
       if (!servicesEnabled) {
-        setErrorMessage('Device GPS is turned off. Please enable Location in your device settings.');
+        setErrorMessage('Please turn on your device location to find nearby drivers.');
         setIsLoading(false);
         return;
       }
@@ -116,8 +118,21 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
     isMountedRef.current = true;
     fetchLocation();
 
+    // Listen to AppState (e.g. user goes to system settings to enable GPS and returns to app)
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && isMountedRef.current) {
+        const servicesEnabled = await Location.hasServicesEnabledAsync().catch(() => false);
+        if (servicesEnabled) {
+          fetchLocation();
+        }
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
       isMountedRef.current = false;
+      appStateSubscription.remove();
       if (watcherSubscriptionRef.current) {
         watcherSubscriptionRef.current.remove();
         watcherSubscriptionRef.current = null;

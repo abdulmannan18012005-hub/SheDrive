@@ -255,3 +255,20 @@ export function initializeNotificationListeners(
     unsubscribeTokenRefresh();
   };
 }
+
+/**
+ * Register Background Message Handler for lock screen & background delivery
+ */
+export function registerBackgroundMessageHandler() {
+  try {
+    const messagingInst = getMessagingInstance();
+    if (messagingInst && typeof messagingInst.setBackgroundMessageHandler === 'function') {
+      messagingInst.setBackgroundMessageHandler(async (remoteMessage: any) => {
+        console.log('[FCM Background/Lock-screen Message Processed]:', remoteMessage);
+        return Promise.resolve();
+      });
+    }
+  } catch (err) {
+    console.warn('[FCM] Background handler registration notice:', err);
+  }
+}
