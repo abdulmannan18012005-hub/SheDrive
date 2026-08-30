@@ -18,31 +18,103 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sticky Header Effect
   const header = document.querySelector('.header');
   if (header) {
-    window.addEventListener('scroll', () => {
+    const handleScroll = () => {
       if (window.scrollY > 20) {
         header.classList.add('scrolled');
       } else {
         header.classList.remove('scrolled');
       }
-    });
+    };
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Initial check on page load
   }
 
-  // Mobile Navigation Drawer Toggle
-  const mobileToggle = document.querySelector('.mobile-toggle');
-  const navMenu = document.querySelector('.nav-menu');
-  if (mobileToggle && navMenu) {
-    mobileToggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      navMenu.classList.toggle('active');
+  // Mobile Navigation Slide-In Drawer Setup
+  const setupMobileDrawer = () => {
+    let drawerOverlay = document.querySelector('.mobile-drawer-overlay');
+    let drawer = document.querySelector('.mobile-drawer');
+
+    if (!drawer) {
+      drawerOverlay = document.createElement('div');
+      drawerOverlay.className = 'mobile-drawer-overlay';
+
+      drawer = document.createElement('div');
+      drawer.className = 'mobile-drawer';
+
+      const navMenu = document.querySelector('.nav-menu');
+      const navLinksHtml = navMenu ? navMenu.innerHTML : `
+        <li><a href="index.html" class="nav-link">Home</a></li>
+        <li><a href="passenger.html" class="nav-link">For Passengers</a></li>
+        <li><a href="driver.html" class="nav-link">For Drivers</a></li>
+        <li><a href="safety.html" class="nav-link">Safety Center</a></li>
+        <li><a href="feedback.html" class="nav-link">Feedback</a></li>
+        <li><a href="contact.html" class="nav-link">Support</a></li>
+      `;
+
+      drawer.innerHTML = `
+        <div class="mobile-drawer-header">
+          <a href="index.html" class="logo-group">
+            <img src="assets/images/logo.png" alt="SheDrive" class="logo-img" style="width:36px;height:36px;">
+            <span class="brand-name" style="font-size:1.3rem;">SheDrive</span>
+          </a>
+          <button class="mobile-drawer-close" aria-label="Close navigation menu">✕</button>
+        </div>
+        <ul class="mobile-drawer-links">
+          ${navLinksHtml}
+        </ul>
+        <div class="mobile-drawer-footer">
+          <a href="downloads.html" data-download-apk="true" class="btn btn-primary download-apk-btn" style="width:100%; justify-content:center; padding:14px;">📥 Download App</a>
+        </div>
+      `;
+
+      document.body.appendChild(drawerOverlay);
+      document.body.appendChild(drawer);
+    }
+
+    const openDrawer = () => {
+      document.body.classList.add('drawer-open');
+      if (drawerOverlay) drawerOverlay.classList.add('active');
+      if (drawer) drawer.classList.add('active');
+    };
+
+    const closeDrawer = () => {
+      document.body.classList.remove('drawer-open');
+      if (drawerOverlay) drawerOverlay.classList.remove('active');
+      if (drawer) drawer.classList.remove('active');
+    };
+
+    const mobileToggles = document.querySelectorAll('.mobile-toggle');
+    mobileToggles.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDrawer();
+      });
     });
 
-    // Close mobile menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (navMenu.classList.contains('active') && !navMenu.contains(e.target) && e.target !== mobileToggle) {
-        navMenu.classList.remove('active');
-      }
+    if (drawerOverlay) {
+      drawerOverlay.addEventListener('click', closeDrawer);
+    }
+
+    const closeBtn = drawer.querySelector('.mobile-drawer-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeDrawer);
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeDrawer();
     });
-  }
+
+    // Close on clicking any nav link in drawer
+    const drawerLinks = drawer.querySelectorAll('a');
+    drawerLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        closeDrawer();
+      });
+    });
+  };
+
+  setupMobileDrawer();
 
   // Interactive Live Bidding Simulation Demo (inDrive Parity)
   const liveBids = [
