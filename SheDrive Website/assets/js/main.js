@@ -62,8 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <ul class="mobile-drawer-links">
           ${navLinksHtml}
         </ul>
-        <div class="mobile-drawer-footer">
-          <a href="downloads.html" data-download-apk="true" class="btn btn-primary download-apk-btn" style="width:100%; justify-content:center; padding:14px;">📥 Download App</a>
+        <div class="mobile-drawer-footer" style="margin-top: 24px;">
+          <a href="downloads.html" data-download-apk="true" class="btn btn-primary download-apk-btn" style="width:100%; justify-content:center; padding:14px; font-weight:700;">📥 Download App</a>
         </div>
       `;
 
