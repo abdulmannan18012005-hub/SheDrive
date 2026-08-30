@@ -152,20 +152,12 @@ export default function App() {
   const [isSubmittingSOS, setIsSubmittingSOS] = useState(false);
 
   const [settings, setSettings] = useState({
-    commission_pct: 5.0,
+    commission_pct: 7.0,
     sos_hotline: '+92 42 111 743 374',
     raast_id: '03001234567',
     raast_qr_url: '',
     bank_account_number: 'PK92MEZN0009988776655',
     iban: 'PK92MEZN000998877665544332211',
-    category_fares: [
-      { id: 'bike', name: 'Bike / Scooty', baseFare: 60, perKmRate: 25, perMinuteRate: 2, minimumFare: 50 },
-      { id: 'mini', name: 'SheDrive Mini', baseFare: 100, perKmRate: 40, perMinuteRate: 3, minimumFare: 80 },
-      { id: 'sedan', name: 'SheDrive Sedan AC', baseFare: 150, perKmRate: 50, perMinuteRate: 4, minimumFare: 120 },
-      { id: 'comfort', name: 'SheDrive Comfort AC', baseFare: 180, perKmRate: 60, perMinuteRate: 5, minimumFare: 150 },
-      { id: 'premium', name: 'SheDrive Premium', baseFare: 250, perKmRate: 80, perMinuteRate: 6, minimumFare: 200 },
-      { id: 'family', name: 'SheDrive Family XL', baseFare: 300, perKmRate: 90, perMinuteRate: 7, minimumFare: 250 },
-    ],
   });
 
   const [selectedDriverDocs, setSelectedDriverDocs] = useState(null);
@@ -177,6 +169,7 @@ export default function App() {
   const [credCurrentPassword, setCredCurrentPassword] = useState('');
   const [credNewEmail, setCredNewEmail] = useState('');
   const [credNewPassword, setCredNewPassword] = useState('');
+  const [credConfirmPassword, setCredConfirmPassword] = useState('');
   const [credLoading, setCredLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   
@@ -667,59 +660,29 @@ export default function App() {
     
     // Validation
     if (settings.commission_pct < 0 || settings.commission_pct > 100) {
-      alert('Platform Commission must be between 0 and 100');
+      addToast('Platform Commission must be between 0 and 100%', 'warning');
       return;
     }
     
-    if (!settings.sos_hotline.trim()) {
-      alert('Emergency SOS Number is required');
+    if (!settings.sos_hotline || !settings.sos_hotline.trim()) {
+      addToast('Emergency SOS Number is required', 'warning');
       return;
-    }
-    
-    for (const cat of settings.category_fares) {
-      if (cat.baseFare < 0) {
-        addToast(`${cat.name}: Base Fare cannot be negative`, 'warning');
-        return;
-      }
-      if (cat.perKmRate < 0) {
-        addToast(`${cat.name}: Rate per KM cannot be negative`, 'warning');
-        return;
-      }
-      if (cat.perMinuteRate < 0) {
-        addToast(`${cat.name}: Rate per Minute cannot be negative`, 'warning');
-        return;
-      }
-      if (cat.minimumFare < 0) {
-        addToast(`${cat.name}: Minimum Fare cannot be negative`, 'warning');
-        return;
-      }
     }
     
     try {
       const res = await adminApi.saveSettings({
         commissionPct: settings.commission_pct,
         sosHotline: settings.sos_hotline,
-        categoryFares: settings.category_fares,
         raastId: settings.raast_id,
         raastQrUrl: settings.raast_qr_url,
         bankAccountNumber: settings.bank_account_number,
         iban: settings.iban,
       });
-      addToast(res.message || 'System settings and category fares saved successfully!', 'success');
+      addToast(res.message || 'Platform settings saved successfully!', 'success');
       fetchTabData(true);
     } catch (err) {
       addToast(err.message || 'Failed to save settings', 'error');
     }
-  };
-
-  const updateCategoryFare = (catId, field, val) => {
-    const updated = (settings.category_fares || []).map((cat) => {
-      if (cat.id === catId) {
-        return { ...cat, [field]: parseFloat(val) || 0 };
-      }
-      return cat;
-    });
-    setSettings({ ...settings, category_fares: updated });
   };
 
   // Handle Admin Credential Update
@@ -737,6 +700,10 @@ export default function App() {
       addToast('New password must be at least 6 characters long.', 'warning');
       return;
     }
+    if (credNewPassword && credNewPassword !== credConfirmPassword) {
+      addToast('New password and confirm password do not match.', 'warning');
+      return;
+    }
     setCredLoading(true);
     try {
       const res = await adminApi.updateCredentials({
@@ -748,6 +715,7 @@ export default function App() {
       setCredCurrentPassword('');
       setCredNewEmail('');
       setCredNewPassword('');
+      setCredConfirmPassword('');
       handleLogout();
     } catch (err) {
       addToast(err.message || 'Failed to update credentials', 'error');
@@ -1610,203 +1578,175 @@ export default function App() {
         {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div style={styles.cardContainer}>
-            <h3 style={styles.cardHeader}>Category Fare Configuration & Platform Settings</h3>
-            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              
-              {/* Platform Settings */}
-              <div style={{ backgroundColor: '#F8F9FA', padding: 16, borderRadius: 12, border: '1px solid #E4E6EF' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#181C32' }}>⚙️ Platform Settings</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <div>
-                    <label style={styles.label}>Platform Commission (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={settings.commission_pct}
-                      onChange={(e) => setSettings({ ...settings, commission_pct: parseFloat(e.target.value) })}
-                      style={styles.input}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Emergency SOS Number</label>
-                    <input
-                      type="text"
-                      value={settings.sos_hotline}
-                      onChange={(e) => setSettings({ ...settings, sos_hotline: e.target.value })}
-                      style={styles.input}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Driver Monthly Fee Payment Instructions */}
-              <div style={{ backgroundColor: '#F8F9FA', padding: 16, borderRadius: 12, border: '1px solid #E4E6EF' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#181C32' }}>💳 Driver Monthly Fee Payment Details (Raast & Bank)</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <div>
-                    <label style={styles.label}>Raast ID</label>
-                    <input
-                      type="text"
-                      value={settings.raast_id || ''}
-                      onChange={(e) => setSettings({ ...settings, raast_id: e.target.value })}
-                      placeholder="e.g. 03001234567 or raast@shedrive"
-                      style={styles.input}
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Bank Account Number</label>
-                    <input
-                      type="text"
-                      value={settings.bank_account_number || ''}
-                      onChange={(e) => setSettings({ ...settings, bank_account_number: e.target.value })}
-                      placeholder="e.g. PK92MEZN0009988776655"
-                      style={styles.input}
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>IBAN</label>
-                    <input
-                      type="text"
-                      value={settings.iban || ''}
-                      onChange={(e) => setSettings({ ...settings, iban: e.target.value })}
-                      placeholder="e.g. PK92MEZN000998877665544332211"
-                      style={styles.input}
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Raast QR Image URL (Optional)</label>
-                    <input
-                      type="text"
-                      value={settings.raast_qr_url || ''}
-                      onChange={(e) => setSettings({ ...settings, raast_qr_url: e.target.value })}
-                      placeholder="https://.../raast-qr.png"
-                      style={styles.input}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div style={{ backgroundColor: '#F8F9FA', padding: 16, borderRadius: 12, border: '1px solid #E4E6EF' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', color: '#181C32' }}>🚖 Vehicle Category Fare Structure</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr', gap: 12, fontWeight: '700', fontSize: '13px', color: '#5E6278', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #E4E6EF' }}>
-                  <div>Category</div>
-                  <div>Base Fare (PKR)</div>
-                  <div>Rate per KM (PKR)</div>
-                  <div>Rate per Minute (PKR)</div>
-                  <div>Minimum Fare (PKR)</div>
-                </div>
-                {(settings.category_fares || []).map((cat) => (
-                  <div key={cat.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 12, alignItems: 'center' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#3F4254' }}>{cat.name}</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={cat.baseFare}
-                      onChange={(e) => updateCategoryFare(cat.id, 'baseFare', e.target.value)}
-                      style={styles.input}
-                      required
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={cat.perKmRate}
-                      onChange={(e) => updateCategoryFare(cat.id, 'perKmRate', e.target.value)}
-                      style={styles.input}
-                      required
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={cat.perMinuteRate}
-                      onChange={(e) => updateCategoryFare(cat.id, 'perMinuteRate', e.target.value)}
-                      style={styles.input}
-                      required
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={cat.minimumFare}
-                      onChange={(e) => updateCategoryFare(cat.id, 'minimumFare', e.target.value)}
-                      style={styles.input}
-                      required
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <button type="submit" style={styles.btnSave}>
-                💾 Save Configuration
-              </button>
-            </form>
-
-            {/* Admin Account Credentials */}
-            <div style={{ marginTop: '32px', backgroundColor: '#F8F9FA', padding: '24px', borderRadius: '16px', border: '1px solid #E4E6EF' }}>
-              <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#181C32', fontWeight: '800' }}>🔑 Admin Account Credentials &amp; Security</h4>
-              <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#7E8299', lineHeight: 1.5 }}>
-                Change your Admin Portal login email or password below. You must enter your current password to verify authorization. After updating, you will be logged out and must re-login with your new credentials.
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={styles.cardHeader}>System Settings &amp; Security</h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#7E8299' }}>
+                Manage administrator credentials, operational platform commission, and emergency SOS hotline.
               </p>
-              <form onSubmit={handleUpdateCredentials} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={styles.label}>Current Password <span style={{ color: '#EF4444' }}>*</span></label>
-                  <input
-                    type="password"
-                    placeholder="Enter your current password"
-                    value={credCurrentPassword}
-                    onChange={(e) => setCredCurrentPassword(e.target.value)}
-                    style={styles.input}
-                    required
-                    autoComplete="current-password"
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+              {/* Section 1: Admin Credentials Update */}
+              <div style={{ backgroundColor: '#F8F9FA', padding: '24px', borderRadius: '16px', border: '1px solid #E4E6EF' }}>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#181C32', fontWeight: '800' }}>🔑 Section 1: Admin Account Credentials &amp; Security</h4>
+                <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#7E8299', lineHeight: 1.5 }}>
+                  Update your Admin Portal login email or password. You must enter your current password to verify authorization. After updating, you will be logged out and must re-login with your new credentials.
+                </p>
+                <form onSubmit={handleUpdateCredentials} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
-                    <label style={styles.label}>New Email / Username</label>
-                    <input
-                      type="email"
-                      placeholder="Enter new admin email (optional)"
-                      value={credNewEmail}
-                      onChange={(e) => setCredNewEmail(e.target.value)}
-                      style={styles.input}
-                      autoComplete="new-email"
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>New Password</label>
+                    <label style={styles.label}>Current Password <span style={{ color: '#EF4444' }}>*</span></label>
                     <input
                       type="password"
-                      placeholder="Enter new password (min 6 chars, optional)"
-                      value={credNewPassword}
-                      onChange={(e) => setCredNewPassword(e.target.value)}
+                      placeholder="Enter your current password"
+                      value={credCurrentPassword}
+                      onChange={(e) => setCredCurrentPassword(e.target.value)}
                       style={styles.input}
-                      minLength={6}
-                      autoComplete="new-password"
+                      required
+                      autoComplete="current-password"
                     />
                   </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <button
-                    type="submit"
-                    disabled={credLoading}
-                    style={{
-                      ...styles.btnSave,
-                      background: 'linear-gradient(135deg, #6366F1 0%, #0D9488 100%)',
-                      opacity: credLoading ? 0.6 : 1,
-                      cursor: credLoading ? 'not-allowed' : 'pointer',
-                      maxWidth: '280px',
-                    }}
-                  >
-                    {credLoading ? '⏳ Updating...' : '🔒 Update Admin Credentials'}
-                  </button>
-                  <span style={{ fontSize: '12px', color: '#A1A5B7' }}>You will be logged out after update</span>
-                </div>
-              </form>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={styles.label}>New Email / Username</label>
+                      <input
+                        type="email"
+                        placeholder="Enter new admin email (optional)"
+                        value={credNewEmail}
+                        onChange={(e) => setCredNewEmail(e.target.value)}
+                        style={styles.input}
+                        autoComplete="new-email"
+                      />
+                    </div>
+                    <div>
+                      <label style={styles.label}>New Password</label>
+                      <input
+                        type="password"
+                        placeholder="Enter new password (min 6 chars)"
+                        value={credNewPassword}
+                        onChange={(e) => setCredNewPassword(e.target.value)}
+                        style={styles.input}
+                        minLength={6}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div>
+                      <label style={styles.label}>Confirm New Password</label>
+                      <input
+                        type="password"
+                        placeholder="Confirm new password"
+                        value={credConfirmPassword}
+                        onChange={(e) => setCredConfirmPassword(e.target.value)}
+                        style={styles.input}
+                        minLength={6}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+                    <button
+                      type="submit"
+                      disabled={credLoading}
+                      style={{
+                        ...styles.btnSave,
+                        background: 'linear-gradient(135deg, #6366F1 0%, #0D9488 100%)',
+                        opacity: credLoading ? 0.6 : 1,
+                        cursor: credLoading ? 'not-allowed' : 'pointer',
+                        maxWidth: '280px',
+                      }}
+                    >
+                      {credLoading ? '⏳ Updating...' : '🔒 Update Admin Credentials'}
+                    </button>
+                    <span style={{ fontSize: '12px', color: '#A1A5B7' }}>You will be logged out after update</span>
+                  </div>
+                </form>
+              </div>
+
+              {/* Section 2: Platform Commission & Emergency SOS Configuration */}
+              <div style={{ backgroundColor: '#F8F9FA', padding: '24px', borderRadius: '16px', border: '1px solid #E4E6EF' }}>
+                <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#181C32', fontWeight: '800' }}>⚙️ Section 2: Platform Commission &amp; Emergency SOS Configuration</h4>
+                <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#7E8299', lineHeight: 1.5 }}>
+                  Configure the dynamic platform commission rate percentage, primary emergency SOS hotline, and bank settlement instructions for drivers.
+                </p>
+                <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div>
+                      <label style={styles.label}>Platform Commission (%) <span style={{ color: '#EF4444' }}>*</span></label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={settings.commission_pct}
+                        onChange={(e) => setSettings({ ...settings, commission_pct: parseFloat(e.target.value) || 0 })}
+                        style={styles.input}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={styles.label}>Emergency SOS Number <span style={{ color: '#EF4444' }}>*</span></label>
+                      <input
+                        type="text"
+                        value={settings.sos_hotline}
+                        onChange={(e) => setSettings({ ...settings, sos_hotline: e.target.value })}
+                        style={styles.input}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #E4E6EF', paddingTop: '16px', marginTop: '4px' }}>
+                    <h5 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#3F4254', fontWeight: '700' }}>💳 Driver Monthly Fee Payment Details (Raast &amp; Bank)</h5>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                      <div>
+                        <label style={styles.label}>Raast ID</label>
+                        <input
+                          type="text"
+                          value={settings.raast_id || ''}
+                          onChange={(e) => setSettings({ ...settings, raast_id: e.target.value })}
+                          placeholder="e.g. 03001234567 or raast@shedrive"
+                          style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Bank Account Number</label>
+                        <input
+                          type="text"
+                          value={settings.bank_account_number || ''}
+                          onChange={(e) => setSettings({ ...settings, bank_account_number: e.target.value })}
+                          placeholder="e.g. PK92MEZN0009988776655"
+                          style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>IBAN</label>
+                        <input
+                          type="text"
+                          value={settings.iban || ''}
+                          onChange={(e) => setSettings({ ...settings, iban: e.target.value })}
+                          placeholder="e.g. PK92MEZN000998877665544332211"
+                          style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Raast QR Image URL (Optional)</label>
+                        <input
+                          type="text"
+                          value={settings.raast_qr_url || ''}
+                          onChange={(e) => setSettings({ ...settings, raast_qr_url: e.target.value })}
+                          placeholder="https://.../raast-qr.png"
+                          style={styles.input}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+                    <button type="submit" style={styles.btnSave}>
+                      💾 Save Platform Settings
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         )}
