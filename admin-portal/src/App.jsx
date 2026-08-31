@@ -35,9 +35,99 @@ const formatUserAgentBadge = (deviceInfo) => {
   if (str.includes('iphone') || str.includes('ios') || str.includes('ipad')) return { label: 'iOS App', icon: '🍎', bg: '#EEF2FF', color: '#4338CA' };
   if (str.includes('windows')) return { label: 'Windows Web', icon: '🪟', bg: '#E0F2FE', color: '#0369A1' };
   if (str.includes('mac') || str.includes('darwin')) return { label: 'macOS Web', icon: '🍏', bg: '#F8FAFC', color: '#334155' };
-  if (str.includes('linux')) return { label: 'Linux Web', icon: '🐧', bg: '#FEF3C7', color: '#B45309' };
   if (str.includes('mobile')) return { label: 'Mobile Web', icon: '📱', bg: '#CCFBF1', color: '#0F766E' };
   return { label: 'Web Visitor', icon: '🌐', bg: '#F1F5F9', color: '#475569' };
+};
+
+// Tab <-> Route Path mapping for complete browser refresh and URL persistence
+const TAB_PATH_MAP = {
+  dashboard: '/',
+  analytics: '/analytics',
+  systemHealth: '/system-health',
+  compliance: '/compliance',
+  disputes: '/disputes',
+  verification: '/verification',
+  drivers: '/drivers',
+  rejected: '/rejected',
+  passengers: '/passengers',
+  rides: '/rides',
+  payments: '/payments',
+  sosAlerts: '/sos-alerts',
+  auditLogs: '/audit-logs',
+  feedback: '/feedback',
+  supportTickets: '/support-tickets',
+  rideHistory: '/ride-history',
+  deactivatedAccounts: '/deactivated-accounts',
+  notifications: '/notifications',
+  settings: '/settings',
+};
+
+const PATH_TO_TAB_MAP = {
+  '/': 'dashboard',
+  '/dashboard': 'dashboard',
+  '/analytics': 'analytics',
+  '/systemhealth': 'systemHealth',
+  '/system-health': 'systemHealth',
+  '/compliance': 'compliance',
+  '/disputes': 'disputes',
+  '/verification': 'verification',
+  '/drivers': 'drivers',
+  '/rejected': 'rejected',
+  '/passengers': 'passengers',
+  '/rides': 'rides',
+  '/payments': 'payments',
+  '/sosalerts': 'sosAlerts',
+  '/sos-alerts': 'sosAlerts',
+  '/auditlogs': 'auditLogs',
+  '/audit-logs': 'auditLogs',
+  '/feedback': 'feedback',
+  '/supporttickets': 'supportTickets',
+  '/support-tickets': 'supportTickets',
+  '/ridehistory': 'rideHistory',
+  '/ride-history': 'rideHistory',
+  '/deactivatedaccounts': 'deactivatedAccounts',
+  '/deactivated-accounts': 'deactivatedAccounts',
+  '/notifications': 'notifications',
+  '/settings': 'settings',
+};
+
+const resolveInitialTab = () => {
+  try {
+    // 1. URL search param: ?tab=drivers
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryTab = urlParams.get('tab');
+    if (queryTab && TAB_PATH_MAP[queryTab]) {
+      return queryTab;
+    }
+
+    // 2. URL hash: #/drivers or #drivers
+    const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (rawHash) {
+      if (TAB_PATH_MAP[rawHash]) return rawHash;
+      const normalizedHash = '/' + rawHash.toLowerCase();
+      if (PATH_TO_TAB_MAP[normalizedHash]) return PATH_TO_TAB_MAP[normalizedHash];
+      if (PATH_TO_TAB_MAP[normalizedHash.replace(/-/g, '')]) return PATH_TO_TAB_MAP[normalizedHash.replace(/-/g, '')];
+    }
+
+    // 3. URL pathname: /drivers or /admin-portal/drivers
+    const pathname = window.location.pathname.toLowerCase();
+    const segments = pathname.split('/').filter(Boolean);
+    const lastSegment = segments[segments.length - 1] || '';
+    if (lastSegment) {
+      const normalizedPath = '/' + lastSegment;
+      if (PATH_TO_TAB_MAP[normalizedPath]) return PATH_TO_TAB_MAP[normalizedPath];
+      if (PATH_TO_TAB_MAP[normalizedPath.replace(/-/g, '')]) return PATH_TO_TAB_MAP[normalizedPath.replace(/-/g, '')];
+    }
+
+    // 4. Cached active tab in localStorage
+    const savedTab = localStorage.getItem('shedrive_admin_active_tab');
+    if (savedTab && TAB_PATH_MAP[savedTab]) {
+      return savedTab;
+    }
+  } catch (err) {
+    console.warn('[Router] Failed to resolve initial tab:', err);
+  }
+  return 'dashboard';
 };
 
 export default function App() {
@@ -48,7 +138,47 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTabState] = useState(resolveInitialTab);
+
+  // Synchronized tab switcher that updates state, localStorage, and URL history
+  const setActiveTab = useCallback((newTab) => {
+    if (!TAB_PATH_MAP[newTab]) newTab = 'dashboard';
+    setActiveTabState(newTab);
+    try {
+      localStorage.setItem('shedrive_admin_active_tab', newTab);
+      const searchParams = new URLSearchParams(window.location.search);
+      if (newTab === 'dashboard') {
+        searchParams.delete('tab');
+      } else {
+        searchParams.set('tab', newTab);
+      }
+      const newQuery = searchParams.toString() ? `?${searchParams.toString()}` : '';
+      const newUrl = `${window.location.pathname}${newQuery}`;
+      window.history.replaceState({ tab: newTab }, '', newUrl);
+    } catch (e) {
+      console.warn('[Router] Error updating URL:', e);
+    }
+  }, []);
+
+  // Listen to browser Back/Forward navigation and sync tab
+  useEffect(() => {
+    const handlePopState = () => {
+      const currentTab = resolveInitialTab();
+      setActiveTabState(currentTab);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+
+    // Initial sync so URL reflects active tab on first load
+    const initialTab = resolveInitialTab();
+    setActiveTab(initialTab);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, [setActiveTab]);
   
   // Toast notifications
   const [toasts, setToasts] = useState([]);
@@ -493,6 +623,8 @@ export default function App() {
         setAuthToken(res.token);
         setToken(res.token);
         addToast('Welcome back, Admin!', 'success');
+        const currentTab = resolveInitialTab();
+        setActiveTab(currentTab);
       } else {
         setLoginError(res.error || 'Login failed. Please check your credentials.');
       }
