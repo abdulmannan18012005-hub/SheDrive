@@ -373,12 +373,16 @@ router.post('/register', async (req: Request, res: Response) => {
           }
         } else {
           return res.status(409).json({ 
-            error: `An account with this phone number or email already exists as a ${role}. You cannot register as ${role} twice.` 
+            status: 'error',
+            message: 'An account with this email or phone number already exists.',
+            error: `An account with this phone number or email already exists as a ${role}.` 
           });
         }
       } else {
         return res.status(409).json({ 
-          error: `An account with this phone number or email already exists as a ${role}. You cannot register as ${role} twice.` 
+          status: 'error',
+          message: 'An account with this email or phone number already exists.',
+          error: `An account with this phone number or email already exists as a ${role}.` 
         });
       }
     }

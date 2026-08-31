@@ -13,6 +13,7 @@ import {
   BackHandler,
   ToastAndroid,
   Platform,
+  AppState,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useIsFocused } from '@react-navigation/native';
@@ -225,6 +226,22 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     return () => clearInterval(interval);
   }, [isOnline, availableRides]);
 
+  // AppState minimize/resume location refresh listener
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      if (nextAppState === 'active') {
+        try {
+          await refreshLocation();
+        } catch (err) {
+          console.warn('[Driver Location AppState Resume Warning]:', err);
+        }
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   // Stop watching location when component unmounts
   useEffect(() => {
     return () => {
@@ -238,6 +255,16 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   const handleToggleOnline = async () => {
     if (!user) {
       Alert.alert('Authentication Error', 'Driver user session not found. Please log in again.');
+      return;
+    }
+
+    // Robust verification gatekeeper: block toggle if not approved
+    if (!isOnline && (!isDriverVerified || verificationStatus !== 'approved')) {
+      setVerificationModalVisible(true);
+      Alert.alert(
+        'Account Under Review',
+        'Your account documents are currently under review. You can go online once approved.'
+      );
       return;
     }
 
@@ -694,6 +721,24 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         </View>
       )}
 
+      {/* Floating Recenter GPS Target Button */}
+      <TouchableOpacity
+        style={styles.floatingRecenterBtn}
+        onPress={async () => {
+          try {
+            await refreshLocation();
+            if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
+              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
+            }
+          } catch (err) {
+            console.warn('[Driver Recenter Location Warning]:', err);
+          }
+        }}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.floatingRecenterIcon}>🎯</Text>
+      </TouchableOpacity>
+
       {/* Bottom Panel containing Go Online Action */}
       <View style={styles.bottomPanel}>
         <TouchableOpacity
@@ -1061,6 +1106,28 @@ const styles = StyleSheet.create({
   },
   actionBtnDisabled: {
     opacity: 0.4,
+  },
+  floatingRecenterBtn: {
+    position: 'absolute',
+    right: 18,
+    bottom: 95,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    zIndex: 99,
+  },
+  floatingRecenterIcon: {
+    fontSize: 22,
   },
   bottomPanel: {
     position: 'absolute',

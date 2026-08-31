@@ -164,13 +164,22 @@ router.put('/drivers/:id/verify', authenticateToken, requireAdmin, async (req: R
       );
       await query('UPDATE drivers SET is_active = true, is_available = true WHERE driver_id = $1', [id]);
 
+      const approvalTitle = '🎉 Account Approved!';
+      const approvalBody = 'Welcome to SheDrive! Your driver documents have been approved. You can now go online.';
+
       // Push notification to driver (non-blocking)
       sendPushNotification({
         userId: id,
-        title: '🛡️ Account Verified & Approved!',
-        body: 'Congratulations! Your SheDrive partner profile is approved. You can now go online.',
+        title: approvalTitle,
+        body: approvalBody,
         data: { type: 'driver_verified', driverId: id },
       }).catch(err => console.warn('[FCM] Driver approval push notification error:', err));
+
+      // In-app notification persistence (non-blocking)
+      query(
+        'INSERT INTO user_notifications (id, user_id, title, message, category, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [`notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`, id, approvalTitle, approvalBody, 'system', false, Date.now()]
+      ).catch(() => {});
 
       // Audit log entry (non-blocking)
       query(
@@ -180,23 +189,37 @@ router.put('/drivers/:id/verify', authenticateToken, requireAdmin, async (req: R
 
       return res.status(200).json({ success: true, message: 'Driver verified and approved successfully' });
     } else {
+      const cleanReason = (reason && String(reason).trim()) || '';
+      if (!cleanReason) {
+        return res.status(400).json({ error: 'Rejection reason is required.' });
+      }
+
       await query(
         'UPDATE users SET is_verified = false, verification_status = $1, updated_at = $2, rejection_timestamp = $3, rejection_reason = $4 WHERE id = $5',
-        ['rejected', Date.now(), Date.now(), reason || 'Documents did not meet verification standards', id]
+        ['rejected', Date.now(), Date.now(), cleanReason, id]
       );
       await query('UPDATE drivers SET is_active = false, is_available = false WHERE driver_id = $1', [id]);
+
+      const rejectionTitle = 'Application Status Update';
+      const rejectionBody = `Application Status Update: Your driver application was declined. Reason: ${cleanReason}. You may re-apply after 24 hours.`;
 
       // Push notification to driver (non-blocking)
       sendPushNotification({
         userId: id,
-        title: '⚠️ Verification Action Required',
-        body: `Your application status: ${reason || 'Documents did not meet verification standards. Please resubmit.'}`,
-        data: { type: 'driver_rejected', driverId: id, reason: reason || '' },
+        title: rejectionTitle,
+        body: rejectionBody,
+        data: { type: 'driver_rejected', driverId: id, reason: cleanReason },
       }).catch(err => console.warn('[FCM] Driver rejection push notification error:', err));
+
+      // In-app notification persistence (non-blocking)
+      query(
+        'INSERT INTO user_notifications (id, user_id, title, message, category, is_read, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [`notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`, id, rejectionTitle, rejectionBody, 'safety', false, Date.now()]
+      ).catch(() => {});
 
       query(
         'INSERT INTO audit_logs (id, user_id, action, details, timestamp) VALUES ($1, $2, $3, $4, $5)',
-        [`log_${Date.now()}`, (req as any).user.id, 'REJECT_DRIVER', `Rejected driver verification ID ${id}. Reason: ${reason || 'Not specified'}`, Date.now()]
+        [`log_${Date.now()}`, (req as any).user.id, 'REJECT_DRIVER', `Rejected driver verification ID ${id}. Reason: ${cleanReason}`, Date.now()]
       ).catch((e: any) => console.warn('Audit log write failed (non-critical):', e?.message));
 
       return res.status(200).json({ success: true, message: 'Driver application rejected' });

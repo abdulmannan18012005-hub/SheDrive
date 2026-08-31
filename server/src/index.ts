@@ -356,6 +356,10 @@ if (cleanupInterval.unref) {
   cleanupInterval.unref();
 }
 
+// 24-Hour Automated Database Purge Cron Worker for Rejected Driver Accounts
+import { startCleanupCron } from './cron/cleanup';
+const driverCleanupInterval = startCleanupCron(30 * 60 * 1000);
+
 // Global Process Resilience Handlers
 process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
   console.error('[FATAL PROCESS] Unhandled Promise Rejection at:', promise, 'reason:', reason);
@@ -369,6 +373,7 @@ process.on('uncaughtException', (err: Error) => {
 const gracefulShutdown = (signal: string) => {
   console.log(`[SHUTDOWN] Received ${signal}. Closing HTTP server gracefully...`);
   clearInterval(cleanupInterval);
+  clearInterval(driverCleanupInterval);
   server.close(() => {
     console.log('[SHUTDOWN] HTTP server closed cleanly. Exiting process.');
     process.exit(0);

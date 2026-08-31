@@ -27,6 +27,7 @@ export interface UserProfile {
   cnicFrontUrl?: string;
   cnicBackUrl?: string;
   isVerified?: boolean;
+  verificationStatus?: 'pending' | 'approved' | 'rejected' | string;
   isBlocked?: boolean;
   acceptedTerms?: boolean;
   gender?: string;

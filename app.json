@@ -13,7 +13,7 @@
     ],
     "splash": {
       "image": "./assets/icon.png",
-      "backgroundColor": "#4A2060",
+      "backgroundColor": "#042F2E",
       "resizeMode": "contain"
     },
     "ios": {
@@ -29,7 +29,7 @@
       },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4A2060"
+        "backgroundColor": "#042F2E"
       },
       "permissions": [
         "INTERNET",

@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
+  BackHandler,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -37,6 +39,34 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTimeRemaining, setLockoutTimeRemaining] = useState(0);
+
+  const [rejectionLockoutVisible, setRejectionLockoutVisible] = useState(false);
+  const [rejectedReason, setRejectedReason] = useState('');
+  const [autoExitCountdown, setAutoExitCountdown] = useState(30);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (rejectionLockoutVisible) {
+      setAutoExitCountdown(30);
+      timer = setInterval(() => {
+        setAutoExitCountdown((prev) => {
+          if (prev <= 1) {
+            if (timer) clearInterval(timer);
+            if (Platform.OS === 'android') {
+              BackHandler.exitApp();
+            } else {
+              setRejectionLockoutVisible(false);
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [rejectionLockoutVisible]);
 
   useEffect(() => {
     // Load saved Remember Me identifier on mount
@@ -112,6 +142,11 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
       const data = await res.json();
 
       if (res.status === 403) {
+        if (data.isRejected || data.rejectionReason) {
+          setRejectedReason(data.rejectionReason || data.error || 'Your application did not meet verification standards.');
+          setRejectionLockoutVisible(true);
+          return;
+        }
         Alert.alert(
           'Account Suspended',
           data.error || 'Your account has been suspended.'
@@ -371,6 +406,62 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* 24-Hour Non-Dismissible Rejection Lockout Modal */}
+      <Modal
+        visible={rejectionLockoutVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => {
+          if (Platform.OS === 'android') {
+            BackHandler.exitApp();
+          }
+        }}
+      >
+        <View style={styles.lockoutContainer}>
+          <View style={styles.lockoutCard}>
+            <View style={styles.lockoutIconBadge}>
+              <Text style={{ fontSize: 36 }}>🚫</Text>
+            </View>
+            
+            <Text style={styles.lockoutTitle}>Application Not Approved</Text>
+            <Text style={styles.lockoutSubtitle}>
+              SheDrive Captain Verification Status
+            </Text>
+
+            <View style={styles.lockoutReasonBox}>
+              <Text style={styles.lockoutReasonLabel}>Reason for Rejection:</Text>
+              <Text style={styles.lockoutReasonText}>{rejectedReason || 'Documents did not meet verification standards.'}</Text>
+            </View>
+
+            <View style={styles.lockoutNoticeBox}>
+              <Text style={styles.lockoutNoticeText}>
+                ⚠️ Under SheDrive safety policies, you may submit a fresh registration with updated documents after the 24-hour verification cooldown period.
+              </Text>
+            </View>
+
+            <View style={styles.countdownBox}>
+              <Text style={styles.countdownText}>
+                Application will exit in <Text style={{ fontWeight: '800', color: Colors.light.error }}>{autoExitCountdown}s</Text>
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.exitAppButton}
+              onPress={() => {
+                if (Platform.OS === 'android') {
+                  BackHandler.exitApp();
+                } else {
+                  setRejectionLockoutVisible(false);
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.exitAppButtonText}>Exit SheDrive</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -581,6 +672,105 @@ const styles = StyleSheet.create({
   registerLinkText: {
     color: Colors.light.primary,
     fontSize: 15,
+    fontWeight: '800',
+  },
+  lockoutContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  lockoutCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 420,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  lockoutIconBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  lockoutTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  lockoutSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  lockoutReasonBox: {
+    backgroundColor: '#FFF1F2',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+    borderRadius: 14,
+    padding: 16,
+    width: '100%',
+    marginBottom: 16,
+  },
+  lockoutReasonLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#9F1239',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  lockoutReasonText: {
+    fontSize: 14,
+    color: '#881337',
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  lockoutNoticeBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    width: '100%',
+    marginBottom: 20,
+  },
+  lockoutNoticeText: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  countdownBox: {
+    marginBottom: 20,
+  },
+  countdownText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  exitAppButton: {
+    backgroundColor: '#EF4444',
+    paddingVertical: 14,
+    borderRadius: 14,
+    width: '100%',
+    alignItems: 'center',
+  },
+  exitAppButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '800',
   },
 });

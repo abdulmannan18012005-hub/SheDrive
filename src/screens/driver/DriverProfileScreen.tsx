@@ -282,12 +282,12 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
     if (!profile) return 0;
 
     let completedFields = 0;
-    const totalFields = 8;
+    const totalFields = 9;
 
     // Check basic info
     if (profile.name) completedFields++;
     if (profile.phone) completedFields++;
-    if (profile.photoURL) completedFields++;
+    if (profile.photoURL || profile.selfieUrl) completedFields++;
 
     // Check vehicle info
     if (profile.vehicleInfo) {
@@ -301,7 +301,8 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
     if (profile.licenseFrontUrl) completedFields++;
     if (profile.licenseBackUrl) completedFields++;
 
-    return Math.round((completedFields / totalFields) * 100);
+    const calculatedScore = (completedFields / totalFields) * 100;
+    return Math.min(100, Math.max(0, Math.round(calculatedScore)));
   };
 
   const profileCompletion = calculateProfileCompletion(driverProfile);
@@ -332,6 +333,8 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
     );
   }
 
+  const isApproved = user?.isVerified || driverProfile?.isActive || user?.verificationStatus === 'approved';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       {/* Header Profile Photo & Basic Meta */}
@@ -354,16 +357,15 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         </TouchableOpacity>
         <Text style={styles.userName}>{user?.name || 'Driver Partner'}</Text>
         <View style={styles.badgeContainer}>
-          <Text style={styles.userRole}>🚗 Registered Driver</Text>
           <TouchableOpacity
             onPress={() => setVerificationModalVisible(true)}
             activeOpacity={0.75}
           >
             <Text style={[
               styles.statusBadge,
-              driverProfile?.isActive ? styles.statusActive : styles.statusPending
+              isApproved ? styles.statusActive : styles.statusPending
             ]}>
-              {driverProfile?.isActive ? '✓ Verified Partner' : '⏳ Verification Pending (Tap)'}
+              {isApproved ? '✓ Verified Driver' : '⏳ Verification Pending'}
             </Text>
           </TouchableOpacity>
         </View>

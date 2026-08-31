@@ -40,13 +40,14 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
 
 /**
  * PUT /api/v1/user/profile
- * Body: { name?: string, email?: string, phone?: string, gender?: string, cnic?: string, cnicFrontUrl?: string, cnicBackUrl?: string, photoURL?: string }
- * Description: Updates passenger or driver user profile fields.
+ * Body: { name?: string, email?: string, phone?: string, gender?: string, cnic?: string, cnicFrontUrl?: string, cnicBackUrl?: string, photoURL?: string, photo_url?: string, avatar_url?: string, avatarUrl?: string }
+ * Description: Updates passenger or driver user profile fields and returns updated user.
  */
 router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { name, email, phone, gender, cnic, cnicFrontUrl, cnicBackUrl, photoURL } = req.body;
+    const { name, email, phone, gender, cnic, cnicFrontUrl, cnicBackUrl, photoURL, photo_url, avatar_url, avatarUrl } = req.body;
+    const effectivePhotoUrl = avatar_url || avatarUrl || photoURL || photo_url;
 
     const updates: string[] = [];
     const params: any[] = [];
@@ -79,8 +80,8 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
       params.push(cnicBackUrl);
       updates.push(`cnic_back_url = $${params.length}`);
     }
-    if (photoURL) {
-      params.push(photoURL);
+    if (effectivePhotoUrl) {
+      params.push(effectivePhotoUrl);
       updates.push(`photo_url = $${params.length}`);
     }
 
@@ -94,10 +95,49 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
     params.push(userId);
     await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
 
-    res.status(200).json({ success: true, message: 'Profile updated successfully' });
+    // Fetch and return the updated user object
+    const userRes = await query('SELECT id, name, email, phone, role, cnic, cnic_front_url, cnic_back_url, photo_url, is_verified, verification_status, is_active, created_at FROM users WHERE id = $1', [userId]);
+    const updatedUser = userRes.rows[0] || null;
+    if (updatedUser) {
+      updatedUser.photoURL = updatedUser.photo_url;
+      updatedUser.avatar_url = updatedUser.photo_url;
+    }
+
+    res.status(200).json({ success: true, user: updatedUser, message: 'Profile updated successfully' });
   } catch (error: any) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+/**
+ * POST /api/v1/user/avatar
+ * Body: { avatarUrl?: string, photoUrl?: string }
+ * Description: Dedicated endpoint to update and commit user avatar.
+ */
+router.post('/avatar', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { avatarUrl, photoUrl, photoURL, url } = req.body;
+    const effectiveUrl = avatarUrl || photoUrl || photoURL || url;
+
+    if (!effectiveUrl) {
+      return res.status(400).json({ error: 'Avatar URL is required' });
+    }
+
+    await query('UPDATE users SET photo_url = $1, updated_at = $2 WHERE id = $3', [effectiveUrl, Date.now(), userId]);
+
+    const userRes = await query('SELECT id, name, email, phone, role, cnic, photo_url, is_verified, verification_status, is_active, created_at FROM users WHERE id = $1', [userId]);
+    const updatedUser = userRes.rows[0] || null;
+    if (updatedUser) {
+      updatedUser.photoURL = updatedUser.photo_url;
+      updatedUser.avatar_url = updatedUser.photo_url;
+    }
+
+    res.status(200).json({ success: true, avatarUrl: effectiveUrl, user: updatedUser, message: 'Avatar updated successfully' });
+  } catch (error: any) {
+    console.error('Upload avatar error:', error);
+    res.status(500).json({ error: 'Failed to save avatar' });
   }
 });
 
