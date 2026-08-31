@@ -20,6 +20,7 @@ import LanguageSelectionScreen from '../screens/shared/LanguageSelectionScreen';
 import HelpSupportScreen from '../screens/shared/HelpSupportScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 import NotificationCenterScreen from '../screens/shared/NotificationCenterScreen';
+import NotificationDetailScreen from '../screens/shared/NotificationDetailScreen';
 import ContactUsScreen from '../screens/shared/ContactUsScreen';
 import ReportProblemScreen from '../screens/shared/ReportProblemScreen';
 
@@ -96,6 +97,11 @@ export default function DriverStack(): React.JSX.Element {
         options={{ title: 'Notifications' }}
       />
       <Stack.Screen
+        name="NotificationDetail"
+        component={NotificationDetailScreen}
+        options={{ title: 'Notification Details' }}
+      />
+      <Stack.Screen
         name="NotificationSettings"
         component={NotificationSettingsScreen}
         options={{ title: 'Notification Settings' }}
@@ -154,11 +160,6 @@ export default function DriverStack(): React.JSX.Element {
         name="Earnings"
         component={MonthlyPaymentScreen}
         options={{ title: 'Earnings & Platform Fee' }}
-      />
-      <Stack.Screen
-        name="DriverSettings"
-        component={SettingsScreen}
-        options={{ title: 'Settings' }}
       />
     </Stack.Navigator>
   );

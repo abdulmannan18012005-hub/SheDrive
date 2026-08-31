@@ -21,6 +21,8 @@ import { useApp } from '../contexts/AppContext';
 import { CONTACT_INFO } from '../config/contactConfig';
 import { FeedbackModal } from './FeedbackModal';
 
+import { Easing } from 'react-native';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.78, 320);
 
@@ -51,7 +53,8 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
-          duration: 250,
+          duration: 280,
+          easing: Easing.bezier(0.25, 1, 0.5, 1),
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
@@ -64,7 +67,8 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: -DRAWER_WIDTH,
-          duration: 200,
+          duration: 220,
+          easing: Easing.bezier(0.4, 0, 1, 1),
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
@@ -80,27 +84,6 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
     onClose();
     setTimeout(() => {
       navigation.navigate(screenName);
-    }, 150);
-  };
-
-  const handleLogout = () => {
-    onClose();
-    setTimeout(() => {
-      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOutUser();
-              dispatch({ type: 'LOGOUT' });
-            } catch {
-              Alert.alert('Error', 'Unable to sign out. Please check your network connection.');
-            }
-          },
-        },
-      ]);
     }, 150);
   };
 
@@ -275,13 +258,6 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                   <Text style={[styles.menuText, { color: '#4A2060', fontWeight: '700' }]}>
                     Share App Feedback
                   </Text>
-                </TouchableOpacity>
-
-                <View style={styles.divider} />
-
-                <TouchableOpacity style={styles.logoutItem} onPress={handleLogout} activeOpacity={0.7}>
-                  <Text style={styles.logoutIcon}>🚪</Text>
-                  <Text style={styles.logoutText}>Sign Out</Text>
                 </TouchableOpacity>
               </View>
 

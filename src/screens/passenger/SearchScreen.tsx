@@ -64,6 +64,21 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const [isManualPickupOverride, setIsManualPickupOverride] = useState<boolean>(Boolean(initialPickup));
   const hasAutoInitializedRef = useRef<boolean>(false);
 
+  const pickupInputRef = useRef<TextInput>(null);
+  const destInputRef = useRef<TextInput>(null);
+
+  // Focus once on mount only — eliminate keyboard flicker loops
+  useEffect(() => {
+    const focusTimer = setTimeout(() => {
+      if (initialField === 'pickup') {
+        pickupInputRef.current?.focus();
+      } else {
+        destInputRef.current?.focus();
+      }
+    }, 150);
+    return () => clearTimeout(focusTimer);
+  }, []);
+
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
@@ -258,6 +273,9 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
         }
       }
       setActiveField('dest');
+      setTimeout(() => {
+        destInputRef.current?.focus();
+      }, 100);
     } else {
       setDestPoint(selectedPoint);
       setDestText(label);
@@ -364,6 +382,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           <View style={styles.inputsColumn}>
             <View style={styles.fieldRow}>
               <TextInput
+                ref={pickupInputRef}
                 style={[styles.textInput, activeField === 'pickup' && styles.textInputFocused]}
                 placeholder="Enter pickup point"
                 placeholderTextColor={Colors.light.textTertiary}
@@ -382,6 +401,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                     setPickupText('');
                     setPickupPoint(null);
                     setIsManualPickupOverride(true);
+                    pickupInputRef.current?.focus();
                   }}
                 >
                   <Text style={styles.clearBtnText}>✕</Text>
@@ -391,6 +411,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
 
             <View style={styles.fieldRow}>
               <TextInput
+                ref={destInputRef}
                 style={[styles.textInput, activeField === 'dest' && styles.textInputFocused]}
                 placeholder="Where to?"
                 placeholderTextColor={Colors.light.textTertiary}
@@ -407,6 +428,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                   onPress={() => {
                     setDestText('');
                     setDestPoint(null);
+                    destInputRef.current?.focus();
                   }}
                 >
                   <Text style={styles.clearBtnText}>✕</Text>

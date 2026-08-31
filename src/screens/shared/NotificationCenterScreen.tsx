@@ -9,6 +9,7 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
@@ -23,6 +24,7 @@ interface NotificationItem {
 }
 
 export default function NotificationCenterScreen(): React.JSX.Element {
+  const navigation = useNavigation<any>();
   const { state } = useApp();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -165,7 +167,28 @@ export default function NotificationCenterScreen(): React.JSX.Element {
           </View>
         ) : (
           filteredNotifications.map((n) => (
-            <View key={n.id} style={[styles.notifCard, !n.is_read && styles.notifCardUnread]}>
+            <TouchableOpacity
+              key={n.id}
+              style={[styles.notifCard, !n.is_read && styles.notifCardUnread]}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (!n.is_read) {
+                  // Mark as read locally and sync
+                  setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, is_read: true } : item));
+                  fetch(`${getApiBaseUrl()}/user/notifications/${n.id}/read`, {
+                    method: 'PUT',
+                    headers: { Authorization: `Bearer ${state.token}` },
+                  }).catch(() => {});
+                }
+                navigation.navigate('NotificationDetail', {
+                  notificationId: n.id,
+                  title: n.title,
+                  message: n.message,
+                  category: n.category,
+                  createdAt: n.created_at,
+                });
+              }}
+            >
               <View style={styles.notifIconBox}>
                 <Text style={styles.notifIcon}>{getCategoryIcon(n.category)}</Text>
               </View>
@@ -174,12 +197,12 @@ export default function NotificationCenterScreen(): React.JSX.Element {
                   <Text style={styles.notifTitle}>{n.title}</Text>
                   {!n.is_read && <View style={styles.unreadDot} />}
                 </View>
-                <Text style={styles.notifMessage}>{n.message}</Text>
+                <Text style={styles.notifMessage} numberOfLines={2}>{n.message}</Text>
                 <Text style={styles.notifTime}>
                   {new Date(n.created_at).toLocaleDateString()} • {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </View>

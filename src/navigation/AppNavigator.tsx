@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { Linking } from 'react-native';
@@ -12,6 +12,7 @@ import Colors from '../constants/Colors';
 import AuthStack from './AuthStack';
 import PassengerStack from './PassengerStack';
 import DriverStack from './DriverStack';
+import SplashScreen from '../screens/auth/SplashScreen';
 
 function DeepLinkHandler() {
   const navigation = useNavigation();
@@ -80,6 +81,15 @@ const linking = {
 
 export default function AppNavigator(): React.JSX.Element {
   const { state, dispatch } = useApp();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const splashTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1800);
+
+    return () => clearTimeout(splashTimer);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -215,13 +225,9 @@ export default function AppNavigator(): React.JSX.Element {
     };
   }, [dispatch]);
 
-  // Show a full-screen loading spinner while checking auth status
-  if (state.isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-      </View>
-    );
+  // Show brand plum SplashScreen during cold startup or session restore
+  if (showSplash || state.isLoading) {
+    return <SplashScreen />;
   }
 
   return (

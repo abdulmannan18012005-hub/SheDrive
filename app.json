@@ -13,7 +13,7 @@
     ],
     "splash": {
       "image": "./assets/icon.png",
-      "backgroundColor": "#E91E63",
+      "backgroundColor": "#4A2060",
       "resizeMode": "contain"
     },
     "ios": {
@@ -29,7 +29,7 @@
       },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#E91E63"
+        "backgroundColor": "#4A2060"
       },
       "permissions": [
         "INTERNET",
@@ -46,12 +46,18 @@
       ],
       "notification": {
         "channel": {
-          "rideAlerts": {
+          "ride_alerts": {
             "name": "Ride Alerts",
-            "description": "Notifications for ride updates and driver dispatch",
+            "description": "Notifications for ride updates, bids, and driver arrivals",
             "importance": "high",
             "sound": true,
             "vibrate": true
+          },
+          "admin_broadcasts": {
+            "name": "Platform Broadcasts",
+            "description": "Platform news, community updates, and announcements",
+            "importance": "high",
+            "sound": true
           },
           "chatMessages": {
             "name": "Chat Messages",

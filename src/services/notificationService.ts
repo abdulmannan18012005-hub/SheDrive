@@ -159,16 +159,54 @@ export async function unregisterDeviceToken(authToken?: string, userId?: string,
   }
 }
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 /**
- * Handle navigation when a notification is tapped
+ * Check if the user has disabled this notification category in settings
+ */
+export async function isNotificationCategoryEnabled(category?: string): Promise<boolean> {
+  if (!category) return true;
+  const cat = category.toLowerCase();
+  if (cat === 'emergency' || cat === 'sos' || cat === 'safety' || cat === 'safety_alerts') {
+    return true; // Safety alerts are permanently locked ON
+  }
+
+  try {
+    const cached = await AsyncStorage.getItem('@shedrive_notification_settings');
+    if (!cached) return true;
+    const settings = JSON.parse(cached);
+
+    if (cat === 'ride' || cat === 'ride_alerts' || cat === 'ride_requests') {
+      return settings.rideNotifications !== false;
+    }
+    if (cat === 'promo' || cat === 'promotional') {
+      return settings.promotionalNotifications !== false;
+    }
+    if (cat === 'payment') {
+      return settings.paymentNotifications !== false;
+    }
+    if (cat === 'system' || cat === 'admin_broadcasts' || cat === 'platform') {
+      return settings.platformNotifications !== false;
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Handle navigation when a notification is tapped (deep-linking)
  */
 export function handleNotificationNavigation(
   navigation: any,
-  data?: Record<string, any>
+  data?: Record<string, any>,
+  notification?: { title?: string; body?: string }
 ) {
   if (!navigation || !data) return;
 
-  const { type, rideId } = data;
+  const { type, rideId, category } = data;
+  const title = notification?.title || data.title || 'SheDrive Alert';
+  const message = notification?.body || data.body || data.message || '';
 
   try {
     if (type === 'new_ride_request' || type === 'ride_offer') {
@@ -179,8 +217,15 @@ export function handleNotificationNavigation(
       navigation.navigate('ActiveRide', { rideId });
     } else if (type === 'driver_verified' || type === 'driver_rejected') {
       navigation.navigate('DriverProfile');
-    } else if (type === 'sos_alert') {
-      Alert.alert('🚨 Emergency Alert', 'An emergency notification was received.');
+    } else {
+      // Default: Deep link to NotificationDetailScreen with full message payload
+      navigation.navigate('NotificationDetail', {
+        title,
+        message,
+        category: category || type || 'system',
+        createdAt: Date.now(),
+        data,
+      });
     }
   } catch (navError) {
     console.warn('[FCM] Notification navigation warning:', navError);
@@ -203,6 +248,14 @@ export function initializeNotificationListeners(
     const title = remoteMessage.notification?.title || remoteMessage.data?.title || 'SheDrive Notification';
     const body = remoteMessage.notification?.body || remoteMessage.data?.body || '';
     const data = remoteMessage.data || {};
+    const category = data?.category || data?.type || 'system';
+
+    // Respect user category preferences
+    const isEnabled = await isNotificationCategoryEnabled(category);
+    if (!isEnabled) {
+      console.log(`[FCM] Notification suppressed by user settings: ${category}`);
+      return;
+    }
 
     if (onForegroundMessage) {
       onForegroundMessage({ title, body, data });
@@ -216,7 +269,7 @@ export function initializeNotificationListeners(
           text: 'View',
           onPress: () => {
             if (navigationRef?.isReady && navigationRef.isReady()) {
-              handleNotificationNavigation(navigationRef, data);
+              handleNotificationNavigation(navigationRef, data, { title, body });
             }
           },
         },
@@ -228,7 +281,11 @@ export function initializeNotificationListeners(
   const unsubscribeOpened = messagingInst.onNotificationOpenedApp((remoteMessage: any) => {
     console.log('[FCM Background Notification Tapped]:', remoteMessage);
     if (navigationRef?.isReady && navigationRef.isReady()) {
-      handleNotificationNavigation(navigationRef, remoteMessage.data);
+      handleNotificationNavigation(
+        navigationRef,
+        remoteMessage.data,
+        remoteMessage.notification
+      );
     }
   });
 
@@ -238,7 +295,11 @@ export function initializeNotificationListeners(
       console.log('[FCM Cold-Launch Notification Tapped]:', remoteMessage);
       setTimeout(() => {
         if (navigationRef?.isReady && navigationRef.isReady()) {
-          handleNotificationNavigation(navigationRef, remoteMessage.data);
+          handleNotificationNavigation(
+            navigationRef,
+            remoteMessage.data,
+            remoteMessage.notification
+          );
         }
       }, 1000);
     }

@@ -292,6 +292,14 @@ export type PassengerStackParamList = {
     otherUserName: string;
     otherUserRole: 'passenger' | 'driver';
   };
+  NotificationDetail: {
+    notificationId?: string;
+    title: string;
+    message: string;
+    category?: string;
+    createdAt?: number;
+    data?: Record<string, any>;
+  };
 };
 
 export type DriverStackParamList = {
@@ -319,5 +327,13 @@ export type DriverStackParamList = {
     rideId: string;
     otherUserName: string;
     otherUserRole: 'passenger' | 'driver';
+  };
+  NotificationDetail: {
+    notificationId?: string;
+    title: string;
+    message: string;
+    category?: string;
+    createdAt?: number;
+    data?: Record<string, any>;
   };
 };

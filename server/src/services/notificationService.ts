@@ -55,9 +55,11 @@ export async function sendPushNotification({
     });
 
     const notifType = data?.type || '';
-    let targetChannel = 'ride_updates';
-    if (notifType === 'new_ride_request' || notifType === 'ride_offer') {
-      targetChannel = 'ride_requests';
+    let targetChannel = 'ride_alerts';
+    if (notifType === 'new_ride_request' || notifType === 'ride_offer' || notifType === 'counter_bid' || notifType === 'driver_arrived' || notifType === 'ride_started' || notifType === 'ride_completed') {
+      targetChannel = 'ride_alerts';
+    } else if (notifType === 'admin_broadcast' || notifType === 'system' || notifType === 'promo') {
+      targetChannel = 'admin_broadcasts';
     } else if (notifType === 'chat_message' || notifType === 'chat_notify') {
       targetChannel = 'chat_messages';
     } else if (notifType === 'sos_alert' || notifType === 'emergency') {

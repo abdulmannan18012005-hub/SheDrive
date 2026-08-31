@@ -5,10 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
+import { signOutUser } from '../../firebase/auth';
 
 interface SettingsItem {
   icon: string;
@@ -19,7 +21,25 @@ interface SettingsItem {
 
 export default function SettingsScreen(): React.JSX.Element {
   const navigation = useNavigation<any>();
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out of SheDrive?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOutUser();
+            dispatch({ type: 'LOGOUT' });
+          } catch {
+            Alert.alert('Error', 'Unable to sign out. Please check your network connection.');
+          }
+        },
+      },
+    ]);
+  };
 
   const settingsItems: SettingsItem[] = [
     {
@@ -55,6 +75,12 @@ export default function SettingsScreen(): React.JSX.Element {
   ];
 
   const dangerItems: SettingsItem[] = [
+    {
+      icon: '🚪',
+      title: 'Sign Out',
+      subtitle: 'Sign out of your active account on this device',
+      onPress: handleLogout,
+    },
     {
       icon: '🗑️',
       title: 'Delete Account',
