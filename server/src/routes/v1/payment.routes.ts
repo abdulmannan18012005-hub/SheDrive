@@ -260,11 +260,12 @@ router.get('/admin/payments', authenticateToken, async (req: AuthRequest, res: R
              u.verification_status,
              d.vehicle_plate,
              d.vehicle_make,
-             d.vehicle_model
+             d.vehicle_model,
+             d.total_rides
       FROM monthly_payments p
       JOIN users u ON p.driver_id = u.id
       JOIN drivers d ON p.driver_id = d.driver_id
-      WHERE u.verification_status = 'approved'
+      WHERE u.verification_status = 'approved' AND (d.total_rides >= 1 OR p.total_rides >= 1)
     `;
 
     const params: any[] = [];
@@ -285,7 +286,7 @@ router.get('/admin/payments', authenticateToken, async (req: AuthRequest, res: R
       FROM monthly_payments p
       JOIN users u ON p.driver_id = u.id
       JOIN drivers d ON p.driver_id = d.driver_id
-      WHERE u.verification_status = 'approved'
+      WHERE u.verification_status = 'approved' AND (d.total_rides >= 1 OR p.total_rides >= 1)
     `;
     const countParams: any[] = [];
 
@@ -423,7 +424,8 @@ router.get('/admin/payments/summary', authenticateToken, async (req: AuthRequest
         COALESCE(SUM(p.platform_fee), 0) as expected_income
       FROM monthly_payments p
       JOIN users u ON p.driver_id = u.id
-      WHERE u.verification_status = 'approved'
+      JOIN drivers d ON p.driver_id = d.driver_id
+      WHERE u.verification_status = 'approved' AND (d.total_rides >= 1 OR p.total_rides >= 1)
     `);
 
     const suspendedRes = await query('SELECT COUNT(*) as count FROM drivers WHERE is_fee_suspended = true');

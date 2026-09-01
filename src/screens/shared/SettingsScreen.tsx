@@ -76,15 +76,9 @@ export default function SettingsScreen(): React.JSX.Element {
 
   const dangerItems: SettingsItem[] = [
     {
-      icon: '🚪',
-      title: 'Sign Out',
-      subtitle: 'Sign out of your active account on this device',
-      onPress: handleLogout,
-    },
-    {
       icon: '🗑️',
       title: 'Delete Account',
-      subtitle: 'Permanently delete your account and all data',
+      subtitle: 'Permanently delete your account and all associated data',
       onPress: () => navigation.navigate('DeleteAccount'),
     },
   ];

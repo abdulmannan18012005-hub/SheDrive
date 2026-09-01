@@ -159,7 +159,7 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
       } else if (isNameChanged) {
         successMessage = 'Name updated successfully';
       } else if (isAvatarChanged) {
-        successMessage = 'Profile photo updated';
+        successMessage = 'Profile photo updated successfully';
       }
 
       Alert.alert('Success', successMessage, [

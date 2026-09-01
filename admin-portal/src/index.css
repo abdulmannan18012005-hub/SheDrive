@@ -230,3 +230,60 @@ nav button:hover {
     border-radius: 18px !important;
   }
 }
+
+/* ── Mobile Admin 3D Drawer & Top Header ────────────────── */
+.admin-mobile-header {
+  display: none;
+  background: #0F172A;
+  padding: 14px 20px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #1E293B;
+  position: sticky;
+  top: 0;
+  z-index: 99;
+}
+
+.admin-drawer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.admin-drawer-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 992px) {
+  .admin-mobile-header {
+    display: flex;
+  }
+  .admin-drawer-overlay {
+    display: block;
+  }
+  aside.admin-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 290px !important;
+    height: 100vh !important;
+    z-index: 1100 !important;
+    transform: perspective(1000px) rotateY(-16deg) translateX(-100%) !important;
+    transform-origin: left center !important;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease !important;
+    box-shadow: 15px 0 40px rgba(0, 0, 0, 0.3) !important;
+    overflow-y: auto !important;
+  }
+  aside.admin-sidebar.open {
+    transform: perspective(1000px) rotateY(0deg) translateX(0) !important;
+  }
+}

@@ -137,6 +137,7 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [activeTab, setActiveTabState] = useState(resolveInitialTab);
 
@@ -144,6 +145,7 @@ export default function App() {
   const setActiveTab = useCallback((newTab) => {
     if (!TAB_PATH_MAP[newTab]) newTab = 'dashboard';
     setActiveTabState(newTab);
+    setIsMobileMenuOpen(false);
     try {
       localStorage.setItem('shedrive_admin_active_tab', newTab);
       const searchParams = new URLSearchParams(window.location.search);
@@ -921,8 +923,37 @@ export default function App() {
 
   return (
     <div style={styles.appContainer}>
+      {/* Mobile Admin Top Header */}
+      <div className="admin-mobile-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '24px' }}>🚗</span>
+          <span style={{ fontSize: '18px', fontWeight: '900', color: '#0D9488' }}>SheDrive Admin</span>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          style={{
+            background: '#1E293B',
+            border: '1px solid #334155',
+            color: '#FFFFFF',
+            fontSize: '18px',
+            padding: '6px 12px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+          }}
+          aria-label="Toggle Navigation Drawer"
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </button>
+      </div>
+
+      {/* 3D Backdrop Overlay */}
+      <div
+        className={`admin-drawer-overlay ${isMobileMenuOpen ? 'active' : ''}`}
+        onClick={() => setIsMobileMenuOpen(false)}
+      />
+
       {/* Sidebar Navigation */}
-      <aside style={styles.sidebar}>
+      <aside className={`admin-sidebar ${isMobileMenuOpen ? 'open' : ''}`} style={styles.sidebar}>
         <div style={styles.logoSection}>
           <span style={styles.logoIcon}>🚗</span>
           <div>
