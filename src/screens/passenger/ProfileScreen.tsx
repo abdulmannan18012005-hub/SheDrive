@@ -4,6 +4,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { PassengerStackParamList } from '../../types';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import sessionManager from '../../utils/sessionManager';
 import { signOutUser } from '../../firebase/auth';
 
 type ProfileScreenNavigationProp = StackNavigationProp<PassengerStackParamList, 'Profile'>;
@@ -23,13 +25,22 @@ export default function ProfileScreen({ navigation }: Props): React.JSX.Element 
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOutUser();
-            dispatch({ type: 'LOGOUT' });
-          } catch (error) {
-            Alert.alert('Error', 'Unable to sign out. Please check your network connection.');
-          }
+        onPress: () => {
+          // 1. Transition in-memory state immediately so React Navigation switches to AuthStack
+          dispatch({ type: 'LOGOUT' });
+
+          // 2. Stop session monitoring & purge local storage keys
+          sessionManager.stopSessionMonitoring();
+          AsyncStorage.multiRemove([
+            '@shedrive_auth_token',
+            '@shedrive_user_profile',
+            'shedrive_token',
+            '@shedrive_last_active_role',
+            'user_session',
+          ]).catch(() => {});
+
+          // 3. Background remote cleanup without delaying UI
+          signOutUser().catch(() => {});
         },
       },
     ]);

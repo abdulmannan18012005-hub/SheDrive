@@ -46,6 +46,8 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
 
   const mapRef = useRef<LeafletMapRef>(null);
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
+  const isUserPanningRef = useRef(false);
+  const lastFirestoreSyncRef = useRef(0);
 
   // Subscribe to ride updates in real-time
   useEffect(() => {
@@ -92,23 +94,27 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
 
         const watcher = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 2500,
-            distanceInterval: 2,
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 4000,
+            distanceInterval: 10,
           },
           async (newLocation) => {
             const { latitude, longitude } = newLocation.coords;
             setDriverCoords({ latitude, longitude });
 
-            // Sync driver location inside the ride document
-            const rideRef = doc(db, 'rides', rideId);
-            await updateDoc(rideRef, {
-              driverCoords: { latitude, longitude },
-              updatedAt: Date.now(),
-            });
+            // Sync driver location inside the ride document (throttled to 4s)
+            const now = Date.now();
+            if (now - lastFirestoreSyncRef.current >= 4000) {
+              lastFirestoreSyncRef.current = now;
+              const rideRef = doc(db, 'rides', rideId);
+              await updateDoc(rideRef, {
+                driverCoords: { latitude, longitude },
+                updatedAt: now,
+              }).catch(() => {});
+            }
 
-            // Keep map centering on driver coords
-            if (mapRef.current) {
+            // Keep map centering on driver coords only if not user-panning
+            if (mapRef.current && !isUserPanningRef.current) {
               mapRef.current.setCenter(latitude, longitude);
             }
           }
@@ -373,6 +379,9 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
           center={defaultCenter}
           markers={getMapMarkers()}
           routeCoordinates={getLeafletCoordinates()}
+          onMapDragged={() => {
+            isUserPanningRef.current = true;
+          }}
         />
       </View>
 

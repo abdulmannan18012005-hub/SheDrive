@@ -1100,6 +1100,52 @@ Verification:
 
 ---
 
+# PHASE 18 — COMPLETED
+
+Phase 18 objective:
+
+PLATFORM STABILIZATION, ZERO-CRASH LIFECYCLE, MULTI-TONE 3D VISUALS, BACKGROUND PUSH MATRIX, LOCATION ZERO-LAG & ADMIN SPA REPAIR.
+
+Status: COMPLETED
+
+Implemented:
+1. **Instant Sign-Out Routine (Passenger & Driver):**
+   - In `ProfileScreen.tsx` and `DriverProfileScreen.tsx`, upon logout confirmation, in-memory auth state is reset immediately via `dispatch({ type: 'LOGOUT' })` and local storage keys (`@shedrive_auth_token`, `shedrive_token`, `@shedrive_user_profile`, `shedrive_user`) are purged synchronously.
+   - Remote `signOutUser()` and token unregistration run asynchronously in the background with zero UI freeze.
+2. **Location Search Keyboard Stabilization:**
+   - In `SearchScreen.tsx`, changed `KeyboardAvoidingView` behavior to `Platform.OS === 'ios' ? 'padding' : undefined`, eliminating the Android `adjustResize` layout reflow loop.
+   - Initialized `useLocation(false)` to pause the continuous 5-second GPS watcher while typing, decoupled `gpsCoords` from `runSearch` dependency array via ref, and added `keyboardShouldPersistTaps="handled"`.
+3. **Performance Lag, Stutter & Map Freezes (Zero-Lag 60fps):**
+   - Throttled location polling to `Location.Accuracy.Balanced`, 4000ms interval, and 10m displacement threshold across `DriverHomeScreen.tsx` and `ActiveRideScreen.tsx`.
+   - Preserved driver map inspection via `isUserPanningRef` and `onMapDragged` callback on `LeafletMap`.
+   - Extracted `MarkerVisual` in `GoogleMapView.tsx` into a memoized `React.memo` component, eliminating redundant callout re-renders.
+4. **Top-Level Background Handler Registration (Expo / React Native Entry Point):**
+   - Created root entry point `index.js` registering `messaging().setBackgroundMessageHandler(...)` before `registerRootComponent(App)`, ensuring headless tasks receive background FCM pushes on Android when the app is closed.
+   - Updated `package.json` `"main": "index.js"`.
+   - Cleaned `App.tsx` and modernized cold-start fallback background to Deep Emerald (`#042F2E`).
+5. **Strict Driver Verification Gatekeeper:**
+   - In `DriverHomeScreen.tsx`, replaced loose fallbacks with strict verification:
+     `(user.isVerified || user.verificationStatus === 'approved') && (driverProfile.verificationStatus === 'approved')`.
+6. **Admin Portal Blank Screen / SPA Routing Recovery:**
+   - Updated `admin-portal/vite.config.js` with `base: '/'` to prevent sub-path asset 404/MIME errors upon deep browser reloads.
+   - Implemented `ErrorBoundary.jsx` and wrapped `<App />` in `main.jsx` with branded recovery UI.
+7. **Granular Profile Field Update Toast Feedback:**
+   - In `EditProfileScreen.tsx`, tracked initial first and last names in refs, showing exact context-aware alerts: `"First name updated successfully"`, `"Last name updated successfully"`, `"Name updated successfully"`, or `"Profile photo updated successfully"`.
+8. **Vehicle Management Tab Isolation:**
+   - Removed duplicated driving license front, driving license back, and vehicle photo upload cards from `DriverProfileScreen.tsx`.
+   - Consolidated vehicle specifications, license documents, and photos strictly inside `VehicleManagementScreen.tsx`.
+9. **End-to-End Ride Lifecycle & Strict Foreign Key Child-to-Parent Deletion:**
+   - Executed complete E2E lifecycle test (`test_e2e_ride_lifecycle.js`) verifying `requested` -> `accepted` -> `arrived` -> `in_progress` -> `completed` -> `ratings`.
+   - Performed cleanup in exact foreign key order (`ratings` -> `bids` -> `rides` -> `drivers` -> `users`) with 0 foreign key constraint errors and 0 lingering test artifacts, preserving 100% of existing accounts and data.
+
+Verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build` in `server/`): PASS (0 errors)
+- Admin Portal build (`npm run build` in `admin-portal/`): PASS (built in 5.63s, 0 errors)
+- E2E Lifecycle & Safe Deletion Suite (`scratch/test_e2e_ride_lifecycle.js`): 11/11 PHASES PASS (100%)
+
+---
+
 # SAFETY RULES
 
 Before changing anything:

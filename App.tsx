@@ -25,12 +25,7 @@ export default function App(): React.JSX.Element {
     try {
       // Dynamic import to prevent crash if module not available
       const notificationService = await import('./src/services/notificationService');
-      const { getFCMToken, initializeNotificationListeners, registerBackgroundMessageHandler } = notificationService;
-      
-      // Register background handler for lock-screen & background push
-      if (typeof registerBackgroundMessageHandler === 'function') {
-        registerBackgroundMessageHandler();
-      }
+      const { getFCMToken, initializeNotificationListeners } = notificationService;
 
       // Request permission and get token
       const token = await getFCMToken();
@@ -38,7 +33,7 @@ export default function App(): React.JSX.Element {
         console.log('FCM initialized with token:', token.substring(0, 15) + '...');
       }
 
-      // Initialize listeners (foreground, background, and refresh)
+      // Initialize listeners (foreground, background click, and refresh)
       const unsubscribe = initializeNotificationListeners();
 
       return () => {
@@ -54,7 +49,7 @@ export default function App(): React.JSX.Element {
 
   if (!isReady) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#E91E63', justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: '#042F2E', justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>SheDrive</Text>
       </View>
     );

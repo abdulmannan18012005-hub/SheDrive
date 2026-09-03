@@ -48,7 +48,13 @@ interface SearchItem {
 }
 
 export default function SearchScreen({ navigation, route }: Props): React.JSX.Element {
-  const { location: gpsCoords } = useLocation();
+  // Read location once without continuous watcher to prevent re-rendering during search typing
+  const { location: gpsCoords } = useLocation(false);
+  const gpsCoordsRef = useRef(gpsCoords);
+  useEffect(() => {
+    gpsCoordsRef.current = gpsCoords;
+  }, [gpsCoords]);
+
   const { state } = useApp();
 
   const initialPickup = route?.params?.pickupPoint;
@@ -178,7 +184,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
         setIsSearching(true);
 
         // 1. Query Google Places API (New) Autocomplete
-        const googlePredictions = await getPlaceAutocomplete(activeQuery, gpsCoords);
+        const googlePredictions = await getPlaceAutocomplete(activeQuery, gpsCoordsRef.current);
 
         if (googlePredictions && googlePredictions.length > 0) {
           const items: SearchItem[] = googlePredictions.map((pred) => ({
@@ -212,7 +218,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
     };
 
     runSearch();
-  }, [debouncedPickup, debouncedDest, activeField, gpsCoords]);
+  }, [debouncedPickup, debouncedDest, activeField]);
 
   const handleSelectItem = async (item: SearchItem) => {
     let lat = item.latitude;
@@ -368,7 +374,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardContainer}
       >
         {/* Input Panel Card */}
@@ -470,7 +476,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
               keyboardShouldPersistTaps="handled"
             />
           ) : (
-            <ScrollView style={{ flex: 1, padding: 20 }}>
+            <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
               {/* Quick GPS Location Button */}
               {gpsCoords && (
                 <TouchableOpacity

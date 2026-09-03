@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -33,8 +33,13 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
   const { state, dispatch } = useApp();
   const user = state.user;
 
-  const [firstName, setFirstName] = useState(user?.name?.split(' ')[0] || '');
-  const [lastName, setLastName] = useState(user?.name?.split(' ').slice(1).join(' ') || '');
+  const initialFirst = user?.name?.split(' ')[0] || '';
+  const initialLast = user?.name?.split(' ').slice(1).join(' ') || '';
+  const initialFirstNameRef = useRef(initialFirst);
+  const initialLastNameRef = useRef(initialLast);
+
+  const [firstName, setFirstName] = useState(initialFirst);
+  const [lastName, setLastName] = useState(initialLast);
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [cnic, setCnic] = useState(user?.cnic || '');
@@ -150,16 +155,23 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
         await AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser));
       }
 
-      const isNameChanged = fullName !== user?.name;
+      const isFirstNameChanged = firstName.trim() !== initialFirstNameRef.current.trim();
+      const isLastNameChanged = lastName.trim() !== initialLastNameRef.current.trim();
       const isAvatarChanged = Boolean(imageUri);
 
       let successMessage = 'Profile updated successfully';
-      if (isNameChanged && isAvatarChanged) {
+      if (isFirstNameChanged && isLastNameChanged && isAvatarChanged) {
         successMessage = 'Profile updated successfully';
-      } else if (isNameChanged) {
+      } else if (isFirstNameChanged && isLastNameChanged) {
         successMessage = 'Name updated successfully';
-      } else if (isAvatarChanged) {
+      } else if (isFirstNameChanged && !isLastNameChanged && !isAvatarChanged) {
+        successMessage = 'First name updated successfully';
+      } else if (isLastNameChanged && !isFirstNameChanged && !isAvatarChanged) {
+        successMessage = 'Last name updated successfully';
+      } else if (isAvatarChanged && !isFirstNameChanged && !isLastNameChanged) {
         successMessage = 'Profile photo updated successfully';
+      } else if (isAvatarChanged) {
+        successMessage = 'Profile updated successfully';
       }
 
       Alert.alert('Success', successMessage, [
@@ -175,7 +187,7 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>

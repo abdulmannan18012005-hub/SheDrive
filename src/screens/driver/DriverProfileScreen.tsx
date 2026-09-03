@@ -22,6 +22,7 @@ import { signOutUser } from '../../firebase/auth';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { DriverVerificationStatusModal } from '../../components/DriverVerificationStatusModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import sessionManager from '../../utils/sessionManager';
 
 type DriverProfileNavigationProp = StackNavigationProp<DriverStackParamList, 'DriverProfile'>;
 
@@ -313,13 +314,22 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOutUser();
-            dispatch({ type: 'LOGOUT' });
-          } catch (error) {
-            Alert.alert('Error', 'Unable to sign out. Please check your network connection.');
-          }
+        onPress: () => {
+          // 1. Transition in-memory state immediately so React Navigation switches to AuthStack
+          dispatch({ type: 'LOGOUT' });
+
+          // 2. Stop session monitoring & purge local storage keys
+          sessionManager.stopSessionMonitoring();
+          AsyncStorage.multiRemove([
+            '@shedrive_auth_token',
+            '@shedrive_user_profile',
+            'shedrive_token',
+            '@shedrive_last_active_role',
+            'user_session',
+          ]).catch(() => {});
+
+          // 3. Background remote cleanup without delaying UI
+          signOutUser().catch(() => {});
         },
       },
     ]);
@@ -494,41 +504,9 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
             </TouchableOpacity>
           </View>
 
-          {/* License Front */}
-          <View style={styles.docCard}>
-            <Text style={styles.docCardLabel}>License Front</Text>
-            {driverProfile?.licenseFrontUrl ? (
-              <Image source={{ uri: driverProfile.licenseFrontUrl }} style={styles.docThumbnail} />
-            ) : (
-              <View style={styles.docPlaceholder}><Text style={styles.docPlaceholderText}>Not Provided</Text></View>
-            )}
-            <TouchableOpacity
-              style={styles.reselectBtn}
-              onPress={() => handleReselectDocument('licenseFrontUrl', 'License Front')}
-            >
-              <Text style={styles.reselectBtnText}>📷 Change / Reselect</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* License Back */}
-          <View style={styles.docCard}>
-            <Text style={styles.docCardLabel}>License Back</Text>
-            {driverProfile?.licenseBackUrl ? (
-              <Image source={{ uri: driverProfile.licenseBackUrl }} style={styles.docThumbnail} />
-            ) : (
-              <View style={styles.docPlaceholder}><Text style={styles.docPlaceholderText}>Not Provided</Text></View>
-            )}
-            <TouchableOpacity
-              style={styles.reselectBtn}
-              onPress={() => handleReselectDocument('licenseBackUrl', 'License Back')}
-            >
-              <Text style={styles.reselectBtnText}>📷 Change / Reselect</Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Profile Photo / Selfie */}
           <View style={styles.docCard}>
-            <Text style={styles.docCardLabel}>Profile Photo</Text>
+            <Text style={styles.docCardLabel}>Profile Photo / Selfie</Text>
             {driverProfile?.selfieUrl || driverProfile?.photoURL ? (
               <Image source={{ uri: driverProfile.selfieUrl || driverProfile.photoURL }} style={styles.docThumbnail} />
             ) : (
@@ -541,23 +519,25 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
               <Text style={styles.reselectBtnText}>📷 Change / Reselect</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Vehicle Photo */}
-          <View style={styles.docCard}>
-            <Text style={styles.docCardLabel}>Vehicle Photo</Text>
-            {driverProfile?.vehiclePhotoUrl || driverProfile?.vehicleInfo?.photoUrl ? (
-              <Image source={{ uri: driverProfile.vehiclePhotoUrl || driverProfile.vehicleInfo.photoUrl }} style={styles.docThumbnail} />
-            ) : (
-              <View style={styles.docPlaceholder}><Text style={styles.docPlaceholderText}>Not Provided</Text></View>
-            )}
-            <TouchableOpacity
-              style={styles.reselectBtn}
-              onPress={() => handleReselectDocument('vehiclePhotoUrl', 'Vehicle Photo')}
-            >
-              <Text style={styles.reselectBtnText}>📷 Change / Reselect</Text>
-            </TouchableOpacity>
-          </View>
         </View>
+
+        {/* Dedicated Vehicle Management Banner */}
+        <TouchableOpacity
+          style={styles.vehicleDocBanner}
+          onPress={() => navigation.navigate('VehicleManagement')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.vehicleDocBannerLeft}>
+            <Text style={{ fontSize: 24 }}>🚗</Text>
+            <View>
+              <Text style={styles.vehicleDocBannerTitle}>Vehicle & Driving License</Text>
+              <Text style={styles.vehicleDocBannerSub}>
+                Manage vehicle specs, photos, driving license, and registration
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Action Buttons */}
@@ -1017,6 +997,33 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: Colors.light.textTertiary,
     fontWeight: '400',
+  },
+  vehicleDocBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 14,
+  },
+  vehicleDocBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  vehicleDocBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#065F46',
+    marginBottom: 2,
+  },
+  vehicleDocBannerSub: {
+    fontSize: 12,
+    color: '#047857',
   },
   logoutButton: {
     backgroundColor: Colors.light.errorLight,

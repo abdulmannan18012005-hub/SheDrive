@@ -178,50 +178,7 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
       }
     }, [isReady, parsedRouteCoordinates]);
 
-    // Render Marker Icon according to type
-    const renderMarkerVisual = (marker: MapMarker) => {
-      const isPickup = marker.id === 'pickup' || marker.id === 'passenger_current' || marker.isCustomer;
-      const isDest = marker.id === 'dropoff' || marker.id === 'destination' || marker.isDestination;
-      const isDriver = marker.id === 'driver' || marker.isDriver;
 
-      if (isPickup) {
-        return (
-          <View style={styles.pickupMarkerContainer}>
-            <View style={styles.pickupMarkerPin}>
-              <Text style={styles.markerEmoji}>{marker.emoji || '📍'}</Text>
-            </View>
-            <View style={styles.markerPulseCircle} />
-          </View>
-        );
-      }
-
-      if (isDest) {
-        return (
-          <View style={styles.destMarkerContainer}>
-            <View style={styles.destMarkerPin}>
-              <Text style={styles.markerEmoji}>{marker.emoji || '🏁'}</Text>
-            </View>
-            <View style={styles.destMarkerShadow} />
-          </View>
-        );
-      }
-
-      if (isDriver) {
-        return (
-          <View style={styles.driverMarkerContainer}>
-            <View style={styles.driverVehicleBadge}>
-              <Text style={styles.driverEmoji}>{marker.categoryIcon || marker.emoji || '🚗'}</Text>
-            </View>
-          </View>
-        );
-      }
-
-      return (
-        <View style={styles.defaultMarkerContainer}>
-          <Text style={{ fontSize: 24 }}>{marker.emoji || '📍'}</Text>
-        </View>
-      );
-    };
 
     return (
       <View style={[styles.container, style]}>
@@ -281,7 +238,7 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
                 tracksViewChanges={false}
                 anchor={{ x: 0.5, y: 0.5 }}
               >
-                {renderMarkerVisual(marker)}
+                <MarkerVisual marker={marker} />
               </Marker>
             );
           })}
@@ -372,6 +329,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
+// Memoized Marker Visual to prevent re-rendering during map panning
+const MarkerVisual = React.memo(({ marker }: { marker: MapMarker }) => {
+  const isPickup = marker.id === 'pickup' || marker.id === 'passenger_current' || marker.isCustomer;
+  const isDest = marker.id === 'dropoff' || marker.id === 'destination' || marker.isDestination;
+  const isDriver = marker.id === 'driver' || marker.isDriver;
+
+  if (isPickup) {
+    return (
+      <View style={styles.pickupMarkerContainer}>
+        <View style={styles.pickupMarkerPin}>
+          <Text style={styles.markerEmoji}>{marker.emoji || '📍'}</Text>
+        </View>
+        <View style={styles.markerPulseCircle} />
+      </View>
+    );
+  }
+
+  if (isDest) {
+    return (
+      <View style={styles.destMarkerContainer}>
+        <View style={styles.destMarkerPin}>
+          <Text style={styles.markerEmoji}>{marker.emoji || '🏁'}</Text>
+        </View>
+        <View style={styles.destMarkerShadow} />
+      </View>
+    );
+  }
+
+  if (isDriver) {
+    return (
+      <View style={styles.driverMarkerContainer}>
+        <View style={styles.driverVehicleBadge}>
+          <Text style={styles.driverEmoji}>{marker.categoryIcon || marker.emoji || '🚗'}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.defaultMarkerContainer}>
+      <Text style={{ fontSize: 24 }}>{marker.emoji || '📍'}</Text>
+    </View>
+  );
+});
+
+MarkerVisual.displayName = 'MarkerVisual';
 
 GoogleMapView.displayName = 'GoogleMapView';
 

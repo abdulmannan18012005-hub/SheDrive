@@ -258,12 +258,17 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       return;
     }
 
-    // Robust verification gatekeeper: block toggle if not approved
-    if (!isOnline && (!isDriverVerified || verificationStatus !== 'approved')) {
+    // Strict verification gatekeeper: document status must be explicitly verified
+    const isApproved = Boolean(
+      (user?.isVerified || user?.verificationStatus === 'approved') &&
+      ((driverProfile as any)?.verificationStatus === 'approved' || (driverProfile as any)?.verification_status === 'approved' || user?.verificationStatus === 'approved')
+    );
+
+    if (!isOnline && !isApproved) {
       setVerificationModalVisible(true);
       Alert.alert(
         'Account Under Review',
-        'Your account documents are currently under review. You can go online once approved.'
+        'Your account documents are currently under review by our safety team. You can go online once approved.'
       );
       return;
     }
@@ -280,12 +285,15 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           return;
         }
 
-        await refreshLocation();
+        await refreshLocation().catch(() => {});
 
         let tokenToUse = state.token;
         if (!tokenToUse) {
           tokenToUse = (await AsyncStorage.getItem('@shedrive_auth_token')) || undefined;
         }
+
+        const resolvedLat = currentCoords?.latitude || 31.5204;
+        const resolvedLng = currentCoords?.longitude || 74.3587;
 
         // Call backend API to go online (backend will verify driver status)
         const res = await fetch(`${getApiBaseUrl()}/driver/online`, {
@@ -296,8 +304,8 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           },
           body: JSON.stringify({
             isOnline: true,
-            latitude: currentCoords?.latitude || 31.5204,
-            longitude: currentCoords?.longitude || 74.3587,
+            latitude: resolvedLat,
+            longitude: resolvedLng,
             heading: 0,
           }),
         });
@@ -313,13 +321,13 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           return;
         }
 
-        // Start location watcher if backend approves
+        // Start location watcher if backend approves (throttled to 10m / 4s for zero-lag 60fps performance)
         try {
           const watcher = await Location.watchPositionAsync(
             {
-              accuracy: Location.Accuracy.BestForNavigation,
-              timeInterval: 2500,
-              distanceInterval: 2,
+              accuracy: Location.Accuracy.Balanced,
+              timeInterval: 4000,
+              distanceInterval: 10,
             },
             async (newLocation) => {
               try {
