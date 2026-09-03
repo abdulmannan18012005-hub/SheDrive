@@ -5,6 +5,9 @@
     RewriteEngine On
     RewriteBase /admin/
 
+    # Ensure index.html is served for directory requests
+    DirectoryIndex index.html
+
     # Do not rewrite actual files or directories
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d

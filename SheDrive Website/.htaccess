@@ -9,6 +9,12 @@
     Header set Access-Control-Allow-Origin "*"
 </IfModule>
 
+# Handle /admin route cleanly
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^admin$ admin/ [R=301,L]
+</IfModule>
+
 # Cache static assets for speed
 <IfModule mod_expires.c>
     ExpiresActive On
