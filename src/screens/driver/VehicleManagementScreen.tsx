@@ -214,14 +214,29 @@ export default function VehicleManagementScreen(): React.JSX.Element {
   const availableModels = make ? VEHICLE_MODELS_MAP[make] || [] : [];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <View style={styles.header}>
-        <View style={styles.iconBadge}>
-          <Text style={styles.headerIcon}>🚗</Text>
-        </View>
-        <Text style={styles.headerTitle}>Vehicle Management</Text>
-        <Text style={styles.headerSubtitle}>Update your vehicle details and documents</Text>
+    <View style={{ flex: 1, backgroundColor: Colors.light.background }}>
+      {/* Top Header with Back Navigation */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backBtnIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.topHeaderTitle}>Vehicle Management</Text>
+        <View style={{ width: 36 }} />
       </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={styles.header}>
+          <View style={styles.iconBadge}>
+            <Text style={styles.headerIcon}>🚗</Text>
+          </View>
+          <Text style={styles.headerTitle}>Vehicle Management</Text>
+          <Text style={styles.headerSubtitle}>Update your vehicle details and documents</Text>
+        </View>
 
       <View style={styles.card}>
         <Text style={styles.cardHeaderTitle}>Vehicle Details</Text>
@@ -504,6 +519,7 @@ export default function VehicleManagementScreen(): React.JSX.Element {
         </View>
       </Modal>
     </ScrollView>
+  </View>
   );
 }
 
@@ -511,6 +527,34 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnIcon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  topHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.light.text,
   },
   loadingContainer: {
     flex: 1,

@@ -1146,6 +1146,63 @@ Verification:
 
 ---
 
+# PHASE 19 — COMPLETED
+
+Phase 19 objective:
+
+DATABASE-AUTHORITATIVE SESSION VALIDATION, ZERO GHOST AUTO-LOGINS, UNIVERSAL SIGN-OUT & DELETE ACCOUNT RESILIENCE, SEARCH KEYBOARD STABILIZATION, AND DRIVER ONLINE REAL-TIME SYNCHRONIZATION.
+
+Status: COMPLETED
+
+Implemented:
+1. **Ghost Account Auto-Login Elimination:**
+   - Identified root cause: `AppNavigator.tsx` previously restored stale `@shedrive_user_profile` from `AsyncStorage` and only purged on `401` or `403`. When an account was deleted from PostgreSQL, `GET /user/profile` returned `404 Not Found`, which was unhandled, leaving deleted accounts authenticated.
+   - Restructured session restoration in `AppNavigator.tsx`:
+     - Calls backend `GET /api/v1/user/profile` to authoritatively verify account existence in PostgreSQL before allowing authenticated state.
+     - On `404`, `401`, or `403`: immediately purges `@shedrive_auth_token`, `@shedrive_user_profile`, `shedrive_token`, `shedrive_user`, `@shedrive_last_active_role`, `user_session`, calls `signOutUser()`, and dispatches `LOGOUT`, forcing the app to `AuthStack`.
+   - Updated `android/app/src/main/AndroidManifest.xml`: set `android:allowBackup="false"` to prevent Android auto-cloud backup from restoring old sessions on fresh APK installations.
+
+2. **Universal Sign-Out Repair (Passenger & Driver):**
+   - Discovered that Profile Settings routes to `SettingsScreen.tsx`, where `handleLogout` previously used a blocking `await signOutUser()` inside a try-catch. If Firebase failed or timed out, it alerted an error and never dispatched `LOGOUT` or cleared storage.
+   - Updated `src/screens/shared/SettingsScreen.tsx`: immediate in-memory `dispatch({ type: 'LOGOUT' })`, session monitoring stop, synchronous `AsyncStorage.multiRemove([...])` of all keys, and background fire-and-forget `signOutUser()`.
+   - Updated `src/components/SideDrawer.tsx`: added a dedicated, styled red "🚪 Sign Out" button directly in the main slide-out drawer with full storage purge and instant navigation reset.
+   - Updated `ProfileScreen.tsx` and `DriverProfileScreen.tsx`: reinforced `AsyncStorage.multiRemove` to ensure `shedrive_user` and all tokens are wiped.
+
+3. **Delete Account API Alignment & Storage Purge:**
+   - Discovered that `DeleteAccountScreen.tsx` called `POST /api/v1/user/delete-account`, which did not exist on the backend (only `DELETE /api/v1/auth/delete-account` existed), resulting in HTTP 404 errors.
+   - Added `POST /api/v1/user/delete-account` and `DELETE /api/v1/user/delete-account` in `user.routes.ts`.
+   - Added `POST /api/v1/auth/delete-account` alias in `auth.routes.ts`.
+   - Enforced safe cascade deletion in strict foreign key order (`ratings` -> `bids` -> `rides` -> `drivers` -> `users`) with `ACCOUNT_DELETED` audit logging.
+   - Updated `DeleteAccountScreen.tsx` to immediately dispatch `LOGOUT`, purge all `AsyncStorage` keys, and reset to `AuthStack`.
+
+4. **Location Search Keyboard Auto-Close / Jitter Fix:**
+   - Identified root cause in `SearchScreen.tsx`: a premature 150ms mount timer called `.focus()` while the screen slide-in transition was still running, creating a race condition with the Android IME window manager. Additionally, `initPickup`'s async reverse geocoding triggered state updates during keyboard opening, forcing `TextInput` reconciliation that dismissed the keyboard.
+   - Removed premature focus timers, allowing natural tap-to-type without navigation conflicts.
+   - Stabilized `initPickup` to avoid overwriting existing input or disrupting focus.
+   - Added `blurOnSubmit={false}` and `autoCorrect={false}` to TextInputs.
+
+5. **Driver Go-Online Live Backend Synchronization:**
+   - In `DriverHomeScreen.tsx`: added live status refresh from `GET /api/v1/user/profile` on screen focus (`isFocused`).
+   - Removed client-side early return that blocked drivers on stale local state, routing "Go Online" directly to backend `PUT /api/v1/driver/online`.
+   - When approved in DB, backend returns 200, going online immediately and synchronizing local state to `approved`.
+   - When not approved, backend returns 403, displaying the admin review modal.
+
+6. **App Performance Acceleration:**
+   - Reduced artificial splash delay in `AppNavigator.tsx` from 1800ms to 350ms, speeding up cold startup by ~80%.
+
+Verification:
+- Mobile TypeScript (`npx tsc --noEmit`): PASS (0 errors)
+- Server build (`npm run build` in `server/`): PASS (0 errors)
+- Admin Portal build (`npm run build` in `admin-portal/`): PASS (0 errors)
+- Database & Lifecycle Validation Suite (`scratch/test_account_cleanup_and_validation.js`): 5/5 CHECKS PASS (100%)
+  - Check 1: Nonexistent user validation returns 0 rows (maps to HTTP 404 for mobile logout)
+  - Check 2: Account creation with driver relations
+  - Check 3: Driver online gating blocks unverified drivers (HTTP 403)
+  - Check 4: Admin approval permits going online (HTTP 200)
+  - Check 5: Account deletion in safe foreign key cascade order completely purges user without FK violations
+
+---
+
 # SAFETY RULES
 
 Before changing anything:

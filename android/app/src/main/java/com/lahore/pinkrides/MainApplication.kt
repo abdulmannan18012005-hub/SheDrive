@@ -15,6 +15,12 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
+import android.media.AudioAttributes
+import android.provider.Settings
+
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
@@ -45,7 +51,75 @@ class MainApplication : Application(), ReactApplication {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
+    createNotificationChannels()
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
+  }
+
+  private fun createNotificationChannels() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val notificationManager = getSystemService(NotificationManager::class.java) ?: return
+
+      val defaultAudioAttributes = AudioAttributes.Builder()
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+        .build()
+
+      // 1. Ride Alerts Channel (Heads-up banner + sound + vibration)
+      val rideAlertsChannel = NotificationChannel(
+        "ride_alerts",
+        "Ride Alerts & Booking Updates",
+        NotificationManager.IMPORTANCE_HIGH
+      ).apply {
+        description = "Notifications for incoming ride requests, counter offers, driver arrival, and ride updates."
+        enableLights(true)
+        enableVibration(true)
+        setShowBadge(true)
+        setSound(Settings.System.DEFAULT_NOTIFICATION_URI, defaultAudioAttributes)
+      }
+
+      // 2. Chat Messages Channel (Heads-up banner + sound + vibration)
+      val chatChannel = NotificationChannel(
+        "chat_messages",
+        "In-Ride Chat Messages",
+        NotificationManager.IMPORTANCE_HIGH
+      ).apply {
+        description = "Direct chat messages between passenger and driver during trips."
+        enableLights(true)
+        enableVibration(true)
+        setShowBadge(true)
+        setSound(Settings.System.DEFAULT_NOTIFICATION_URI, defaultAudioAttributes)
+      }
+
+      // 3. Safety & SOS Alerts Channel (Maximum importance)
+      val safetyChannel = NotificationChannel(
+        "safety_alerts",
+        "Safety & Emergency SOS",
+        NotificationManager.IMPORTANCE_HIGH
+      ).apply {
+        description = "Emergency SOS alerts, safety warnings, and high-priority incident notifications."
+        enableLights(true)
+        enableVibration(true)
+        setShowBadge(true)
+        setSound(Settings.System.DEFAULT_NOTIFICATION_URI, defaultAudioAttributes)
+      }
+
+      // 4. Admin Broadcasts & Announcements Channel
+      val adminChannel = NotificationChannel(
+        "admin_broadcasts",
+        "Platform Updates & Announcements",
+        NotificationManager.IMPORTANCE_HIGH
+      ).apply {
+        description = "Platform notices, verification updates, and important announcements."
+        enableLights(true)
+        enableVibration(true)
+        setShowBadge(true)
+        setSound(Settings.System.DEFAULT_NOTIFICATION_URI, defaultAudioAttributes)
+      }
+
+      notificationManager.createNotificationChannels(
+        listOf(rideAlertsChannel, chatChannel, safetyChannel, adminChannel)
+      )
+    }
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {

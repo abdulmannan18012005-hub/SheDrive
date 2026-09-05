@@ -6,7 +6,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../contexts/AppContext';
 import { auth } from '../config/firebaseConfig';
-import { getUserProfileDoc } from '../firebase/auth';
+import { getUserProfileDoc, signOutUser } from '../firebase/auth';
 import Colors from '../constants/Colors';
 
 import AuthStack from './AuthStack';
@@ -86,7 +86,7 @@ export default function AppNavigator(): React.JSX.Element {
   useEffect(() => {
     const splashTimer = setTimeout(() => {
       setShowSplash(false);
-    }, 1800);
+    }, 350);
 
     return () => clearTimeout(splashTimer);
   }, []);
@@ -100,18 +100,8 @@ export default function AppNavigator(): React.JSX.Element {
         const savedUserJson = await AsyncStorage.getItem('@shedrive_user_profile');
         const savedLastRole = await AsyncStorage.getItem('@shedrive_last_active_role');
 
-        if (savedToken && savedUserJson) {
-          const userProfile = JSON.parse(savedUserJson);
-          const activeRole = (savedLastRole as any) || userProfile.role || 'passenger';
-          if (isMounted) {
-            dispatch({ type: 'SET_TOKEN', payload: savedToken });
-            dispatch({ type: 'SET_USER', payload: userProfile });
-            dispatch({ type: 'SET_ROLE', payload: activeRole });
-            dispatch({ type: 'SET_AUTHENTICATED', payload: true });
-            dispatch({ type: 'SET_LOADING', payload: false });
-          }
-
-          // Background validation with backend API (non-blocking)
+        if (savedToken) {
+          // Authoritative validation with backend API — verify account actually exists in DB
           try {
             const { getApiBaseUrl } = await import('../config/apiConfig');
             const res = await fetch(`${getApiBaseUrl()}/user/profile`, {
@@ -121,6 +111,8 @@ export default function AppNavigator(): React.JSX.Element {
             if (res.ok) {
               const data = await res.json();
               if (data.user && isMounted) {
+                const userProfile = savedUserJson ? JSON.parse(savedUserJson) : {};
+                const activeRole = (savedLastRole as any) || data.user.role || userProfile.role || 'passenger';
                 const isDriver = (data.user.role || activeRole) === 'driver';
                 const dInfo = data.user.driverInfo || {};
 
@@ -168,47 +160,53 @@ export default function AppNavigator(): React.JSX.Element {
                   refreshedUser.cnicBackUrl = data.user.cnic_back_url || userProfile.cnicBackUrl || null;
                 }
 
+                dispatch({ type: 'SET_TOKEN', payload: savedToken });
                 dispatch({ type: 'SET_USER', payload: refreshedUser });
+                dispatch({ type: 'SET_ROLE', payload: activeRole });
+                dispatch({ type: 'SET_AUTHENTICATED', payload: true });
                 AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(refreshedUser)).catch(() => {});
+                if (isMounted) dispatch({ type: 'SET_LOADING', payload: false });
+                return;
               }
-            } else if (res.status === 401 || res.status === 403) {
-              // Token genuinely rejected by backend -> logout
-              await AsyncStorage.removeItem('@shedrive_auth_token');
-              await AsyncStorage.removeItem('@shedrive_user_profile');
-              await AsyncStorage.removeItem('@shedrive_last_active_role');
+            } else if (res.status === 404 || res.status === 401 || res.status === 403) {
+              // User deleted from DB (404) or token rejected -> completely purge stale cache
+              await AsyncStorage.multiRemove([
+                '@shedrive_auth_token',
+                '@shedrive_user_profile',
+                '@shedrive_last_active_role',
+                'shedrive_token',
+                'shedrive_user',
+                'user_session',
+              ]);
+              signOutUser().catch(() => {});
               if (isMounted) {
                 dispatch({ type: 'LOGOUT' });
+                dispatch({ type: 'SET_LOADING', payload: false });
               }
+              return;
             }
-            // If offline / network error: retain cached session without logging out
           } catch (netErr) {
-            console.warn('[Session Restore] Background validation offline/network error (session retained):', netErr);
+            console.warn('[Session Restore] Network check error:', netErr);
+            // In genuine offline conditions, if cached profile exists, allow offline usage
+            if (savedUserJson && isMounted) {
+              const userProfile = JSON.parse(savedUserJson);
+              const activeRole = (savedLastRole as any) || userProfile.role || 'passenger';
+              dispatch({ type: 'SET_TOKEN', payload: savedToken });
+              dispatch({ type: 'SET_USER', payload: userProfile });
+              dispatch({ type: 'SET_ROLE', payload: activeRole });
+              dispatch({ type: 'SET_AUTHENTICATED', payload: true });
+              dispatch({ type: 'SET_LOADING', payload: false });
+              return;
+            }
           }
-          return;
         }
 
-        // Fallback check for Firebase Auth if no JWT session exists
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-          try {
-            if (firebaseUser) {
-              const profile = await getUserProfileDoc(firebaseUser.uid);
-              if (profile && isMounted) {
-                dispatch({ type: 'SET_USER', payload: profile });
-                dispatch({ type: 'SET_ROLE', payload: profile.role });
-                dispatch({ type: 'SET_AUTHENTICATED', payload: true });
-                AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(profile)).catch(() => {});
-              }
-            }
-          } catch (err) {
-            console.warn('[Firebase Auth] Initialization warning:', err);
-          } finally {
-            if (isMounted) {
-              dispatch({ type: 'SET_LOADING', payload: false });
-            }
-          }
-        });
-
-        return () => unsubscribe();
+        // If no valid DB session exists, ensure Firebase Auth is also signed out
+        await signOutUser().catch(() => {});
+        if (isMounted) {
+          dispatch({ type: 'LOGOUT' });
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
       } catch (error) {
         console.error('[Session Restore Error]:', error);
       } finally {

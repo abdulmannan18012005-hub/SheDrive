@@ -1,6 +1,26 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { query } from '../../config/db';
+import { deleteImage } from '../../config/cloudinary';
+
+function extractCloudinaryPublicId(url: string): string | null {
+  if (!url || typeof url !== 'string' || !url.includes('cloudinary.com')) {
+    return null;
+  }
+  try {
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return null;
+    let pathPart = parts[1];
+    pathPart = pathPart.replace(/^v\d+\//, '');
+    const dotIndex = pathPart.lastIndexOf('.');
+    if (dotIndex !== -1) {
+      pathPart = pathPart.substring(0, dotIndex);
+    }
+    return pathPart;
+  } catch {
+    return null;
+  }
+}
 
 const router = Router();
 
@@ -418,5 +438,89 @@ router.put('/driver/vehicle', authenticateToken, async (req: AuthRequest, res: R
     res.status(500).json({ error: 'Failed to update vehicle details' });
   }
 });
+
+/**
+ * DELETE /api/v1/user/delete-account & POST /api/v1/user/delete-account
+ */
+const handleDeleteAccount = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const now = Date.now();
+    const userRes = await query(
+      'SELECT id, name, email, role, cnic_front_url, cnic_back_url, photo_url FROM users WHERE id = $1',
+      [userId]
+    );
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    const user = userRes.rows[0];
+
+    // Collect all Cloudinary asset URLs associated with this account
+    const docUrls: string[] = [];
+    if (user.cnic_front_url) docUrls.push(user.cnic_front_url);
+    if (user.cnic_back_url) docUrls.push(user.cnic_back_url);
+    if (user.photo_url) docUrls.push(user.photo_url);
+
+    if (user.role === 'driver') {
+      const driverRes = await query(
+        'SELECT vehicle_photo_url, license_url, license_front_url, license_back_url, selfie_url, cnic_front_url, cnic_back_url FROM drivers WHERE driver_id = $1',
+        [userId]
+      );
+      if (driverRes.rows.length > 0) {
+        const d = driverRes.rows[0];
+        if (d.vehicle_photo_url) docUrls.push(d.vehicle_photo_url);
+        if (d.license_url) docUrls.push(d.license_url);
+        if (d.license_front_url) docUrls.push(d.license_front_url);
+        if (d.license_back_url) docUrls.push(d.license_back_url);
+        if (d.selfie_url) docUrls.push(d.selfie_url);
+        if (d.cnic_front_url) docUrls.push(d.cnic_front_url);
+        if (d.cnic_back_url) docUrls.push(d.cnic_back_url);
+      }
+      await query('UPDATE drivers SET is_online = false, is_available = false WHERE driver_id = $1', [userId]).catch(() => {});
+    }
+
+    // Silently purge binary assets from Cloudinary in the background
+    for (const url of docUrls) {
+      const publicId = extractCloudinaryPublicId(url);
+      if (publicId) {
+        try {
+          await deleteImage(publicId);
+        } catch (cErr) {
+          console.warn('[Cloudinary Cleanup Notice] Could not delete image:', publicId);
+        }
+      }
+    }
+
+    // Write ACCOUNT_DELETED audit log
+    const auditId = `aud_${now}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO audit_logs (id, user_id, action, details, timestamp)
+       VALUES ($1, $2, 'ACCOUNT_DELETED', $3, $4)`,
+      [auditId, userId, JSON.stringify({ name: user.name, email: user.email, role: user.role }), now]
+    ).catch(() => {});
+
+    // Cascade delete in strict child-to-parent order to avoid foreign key violations
+    await query('DELETE FROM user_notifications WHERE user_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM emergency_contacts WHERE user_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM saved_places WHERE user_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM ratings WHERE from_user_id = $1 OR to_user_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM bids WHERE sender_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM rides WHERE passenger_id = $1 OR driver_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM drivers WHERE driver_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM users WHERE id = $1', [userId]);
+
+    res.status(200).json({ success: true, message: 'Account and associated assets deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+};
+
+router.delete('/delete-account', authenticateToken, handleDeleteAccount);
+router.post('/delete-account', authenticateToken, handleDeleteAccount);
 
 export default router;

@@ -13,6 +13,7 @@ import {
   Platform,
   ScrollView,
   BackHandler,
+  Keyboard,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
@@ -73,16 +74,9 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const pickupInputRef = useRef<TextInput>(null);
   const destInputRef = useRef<TextInput>(null);
 
-  // Focus once on mount only — eliminate keyboard flicker loops
+  // Stable mount lifecycle — no premature focus during screen transition animation
   useEffect(() => {
-    const focusTimer = setTimeout(() => {
-      if (initialField === 'pickup') {
-        pickupInputRef.current?.focus();
-      } else {
-        destInputRef.current?.focus();
-      }
-    }, 150);
-    return () => clearTimeout(focusTimer);
+    // Let the screen mount and render smoothly without triggering keyboard race conditions
   }, []);
 
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
@@ -154,21 +148,26 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
 
   // Auto-reverse geocode current position for Pickup on initial mount only
   useEffect(() => {
+    let isCancelled = false;
     const initPickup = async () => {
       if (!hasAutoInitializedRef.current && !initialPickup && !isManualPickupOverride && gpsCoords) {
         hasAutoInitializedRef.current = true;
-        setPickupText('Current Location');
         const readableAddress = await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude);
-        const labelName = readableAddress || 'Current Location';
-        setPickupPoint({
-          latitude: gpsCoords.latitude,
-          longitude: gpsCoords.longitude,
-          label: labelName,
-        });
-        setPickupText(labelName);
+        if (!isCancelled) {
+          const labelName = readableAddress || 'Current Location';
+          setPickupPoint({
+            latitude: gpsCoords.latitude,
+            longitude: gpsCoords.longitude,
+            label: labelName,
+          });
+          setPickupText((prev) => (prev ? prev : labelName));
+        }
       }
     };
     initPickup();
+    return () => {
+      isCancelled = true;
+    };
   }, [gpsCoords, initialPickup, isManualPickupOverride]);
 
   // Execute address search query when debounced text updates using Google Places (New)
@@ -373,6 +372,47 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Top Header Navigation Bar (Google Maps style) */}
+      <View style={styles.topHeaderBar}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => {
+            Keyboard.dismiss();
+            navigation.goBack();
+          }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backBtnIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.topHeaderTitle}>
+          {activeField === 'pickup' ? 'Choose Pickup Point' : 'Where to?'}
+        </Text>
+        <TouchableOpacity
+          style={styles.mapPinHeaderBtn}
+          onPress={async () => {
+            Keyboard.dismiss();
+            if (gpsCoords) {
+              const label = (await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude)) || 'Current Location';
+              const pt = { latitude: gpsCoords.latitude, longitude: gpsCoords.longitude, label };
+              if (activeField === 'pickup') {
+                setPickupPoint(pt);
+                setPickupText(label);
+                setIsManualPickupOverride(false);
+                setActiveField('dest');
+              } else {
+                setDestPoint(pt);
+                setDestText(label);
+              }
+            }
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 16 }}>🎯</Text>
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardContainer}
@@ -393,6 +433,8 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                 placeholder="Enter pickup point"
                 placeholderTextColor={Colors.light.textTertiary}
                 value={pickupText}
+                autoCorrect={false}
+                blurOnSubmit={false}
                 onChangeText={(text) => {
                   setPickupText(text);
                   setIsManualPickupOverride(true);
@@ -407,8 +449,8 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                     setPickupText('');
                     setPickupPoint(null);
                     setIsManualPickupOverride(true);
-                    pickupInputRef.current?.focus();
                   }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={styles.clearBtnText}>✕</Text>
                 </TouchableOpacity>
@@ -422,6 +464,8 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                 placeholder="Where to?"
                 placeholderTextColor={Colors.light.textTertiary}
                 value={destText}
+                autoCorrect={false}
+                blurOnSubmit={false}
                 onChangeText={(text) => {
                   setDestText(text);
                   if (destPoint) setDestPoint(null);
@@ -436,6 +480,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                     setDestPoint(null);
                     destInputRef.current?.focus();
                   }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={styles.clearBtnText}>✕</Text>
                 </TouchableOpacity>
@@ -444,23 +489,28 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           </View>
         </View>
 
+        {/* Search status bar indicator (does not unmount list) */}
+        {isSearching && (
+          <View style={styles.searchingBar}>
+            <ActivityIndicator size="small" color={Colors.light.primary} />
+            <Text style={styles.searchingText}>Searching locations...</Text>
+          </View>
+        )}
+
         {/* Suggestion List / Activity indicators */}
         <View style={styles.listContainer}>
-          {isSearching ? (
-            <View style={{ padding: 20, gap: 16 }}>
-              <SkeletonLoader height={48} borderRadius={12} />
-              <SkeletonLoader height={48} borderRadius={12} />
-              <SkeletonLoader height={48} borderRadius={12} />
-              <SkeletonLoader height={48} borderRadius={12} />
-            </View>
-          ) : searchResults.length > 0 ? (
+          {searchResults.length > 0 ? (
             <FlatList
               data={searchResults}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.resultItem}
-                  onPress={() => handleSelectItem(item)}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleSelectItem(item);
+                  }}
+                  activeOpacity={0.7}
                 >
                   <View style={[styles.resultIconBadge, item.source === 'google' && { backgroundColor: Colors.light.primaryGhost }]}>
                     <Text style={styles.resultIcon}>{item.source === 'google' ? '📍' : '📌'}</Text>
@@ -473,10 +523,15 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                   </View>
                 </TouchableOpacity>
               )}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="on-drag"
             />
           ) : (
-            <ScrollView style={{ flex: 1, padding: 20 }} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={{ flex: 1, padding: 20 }}
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="on-drag"
+            >
               {/* Quick GPS Location Button */}
               {gpsCoords && (
                 <TouchableOpacity
@@ -607,6 +662,57 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
+  },
+  topHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnIcon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  topHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.light.text,
+  },
+  mapPinHeaderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#DCFCE7',
+  },
+  searchingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.primary,
   },
   keyboardContainer: {
     flex: 1,

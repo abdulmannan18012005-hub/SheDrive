@@ -308,31 +308,30 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
 
   const profileCompletion = calculateProfileCompletion(driverProfile);
 
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+
+  const executeLogout = async () => {
+    setLogoutModalVisible(false);
+    // 1. Transition in-memory state immediately so React Navigation switches to AuthStack
+    dispatch({ type: 'LOGOUT' });
+
+    // 2. Stop session monitoring & purge local storage keys
+    sessionManager.stopSessionMonitoring();
+    await AsyncStorage.multiRemove([
+      '@shedrive_auth_token',
+      '@shedrive_user_profile',
+      'shedrive_token',
+      'shedrive_user',
+      '@shedrive_last_active_role',
+      'user_session',
+    ]).catch(() => {});
+
+    // 3. Background remote cleanup without delaying UI
+    signOutUser().catch(() => {});
+  };
+
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: () => {
-          // 1. Transition in-memory state immediately so React Navigation switches to AuthStack
-          dispatch({ type: 'LOGOUT' });
-
-          // 2. Stop session monitoring & purge local storage keys
-          sessionManager.stopSessionMonitoring();
-          AsyncStorage.multiRemove([
-            '@shedrive_auth_token',
-            '@shedrive_user_profile',
-            'shedrive_token',
-            '@shedrive_last_active_role',
-            'user_session',
-          ]).catch(() => {});
-
-          // 3. Background remote cleanup without delaying UI
-          signOutUser().catch(() => {});
-        },
-      },
-    ]);
+    setLogoutModalVisible(true);
   };
 
   if (isLoading) {
@@ -346,12 +345,27 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
   const isApproved = user?.isVerified || driverProfile?.isActive || user?.verificationStatus === 'approved';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      {/* Header Profile Photo & Basic Meta */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleUpdateProfilePicture} activeOpacity={0.8}>
-          <View style={styles.avatarContainer}>
-            {user?.photoURL ? (
+    <View style={{ flex: 1, backgroundColor: Colors.light.background }}>
+      {/* Top Header with Back Navigation */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backBtnIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.topHeaderTitle}>Driver Profile</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Header Profile Photo & Basic Meta */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleUpdateProfilePicture} activeOpacity={0.8}>
+            <View style={styles.avatarContainer}>
+              {user?.photoURL ? (
               <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholder}>
@@ -604,13 +618,22 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Log Out Link */}
+        {/* Sign Out Card */}
         <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.8}
+          style={styles.logoutButtonCard}
+          onPress={() => setLogoutModalVisible(true)}
+          activeOpacity={0.7}
         >
-          <Text style={styles.logoutButtonText}>Sign Out</Text>
+          <View style={styles.logoutButtonLeft}>
+            <View style={styles.logoutIconBadge}>
+              <Text style={{ fontSize: 18 }}>🚪</Text>
+            </View>
+            <View>
+              <Text style={styles.logoutButtonText}>Sign Out</Text>
+              <Text style={styles.logoutButtonSubtext}>Log out from this account</Text>
+            </View>
+          </View>
+          <Text style={styles.logoutChevron}>›</Text>
         </TouchableOpacity>
       </View>
 
@@ -664,7 +687,44 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         verificationStatus={(user as any)?.verificationStatus || (driverProfile?.isActive ? 'approved' : 'pending')}
         rejectionReason={(user as any)?.rejectionReason}
       />
+
+      {/* Custom Logout Confirmation Modal */}
+      <Modal
+        visible={logoutModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setLogoutModalVisible(false)}
+      >
+        <View style={styles.confirmModalOverlay}>
+          <View style={styles.confirmModalContent}>
+            <View style={styles.confirmIconBadge}>
+              <Text style={{ fontSize: 24 }}>🚪</Text>
+            </View>
+            <Text style={styles.confirmModalTitle}>Sign Out from SheDrive?</Text>
+            <Text style={styles.confirmModalText}>
+              Are you sure you want to sign out? You will need to log in again with your driver credentials.
+            </Text>
+            <View style={styles.confirmModalActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setLogoutModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmLogoutBtn}
+                onPress={executeLogout}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmLogoutBtnText}>Yes, Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
+  </View>
   );
 }
 
@@ -1025,20 +1085,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#047857',
   },
-  logoutButton: {
-    backgroundColor: Colors.light.errorLight,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: Colors.light.error + '30',
-  },
-  logoutButtonText: {
-    color: Colors.light.error,
-    fontSize: 16,
-    fontWeight: '800',
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1110,5 +1156,143 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 15,
     fontWeight: '800',
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnIcon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  topHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.light.text,
+  },
+  logoutButtonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  logoutButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  logoutIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  logoutButtonSubtext: {
+    fontSize: 12,
+    color: '#991B1B',
+    marginTop: 2,
+  },
+  logoutChevron: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  confirmModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  confirmModalContent: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  confirmIconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.light.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  confirmModalText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  confirmModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  confirmLogoutBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+  },
+  confirmLogoutBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

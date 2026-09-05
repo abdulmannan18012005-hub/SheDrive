@@ -190,6 +190,20 @@ export default function EditProfileScreen({ navigation }: Props): React.JSX.Elem
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
+      {/* Top Header with Back Navigation */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backBtnIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.topHeaderTitle}>Edit Profile</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Photo Selection */}
         <View style={styles.photoSection}>
@@ -611,5 +625,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 8,
     opacity: 0.6,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnIcon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  topHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.light.text,
   },
 });

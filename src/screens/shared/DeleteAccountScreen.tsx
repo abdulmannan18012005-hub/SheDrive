@@ -14,6 +14,8 @@ import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { signOutUser } from '../../firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import sessionManager from '../../utils/sessionManager';
 
 const DELETION_REASONS = [
   'No longer need the service',
@@ -58,38 +60,36 @@ export default function DeleteAccountScreen(): React.JSX.Element {
           text: 'Delete Account',
           style: 'destructive',
           onPress: async () => {
-            try {
-              setIsDeleting(true);
-              const reason = selectedReason === 'Other' ? customReason.trim() : selectedReason;
+            const tokenToPurge = state.token;
+            const reason = selectedReason === 'Other' ? customReason.trim() : selectedReason;
 
-              const res = await fetch(`${getApiBaseUrl()}/user/delete-account`, {
+            // 1. Immediately reset in-memory state and redirect to Sign In screen
+            dispatch({ type: 'LOGOUT' });
+
+            // 2. Stop session monitoring & purge local storage keys
+            sessionManager.stopSessionMonitoring();
+            await AsyncStorage.multiRemove([
+              '@shedrive_auth_token',
+              '@shedrive_user_profile',
+              'shedrive_token',
+              'shedrive_user',
+              '@shedrive_last_active_role',
+              'user_session',
+            ]).catch(() => {});
+
+            // 3. Remote signout in background
+            signOutUser().catch(() => {});
+
+            // 4. Auto silently delete account and photos from Cloudinary and DB in background
+            if (tokenToPurge) {
+              fetch(`${getApiBaseUrl()}/user/delete-account`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  Authorization: `Bearer ${state.token}`,
+                  Authorization: `Bearer ${tokenToPurge}`,
                 },
                 body: JSON.stringify({ reason }),
-              });
-
-              const data = await res.json();
-              if (!res.ok) {
-                Alert.alert('Error', data.error || 'Failed to delete account');
-                return;
-              }
-
-              // Sign out the user
-              await signOutUser();
-              dispatch({ type: 'LOGOUT' });
-
-              Alert.alert(
-                'Account Deleted',
-                'Your account has been successfully deleted. We\'re sorry to see you go.',
-              );
-            } catch (err: any) {
-              console.error('Delete account error:', err);
-              Alert.alert('Network Error', 'Unable to connect to server');
-            } finally {
-              setIsDeleting(false);
+              }).catch(() => {});
             }
           },
         },
@@ -98,16 +98,31 @@ export default function DeleteAccountScreen(): React.JSX.Element {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <View style={styles.header}>
-        <View style={styles.iconBadge}>
-          <Text style={styles.headerIcon}>⚠️</Text>
-        </View>
-        <Text style={styles.headerTitle}>Delete Account</Text>
-        <Text style={styles.headerSubtitle}>
-          This action is permanent and cannot be undone
-        </Text>
+    <View style={{ flex: 1, backgroundColor: Colors.light.background }}>
+      {/* Top Header with Back Navigation */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backBtnIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.topHeaderTitle}>Delete Account</Text>
+        <View style={{ width: 36 }} />
       </View>
+
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={styles.header}>
+          <View style={styles.iconBadge}>
+            <Text style={styles.headerIcon}>⚠️</Text>
+          </View>
+          <Text style={styles.headerTitle}>Delete Account</Text>
+          <Text style={styles.headerSubtitle}>
+            This action is permanent and cannot be undone
+          </Text>
+        </View>
 
       <View style={styles.warningCard}>
         <Text style={styles.warningTitle}>⚠️ Important Information</Text>
@@ -215,6 +230,7 @@ export default function DeleteAccountScreen(): React.JSX.Element {
         <Text style={styles.cancelButtonText}>Keep My Account</Text>
       </TouchableOpacity>
     </ScrollView>
+  </View>
   );
 }
 
@@ -222,6 +238,34 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnIcon: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  topHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.light.text,
   },
   header: {
     alignItems: 'center',

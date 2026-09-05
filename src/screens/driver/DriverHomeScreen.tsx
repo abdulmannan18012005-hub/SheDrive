@@ -77,7 +77,35 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         // Non-critical: unread badge simply remains at current state
       }
     };
-    if (isFocused) fetchUnread();
+
+    const refreshDriverStatus = async () => {
+      if (!state.token) return;
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/user/profile`, {
+          headers: { Authorization: `Bearer ${state.token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user && user) {
+            const isApproved = Boolean(data.user.is_verified && data.user.verification_status === 'approved');
+            const updatedUser = {
+              ...user,
+              isVerified: isApproved,
+              verificationStatus: data.user.verification_status || (data.user.is_verified ? 'approved' : 'pending'),
+            };
+            dispatch({ type: 'SET_USER', payload: updatedUser });
+            AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser)).catch(() => {});
+          }
+        }
+      } catch (err) {
+        // Non-critical
+      }
+    };
+
+    if (isFocused) {
+      fetchUnread();
+      refreshDriverStatus();
+    }
   }, [isFocused, state.token]);
 
   const { location: currentCoords, errorMessage, isLoading: isLocationLoading, refreshLocation } = useLocation();
@@ -258,20 +286,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       return;
     }
 
-    // Strict verification gatekeeper: document status must be explicitly verified
-    const isApproved = Boolean(
-      (user?.isVerified || user?.verificationStatus === 'approved') &&
-      ((driverProfile as any)?.verificationStatus === 'approved' || (driverProfile as any)?.verification_status === 'approved' || user?.verificationStatus === 'approved')
-    );
 
-    if (!isOnline && !isApproved) {
-      setVerificationModalVisible(true);
-      Alert.alert(
-        'Account Under Review',
-        'Your account documents are currently under review by our safety team. You can go online once approved.'
-      );
-      return;
-    }
 
     try {
       setIsUpdatingStatus(true);
@@ -313,12 +328,22 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         const data = await res.json();
 
         if (!res.ok) {
+          if (res.status === 403) {
+            setVerificationModalVisible(true);
+          }
           Alert.alert(
             res.status === 403 ? 'Account Under Review' : 'Cannot Go Online',
             data.error || 'Your account is currently under review. Please wait for admin approval.'
           );
           setIsUpdatingStatus(false);
           return;
+        }
+
+        // Backend approved — sync local state to approved
+        if (user && (!user.isVerified || user.verificationStatus !== 'approved')) {
+          const approvedUser = { ...user, isVerified: true, verificationStatus: 'approved' };
+          dispatch({ type: 'SET_USER', payload: approvedUser });
+          AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(approvedUser)).catch(() => {});
         }
 
         // Start location watcher if backend approves (throttled to 10m / 4s for zero-lag 60fps performance)

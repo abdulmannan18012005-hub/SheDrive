@@ -20,6 +20,8 @@ import { signOutUser } from '../firebase/auth';
 import { useApp } from '../contexts/AppContext';
 import { CONTACT_INFO } from '../config/contactConfig';
 import { FeedbackModal } from './FeedbackModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import sessionManager from '../utils/sessionManager';
 
 import { Easing } from 'react-native';
 
@@ -85,6 +87,30 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
     setTimeout(() => {
       navigation.navigate(screenName);
     }, 150);
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => {
+          onClose();
+          dispatch({ type: 'LOGOUT' });
+          sessionManager.stopSessionMonitoring();
+          AsyncStorage.multiRemove([
+            '@shedrive_auth_token',
+            '@shedrive_user_profile',
+            'shedrive_token',
+            'shedrive_user',
+            '@shedrive_last_active_role',
+            'user_session',
+          ]).catch(() => {});
+          signOutUser().catch(() => {});
+        },
+      },
+    ]);
   };
 
   if (!visible) return null;
@@ -257,6 +283,18 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                   <Text style={styles.menuIcon}>💬</Text>
                   <Text style={[styles.menuText, { color: '#4A2060', fontWeight: '700' }]}>
                     Share App Feedback
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Sign Out Button */}
+                <TouchableOpacity
+                  style={[styles.menuItem, { marginTop: 8 }]}
+                  onPress={handleLogout}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>🚪</Text>
+                  <Text style={[styles.menuText, { color: Colors.light.error, fontWeight: '700' }]}>
+                    Sign Out
                   </Text>
                 </TouchableOpacity>
               </View>

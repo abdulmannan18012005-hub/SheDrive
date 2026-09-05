@@ -1310,7 +1310,81 @@ router.delete('/delete-account', authenticateToken, async (req: Request, res: Re
       [auditId, userId, JSON.stringify({ name: user.name, email: user.email, role: user.role }), now]
     );
 
+    // Safe cascade deletion in strict child-to-parent order to avoid foreign key violations
+    await query('DELETE FROM ratings WHERE from_user_id = $1 OR to_user_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM bids WHERE sender_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM rides WHERE passenger_id = $1 OR driver_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM drivers WHERE driver_id = $1', [userId]).catch(() => {});
     await query('DELETE FROM users WHERE id = $1', [userId]);
+
+    res.status(200).json({ success: true, message: 'Account and associated media deleted successfully' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
+// POST alias for mobile clients
+router.post('/delete-account', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const now = Date.now();
+
+    const userRes = await query(
+      'SELECT id, name, email, role, cnic_front_url, cnic_back_url FROM users WHERE id = $1',
+      [userId]
+    );
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    const user = userRes.rows[0];
+
+    const docUrls: string[] = [];
+    if (user.cnic_front_url) docUrls.push(user.cnic_front_url);
+    if (user.cnic_back_url) docUrls.push(user.cnic_back_url);
+
+    if (user.role === 'driver') {
+      const driverRes = await query(
+        'SELECT vehicle_photo_url, license_url, license_front_url, license_back_url, selfie_url, cnic_front_url, cnic_back_url FROM drivers WHERE driver_id = $1',
+        [userId]
+      );
+      if (driverRes.rows.length > 0) {
+        const d = driverRes.rows[0];
+        if (d.vehicle_photo_url) docUrls.push(d.vehicle_photo_url);
+        if (d.license_url) docUrls.push(d.license_url);
+        if (d.license_front_url) docUrls.push(d.license_front_url);
+        if (d.license_back_url) docUrls.push(d.license_back_url);
+        if (d.selfie_url) docUrls.push(d.selfie_url);
+        if (d.cnic_front_url) docUrls.push(d.cnic_front_url);
+        if (d.cnic_back_url) docUrls.push(d.cnic_back_url);
+      }
+      await query('UPDATE drivers SET is_online = false, is_available = false WHERE driver_id = $1', [userId]);
+    }
+
+    for (const url of docUrls) {
+      const publicId = extractCloudinaryPublicId(url);
+      if (publicId) {
+        try {
+          await deleteImage(publicId);
+        } catch (cErr) {
+          console.warn('[Cloudinary Cleanup Notice] Could not delete image:', publicId);
+        }
+      }
+    }
+
+    const auditId = `aud_${now}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO audit_logs (id, user_id, action, details, timestamp)
+       VALUES ($1, $2, 'ACCOUNT_DELETED', $3, $4)`,
+      [auditId, userId, JSON.stringify({ name: user.name, email: user.email, role: user.role }), now]
+    );
+
+    await query('DELETE FROM ratings WHERE from_user_id = $1 OR to_user_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM bids WHERE sender_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM rides WHERE passenger_id = $1 OR driver_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM drivers WHERE driver_id = $1', [userId]).catch(() => {});
+    await query('DELETE FROM users WHERE id = $1', [userId]);
+
     res.status(200).json({ success: true, message: 'Account and associated media deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);
