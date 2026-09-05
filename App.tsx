@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppState, View, Text } from 'react-native';
 import { AppProvider } from './src/contexts/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import SplashScreen from './src/screens/auth/SplashScreen';
 
 import ErrorBoundary from './src/components/ErrorBoundary';
 
@@ -48,11 +49,7 @@ export default function App(): React.JSX.Element {
   };
 
   if (!isReady) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#042F2E', justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>SheDrive</Text>
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   return (
