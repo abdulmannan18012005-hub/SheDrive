@@ -86,7 +86,7 @@ export default function AppNavigator(): React.JSX.Element {
   useEffect(() => {
     const splashTimer = setTimeout(() => {
       setShowSplash(false);
-    }, 350);
+    }, 2500);
 
     return () => clearTimeout(splashTimer);
   }, []);
