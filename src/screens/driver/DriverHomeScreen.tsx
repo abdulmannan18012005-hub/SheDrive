@@ -286,7 +286,12 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       return;
     }
 
-
+    // Immediate verification gate: if not verified/approved, cleanly show review modal
+    // without blocking on GPS scans, connecting sockets, or calling online APIs
+    if (!isOnline && !isDriverVerified) {
+      setVerificationModalVisible(true);
+      return;
+    }
 
     try {
       setIsUpdatingStatus(true);
@@ -300,15 +305,29 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           return;
         }
 
-        await refreshLocation().catch(() => {});
+        // Fast non-blocking coordinate resolution (<2s go-online) using cached/last-known coordinates
+        let resolvedLat = currentCoords?.latitude;
+        let resolvedLng = currentCoords?.longitude;
+
+        if (!resolvedLat || !resolvedLng) {
+          try {
+            const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 120000 });
+            if (lastKnown?.coords) {
+              resolvedLat = lastKnown.coords.latitude;
+              resolvedLng = lastKnown.coords.longitude;
+            }
+          } catch (e) {
+            // Fallback gracefully to default coordinates
+          }
+        }
+
+        resolvedLat = resolvedLat || 31.5204;
+        resolvedLng = resolvedLng || 74.3587;
 
         let tokenToUse = state.token;
         if (!tokenToUse) {
           tokenToUse = (await AsyncStorage.getItem('@shedrive_auth_token')) || undefined;
         }
-
-        const resolvedLat = currentCoords?.latitude || 31.5204;
-        const resolvedLng = currentCoords?.longitude || 74.3587;
 
         // Call backend API to go online (backend will verify driver status)
         const res = await fetch(`${getApiBaseUrl()}/driver/online`, {

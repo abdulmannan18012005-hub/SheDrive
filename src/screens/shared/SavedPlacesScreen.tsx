@@ -36,6 +36,15 @@ export default function SavedPlacesScreen(): React.JSX.Element {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingPlace, setEditingPlace] = useState<SavedPlace | null>(null);
 
+  // Defensive array normalization
+  const placesList: SavedPlace[] = Array.isArray(places)
+    ? places
+    : Array.isArray((places as any)?.places)
+      ? (places as any).places
+      : Array.isArray((places as any)?.savedPlaces)
+        ? (places as any).savedPlaces
+        : [];
+
   // Form states
   const [label, setLabel] = useState<PlaceLabel>('other');
   const [name, setName] = useState('');
@@ -64,7 +73,16 @@ export default function SavedPlacesScreen(): React.JSX.Element {
         return;
       }
 
-      setPlaces(data.places || []);
+      const rawList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.places)
+          ? data.places
+          : Array.isArray(data?.savedPlaces)
+            ? data.savedPlaces
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
+      setPlaces(rawList);
     } catch (err: any) {
       console.error('Fetch saved places error:', err);
       // If API fails, show empty state - this is expected during development
@@ -100,7 +118,7 @@ export default function SavedPlacesScreen(): React.JSX.Element {
 
     // Check if Home or Work already exists
     if (label === 'home' || label === 'work') {
-      const existing = places.find(p => p.label === label);
+      const existing = placesList.find(p => p.label === label);
       if (existing && (!editingPlace || existing.id !== editingPlace.id)) {
         Alert.alert(
           'Place Exists',
@@ -365,7 +383,7 @@ export default function SavedPlacesScreen(): React.JSX.Element {
           </TouchableOpacity>
         </View>
 
-        {places.length === 0 ? (
+        {placesList.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🗺️</Text>
             <Text style={styles.emptyTitle}>No Saved Places</Text>
@@ -375,7 +393,7 @@ export default function SavedPlacesScreen(): React.JSX.Element {
           </View>
         ) : (
           <View style={styles.placesList}>
-            {places.map((place) => (
+            {placesList.map((place) => (
               <View key={place.id} style={styles.placeCard}>
                 <View style={styles.placeLeft}>
                   <View style={styles.placeIconBadge}>

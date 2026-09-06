@@ -531,7 +531,6 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           {/* Selected Category Description Banner */}
           <View style={styles.descriptionBanner}>
             <Text style={styles.descriptionText}>{selectedCategory.description}</Text>
-            <Text style={styles.minFareNotice}>Min. Fare Protection: PKR {selectedCategory.minimumFare}</Text>
           </View>
 
           {/* Fare Bidding Stepper Control Panel (±5 PKR) */}

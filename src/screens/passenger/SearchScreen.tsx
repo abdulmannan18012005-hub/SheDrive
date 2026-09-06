@@ -22,7 +22,7 @@ import Colors from '../../constants/Colors';
 import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction } from '../../services/googlePlaces';
 import { searchAddress, reverseGeocode } from '../../services/nominatim';
 import { useDebounce } from '../../hooks/useDebounce';
-import { useLocation } from '../../hooks/useLocation';
+import * as Location from 'expo-location';
 import { getLiveTrafficRoute, getLiveTrafficMultiStopRoute } from '../../services/googleRoutes';
 import { SkeletonLoader } from '../../components/SkeletonLoader';
 import { useApp } from '../../contexts/AppContext';
@@ -49,18 +49,38 @@ interface SearchItem {
 }
 
 export default function SearchScreen({ navigation, route }: Props): React.JSX.Element {
-  // Read location once without continuous watcher to prevent re-rendering during search typing
-  const { location: gpsCoords } = useLocation(false);
-  const gpsCoordsRef = useRef(gpsCoords);
-  useEffect(() => {
-    gpsCoordsRef.current = gpsCoords;
-  }, [gpsCoords]);
-
-  const { state } = useApp();
-
+  // Read location once on mount without continuous watcher or multi-phase hook state updates to prevent re-rendering during search typing
   const initialPickup = route?.params?.pickupPoint;
   const initialDest = route?.params?.destPoint;
   const initialField = route?.params?.targetField || (initialDest && !initialPickup ? 'pickup' : 'dest');
+
+  const { state } = useApp();
+
+  const [gpsCoords, setGpsCoords] = useState<LocationPoint | null>(
+    initialPickup ? { latitude: initialPickup.latitude, longitude: initialPickup.longitude, label: initialPickup.label } : null
+  );
+  const gpsCoordsRef = useRef<{ latitude: number; longitude: number } | null>(
+    initialPickup ? { latitude: initialPickup.latitude, longitude: initialPickup.longitude } : null
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 60000 });
+        if (lastKnown?.coords && isMounted) {
+          const coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
+          gpsCoordsRef.current = coords;
+          setGpsCoords({ ...coords, label: 'Current Location' });
+        }
+      } catch (e) {
+        // Fallback silently without throwing
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [pickupText, setPickupText] = useState(initialPickup?.label || '');
   const [destText, setDestText] = useState(initialDest?.label || '');
@@ -115,25 +135,28 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
         });
 
         const data = await res.json();
-        if (res.ok && Array.isArray(data.places)) {
-          setSavedPlaces(data.places);
-          // If quick targetLabel passed (e.g. 'home' or 'work'), auto-select matching place
-          const target = route?.params?.targetLabel;
-          if (target) {
-            const matched = data.places.find((p: any) => p?.label === target);
-            if (matched) {
-              const matchedLat = parseFloat(matched.latitude) || 0;
-              const matchedLon = parseFloat(matched.longitude) || 0;
-              setDestPoint({
-                latitude: matchedLat,
-                longitude: matchedLon,
-                label: matched.name || (target === 'home' ? 'Home' : 'Work'),
-              });
-              setDestText(matched.name || (target === 'home' ? 'Home' : 'Work'));
-            }
+        const rawPlaces = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.places)
+            ? data.places
+            : Array.isArray(data?.savedPlaces)
+              ? data.savedPlaces
+              : [];
+        setSavedPlaces(rawPlaces);
+        // If quick targetLabel passed (e.g. 'home' or 'work'), auto-select matching place
+        const target = route?.params?.targetLabel;
+        if (target && rawPlaces.length > 0) {
+          const matched = rawPlaces.find((p: any) => p?.label === target);
+          if (matched) {
+            const matchedLat = parseFloat(matched.latitude) || 0;
+            const matchedLon = parseFloat(matched.longitude) || 0;
+            setDestPoint({
+              latitude: matchedLat,
+              longitude: matchedLon,
+              label: matched.name || (target === 'home' ? 'Home' : 'Work'),
+            });
+            setDestText(matched.name || (target === 'home' ? 'Home' : 'Work'));
           }
-        } else {
-          setSavedPlaces([]);
         }
       } catch (err) {
         console.error('Fetch saved places error:', err);
@@ -581,57 +604,75 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
 
               {/* Saved Places Section */}
               <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Saved Places</Text>
-              {isLoadingPlaces ? (
-                <View style={{ padding: 20 }}>
-                  <ActivityIndicator color={Colors.light.primary} />
-                </View>
-              ) : savedPlaces.length === 0 ? (
-                <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text, marginBottom: 4 }}>No Saved Places</Text>
-                  <Text style={{ fontSize: 13, color: Colors.light.textSecondary, textAlign: 'center' }}>Save your favorite locations for quick access</Text>
-                </View>
-              ) : (
-                <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 12, marginBottom: 24, gap: 8, borderWidth: 1, borderColor: Colors.light.border }}>
-                  {savedPlaces.map((place, idx) => {
-                    const icon = place?.label === 'home' ? '🏠' : place?.label === 'work' ? '💼' : '📍';
-                    const numLat = parseFloat(place?.latitude) || 0;
-                    const numLon = parseFloat(place?.longitude) || 0;
-                    const placeName = place?.name || (place?.label === 'home' ? 'Home' : place?.label === 'work' ? 'Work' : 'Saved Place');
-                    const placePoint: LocationPoint = { 
-                      latitude: numLat, 
-                      longitude: numLon, 
-                      label: placeName 
-                    };
-                    return (
-                      <TouchableOpacity
-                        key={place?.id || `saved_${idx}`}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8 }}
-                        onPress={() => {
-                          if (activeField === 'pickup') { 
-                            setPickupPoint(placePoint); 
-                            setPickupText(placeName); 
-                            setIsManualPickupOverride(true);
-                            setActiveField('dest'); 
-                          } else { 
-                            setDestPoint(placePoint); 
-                            setDestText(placeName); 
-                          }
-                        }}
-                      >
-                        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light.primaryGhost, justifyContent: 'center', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 18 }}>{icon}</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text }}>{placeName}</Text>
-                          <Text style={{ fontSize: 13, color: Colors.light.textSecondary }} numberOfLines={1}>
-                            {numLat.toFixed(4)}, {numLon.toFixed(4)}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
+              {(() => {
+                const savedPlacesList: any[] = Array.isArray(savedPlaces)
+                  ? savedPlaces
+                  : Array.isArray((savedPlaces as any)?.places)
+                    ? (savedPlaces as any).places
+                    : Array.isArray((savedPlaces as any)?.savedPlaces)
+                      ? (savedPlaces as any).savedPlaces
+                      : [];
+
+                if (isLoadingPlaces) {
+                  return (
+                    <View style={{ padding: 20 }}>
+                      <ActivityIndicator color={Colors.light.primary} />
+                    </View>
+                  );
+                }
+
+                if (savedPlacesList.length === 0) {
+                  return (
+                    <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text, marginBottom: 4 }}>No Saved Places</Text>
+                      <Text style={{ fontSize: 13, color: Colors.light.textSecondary, textAlign: 'center' }}>Save your favorite locations for quick access</Text>
+                    </View>
+                  );
+                }
+
+                return (
+                  <View style={{ backgroundColor: Colors.light.surface, borderRadius: 16, padding: 12, marginBottom: 24, gap: 8, borderWidth: 1, borderColor: Colors.light.border }}>
+                    {savedPlacesList.map((place: any, idx: number) => {
+                      const icon = place?.label === 'home' ? '🏠' : place?.label === 'work' ? '💼' : '📍';
+                      const numLat = parseFloat(place?.latitude) || 0;
+                      const numLon = parseFloat(place?.longitude) || 0;
+                      const placeName = place?.name || (place?.label === 'home' ? 'Home' : place?.label === 'work' ? 'Work' : 'Saved Place');
+                      const placePoint: LocationPoint = { 
+                        latitude: numLat, 
+                        longitude: numLon, 
+                        label: placeName 
+                      };
+                      return (
+                        <TouchableOpacity
+                          key={place?.id || `saved_${idx}`}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 8 }}
+                          onPress={() => {
+                            if (activeField === 'pickup') { 
+                              setPickupPoint(placePoint); 
+                              setPickupText(placeName); 
+                              setIsManualPickupOverride(true);
+                              setActiveField('dest'); 
+                            } else { 
+                              setDestPoint(placePoint); 
+                              setDestText(placeName); 
+                            }
+                          }}
+                        >
+                          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light.primaryGhost, justifyContent: 'center', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 18 }}>{icon}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 16, fontWeight: '600', color: Colors.light.text }}>{placeName}</Text>
+                            <Text style={{ fontSize: 13, color: Colors.light.textSecondary }} numberOfLines={1}>
+                              {numLat.toFixed(4)}, {numLon.toFixed(4)}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
             </ScrollView>
           )}
         </View>
