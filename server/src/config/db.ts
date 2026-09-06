@@ -496,12 +496,37 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
 
   // I. SELECT FROM USER_NOTIFICATIONS
   if (lowerSql.startsWith('select') && lowerSql.includes('from user_notifications')) {
-    let queryBuilder = supabaseClient.from('user_notifications').select('id, title, message, category, is_read, created_at');
-    if (lowerSql.includes('user_id = $1') && params[0]) {
-      queryBuilder = queryBuilder.eq('user_id', params[0]);
+    const isCountQuery = lowerSql.includes('count(*)');
+    let queryBuilder = supabaseClient.from('user_notifications');
+
+    if (isCountQuery) {
+      let countBuilder = queryBuilder.select('id', { count: 'exact', head: true });
+      if (lowerSql.includes('user_id = $1') && params && params[0]) {
+        countBuilder = countBuilder.eq('user_id', params[0]);
+      }
+      if (lowerSql.includes('is_read = false')) {
+        countBuilder = countBuilder.eq('is_read', false);
+      }
+      const { count, error } = await countBuilder;
+      if (error) throw new Error(error.message);
+      return { rows: [{ count: count || 0 }], rowCount: 1 };
     }
 
-    const { data, error } = await queryBuilder;
+    let selectBuilder = queryBuilder.select('id, title, message, category, is_read, created_at');
+    if (lowerSql.includes('user_id = $1') && params && params[0]) {
+      selectBuilder = selectBuilder.eq('user_id', params[0]);
+    }
+    if (lowerSql.includes('is_read = false')) {
+      selectBuilder = selectBuilder.eq('is_read', false);
+    }
+    if (lowerSql.includes('order by created_at desc')) {
+      selectBuilder = selectBuilder.order('created_at', { ascending: false });
+    }
+    if (lowerSql.includes('limit 50')) {
+      selectBuilder = selectBuilder.limit(50);
+    }
+
+    const { data, error } = await selectBuilder;
     if (error) throw new Error(error.message);
     return { rows: data || [], rowCount: data ? data.length : 0 };
   }
@@ -768,6 +793,21 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
           const { data, error } = await builder.select();
           if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
         }
+      }
+    } else if (lowerSql.includes('update user_notifications')) {
+      let builder = supabaseClient.from('user_notifications').update({ is_read: true });
+      if (lowerSql.includes('where id = $1 and user_id = $2') && params) {
+        builder = builder.eq('id', params[0]).eq('user_id', params[1]);
+      } else if (lowerSql.includes('where user_id = $1') && params) {
+        builder = builder.eq('user_id', params[0]);
+      } else if (lowerSql.includes('where id = $1') && params) {
+        builder = builder.eq('id', params[0]);
+      }
+      const { data, error } = await builder.select();
+      if (!error) return { rows: data || [], rowCount: data ? data.length : 1 };
+      else {
+        console.error(`[Supabase Update Error] Table: user_notifications`, error.message);
+        throw new Error(error.message);
       }
     }
   }

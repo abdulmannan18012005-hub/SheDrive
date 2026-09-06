@@ -280,27 +280,27 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
   };
 
   const calculateProfileCompletion = (profile: DriverProfile | null): number => {
-    if (!profile) return 0;
-
     let completedFields = 0;
     const totalFields = 9;
 
     // Check basic info
-    if (profile.name) completedFields++;
-    if (profile.phone) completedFields++;
-    if (profile.photoURL || profile.selfieUrl) completedFields++;
+    if (profile?.name || user?.name) completedFields++;
+    if (profile?.phone || user?.phone) completedFields++;
+    if (profile?.photoURL || profile?.selfieUrl || user?.photoURL) completedFields++;
 
     // Check vehicle info
-    if (profile.vehicleInfo) {
-      if (profile.vehicleInfo.make) completedFields++;
-      if (profile.vehicleInfo.model) completedFields++;
-      if (profile.vehicleInfo.plate) completedFields++;
-      if (profile.vehicleInfo.color) completedFields++;
+    const vehicle = profile?.vehicleInfo || (user as any)?.vehicleInfo || (profile as any)?.vehicle_info;
+    if (vehicle) {
+      if (vehicle.make) completedFields++;
+      if (vehicle.model) completedFields++;
+      if (vehicle.plate) completedFields++;
+      if (vehicle.color) completedFields++;
     }
 
     // Check documents
-    if (profile.licenseFrontUrl) completedFields++;
-    if (profile.licenseBackUrl) completedFields++;
+    const isApproved = user?.isVerified || profile?.isActive || user?.verificationStatus === 'approved';
+    if (profile?.licenseFrontUrl || isApproved) completedFields++;
+    if (profile?.licenseBackUrl || isApproved) completedFields++;
 
     const calculatedScore = (completedFields / totalFields) * 100;
     return Math.min(100, Math.max(0, Math.round(calculatedScore)));
@@ -365,15 +365,18 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         <View style={styles.header}>
           <TouchableOpacity onPress={handleUpdateProfilePicture} activeOpacity={0.8}>
             <View style={styles.avatarContainer}>
-              {user?.photoURL ? (
-              <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {user?.name ? user.name.charAt(0).toUpperCase() : 'D'}
-                </Text>
-              </View>
-            )}
+              {(driverProfile?.photoURL || driverProfile?.selfieUrl || user?.photoURL) ? (
+                <Image
+                  source={{ uri: driverProfile?.photoURL || driverProfile?.selfieUrl || user?.photoURL }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarText}>
+                    {user?.name ? user.name.charAt(0).toUpperCase() : 'D'}
+                  </Text>
+                </View>
+              )}
             <View style={styles.cameraBadge}>
               <Text style={{ fontSize: 12 }}>📷</Text>
             </View>
@@ -481,72 +484,23 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         </View>
       )}
 
-      {/* Driver Verification Documents Section */}
+      {/* Dedicated Vehicle & Verification Documents Shortcut Card */}
       <View style={styles.card}>
-        <Text style={styles.cardHeaderTitle}>🪪 Verification Documents</Text>
-
-        <View style={styles.docGrid}>
-          {/* CNIC Front */}
-          <View style={styles.docCard}>
-            <Text style={styles.docCardLabel}>CNIC Front</Text>
-            {driverProfile?.cnicFrontUrl ? (
-              <Image source={{ uri: driverProfile.cnicFrontUrl }} style={styles.docThumbnail} />
-            ) : (
-              <View style={styles.docPlaceholder}><Text style={styles.docPlaceholderText}>Not Provided</Text></View>
-            )}
-            <TouchableOpacity
-              style={styles.reselectBtn}
-              onPress={() => handleReselectDocument('cnicFrontUrl', 'CNIC Front')}
-            >
-              <Text style={styles.reselectBtnText}>📷 Change / Reselect</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* CNIC Back */}
-          <View style={styles.docCard}>
-            <Text style={styles.docCardLabel}>CNIC Back</Text>
-            {driverProfile?.cnicBackUrl ? (
-              <Image source={{ uri: driverProfile.cnicBackUrl }} style={styles.docThumbnail} />
-            ) : (
-              <View style={styles.docPlaceholder}><Text style={styles.docPlaceholderText}>Not Provided</Text></View>
-            )}
-            <TouchableOpacity
-              style={styles.reselectBtn}
-              onPress={() => handleReselectDocument('cnicBackUrl', 'CNIC Back')}
-            >
-              <Text style={styles.reselectBtnText}>📷 Change / Reselect</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Profile Photo / Selfie */}
-          <View style={styles.docCard}>
-            <Text style={styles.docCardLabel}>Profile Photo / Selfie</Text>
-            {driverProfile?.selfieUrl || driverProfile?.photoURL ? (
-              <Image source={{ uri: driverProfile.selfieUrl || driverProfile.photoURL }} style={styles.docThumbnail} />
-            ) : (
-              <View style={styles.docPlaceholder}><Text style={styles.docPlaceholderText}>Not Provided</Text></View>
-            )}
-            <TouchableOpacity
-              style={styles.reselectBtn}
-              onPress={() => handleReselectDocument('selfieUrl', 'Profile Photo')}
-            >
-              <Text style={styles.reselectBtnText}>📷 Change / Reselect</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Dedicated Vehicle Management Banner */}
+        <Text style={styles.cardHeaderTitle}>🚗 Vehicle & Verification Documents</Text>
+        <Text style={{ fontSize: 13, color: Colors.light.textSecondary, marginBottom: 14, lineHeight: 18 }}>
+          Manage your registered vehicle specs, CNIC documents, driving license, and vehicle registration.
+        </Text>
         <TouchableOpacity
           style={styles.vehicleDocBanner}
           onPress={() => navigation.navigate('VehicleManagement')}
           activeOpacity={0.85}
         >
           <View style={styles.vehicleDocBannerLeft}>
-            <Text style={{ fontSize: 24 }}>🚗</Text>
-            <View>
-              <Text style={styles.vehicleDocBannerTitle}>Vehicle & Driving License</Text>
+            <Text style={{ fontSize: 24 }}>📑</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.vehicleDocBannerTitle}>Manage Vehicle & Documents</Text>
               <Text style={styles.vehicleDocBannerSub}>
-                Manage vehicle specs, photos, driving license, and registration
+                View and update vehicle details, license, and verification docs
               </Text>
             </View>
           </View>
@@ -931,20 +885,25 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.divider,
+    gap: 12,
   },
   infoLabel: {
     fontSize: 14,
     color: Colors.light.textSecondary,
     fontWeight: '500',
+    flexShrink: 0,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.light.text,
+    flex: 1,
+    textAlign: 'right',
   },
   plateText: {
     textTransform: 'uppercase',

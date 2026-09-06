@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,16 +16,16 @@ import {
   AppState,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { doc, updateDoc, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, onSnapshot, addDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 import { DriverStackParamList, RideRequest, FareOffer, DriverProfile } from '../../types';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { LeafletMap, LeafletMapRef, MapMarker } from '../../components/LeafletMap';
 import { useLocation } from '../../hooks/useLocation';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, haversineDistance } from '../../utils/helpers';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SideDrawer } from '../../components/SideDrawer';
@@ -120,12 +120,21 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   const [counterAmount, setCounterAmount] = useState('');
   const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
   const [rideTimers, setRideTimers] = useState<Record<string, number>>({});
+  const [isMapLoadingDismissed, setIsMapLoadingDismissed] = useState(false);
 
   const mapRef = useRef<LeafletMapRef>(null);
   const isInitialMapReady = useRef(false);
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
   const lastHttpLocationSyncRef = useRef<number>(0);
   const lastBackPressRef = useRef<number>(0);
+
+  // Auto-dismiss map loading badge after max 3 seconds so it never stays stuck
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsMapLoadingDismissed(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Auto-center map strictly ONCE when initial real GPS location is acquired
   useEffect(() => {
@@ -135,40 +144,40 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     }
   }, [currentCoords?.latitude, currentCoords?.longitude]);
 
-  // Android hardware back handler
-  useEffect(() => {
-    const onBackPress = () => {
-      if (counterModalVisible) {
-        setCounterModalVisible(false);
-        return true;
-      }
-      if (verificationModalVisible) {
-        setVerificationModalVisible(false);
-        return true;
-      }
-      if (drawerVisible) {
-        setDrawerVisible(false);
-        return true;
-      }
+  // Android hardware back handler strictly active only when DriverHomeScreen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (counterModalVisible) {
+          setCounterModalVisible(false);
+          return true;
+        }
+        if (verificationModalVisible) {
+          setVerificationModalVisible(false);
+          return true;
+        }
+        if (drawerVisible) {
+          setDrawerVisible(false);
+          return true;
+        }
 
-      if (!isFocused) return false;
+        const now = Date.now();
+        if (now - lastBackPressRef.current < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
 
-      const now = Date.now();
-      if (now - lastBackPressRef.current < 2000) {
-        BackHandler.exitApp();
+        lastBackPressRef.current = now;
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
+        }
         return true;
-      }
+      };
 
-      lastBackPressRef.current = now;
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
-      }
-      return true;
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => backHandler.remove();
-  }, [counterModalVisible, verificationModalVisible, drawerVisible, isFocused]);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backHandler.remove();
+    }, [counterModalVisible, verificationModalVisible, drawerVisible])
+  );
 
   // Subscribe to available rides when online
   useEffect(() => {
@@ -196,11 +205,20 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
             }
           });
 
-          // Filter rides to match driver's registered vehicle category safely
+          // Filter rides to match driver's registered vehicle category and 10 KM proximity strictly
           const matchingRides = offersList.filter((ride) => {
             if (!ride) return false;
             if (driverCategory && ride.vehicleCategory) {
-              return ride.vehicleCategory === driverCategory;
+              if (ride.vehicleCategory !== driverCategory) return false;
+            }
+            if (currentCoords?.latitude && currentCoords?.longitude && ride.pickup?.latitude && ride.pickup?.longitude) {
+              const dist = haversineDistance(
+                currentCoords.latitude,
+                currentCoords.longitude,
+                ride.pickup.latitude,
+                ride.pickup.longitude
+              );
+              if (dist > 10) return false;
             }
             return true;
           });
@@ -400,13 +418,13 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                 // Also update Firestore for real-time passenger visibility
                 if (user?.uid) {
                   const driverRef = doc(db, 'drivers', user.uid);
-                  await updateDoc(driverRef, {
+                  await setDoc(driverRef, {
                     isOnline: true,
                     latitude,
                     longitude,
                     heading: heading || 0,
                     lastUpdated: Date.now(),
-                  }).catch(() => {});
+                  }, { merge: true }).catch(() => {});
                 }
 
                 if (mapRef.current) {
@@ -446,10 +464,10 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         // Also update Firestore
         if (user?.uid) {
           const driverRef = doc(db, 'drivers', user.uid);
-          await updateDoc(driverRef, {
+          await setDoc(driverRef, {
             isOnline: false,
             lastUpdated: Date.now(),
-          }).catch(() => {});
+          }, { merge: true }).catch(() => {});
         }
 
         setIsOnline(false);
@@ -694,7 +712,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           markers={mapMarkers}
         />
         {/* Non-blocking smooth loading indicator over map */}
-        {isLocationLoading && !currentCoords && (
+        {isLocationLoading && !currentCoords && !isMapLoadingDismissed && (
           <View style={styles.mapLoadingBadge}>
             <ActivityIndicator size="small" color={Colors.light.primary} />
             <Text style={styles.mapLoadingText}>Loading map...</Text>

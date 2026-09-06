@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { PassengerStackParamList, LocationPoint, RideStop } from '../../types';
 import Colors from '../../constants/Colors';
 import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction } from '../../services/googlePlaces';
@@ -105,15 +105,17 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(true);
 
-  // Hardware/Gesture Back Handler
-  useEffect(() => {
-    const backAction = () => {
-      navigation.goBack();
-      return true;
-    };
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [navigation]);
+  // Hardware/Gesture Back Handler strictly active when SearchScreen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const backAction = () => {
+        navigation.goBack();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }, [navigation])
+  );
 
   // Intermediate stops state (Phase 10: Multi-stop rides, max 3 intermediate stops)
   const [intermediateStops, setIntermediateStops] = useState<LocationPoint[]>([]);
@@ -512,49 +514,47 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           </View>
         </View>
 
-        {/* Search status bar indicator (does not unmount list) */}
-        {isSearching && (
-          <View style={styles.searchingBar}>
-            <ActivityIndicator size="small" color={Colors.light.primary} />
-            <Text style={styles.searchingText}>Searching locations...</Text>
-          </View>
-        )}
+        {/* Search status bar indicator (stable height prevents keyboard displacement) */}
+        <View style={{ height: isSearching ? 32 : 0, overflow: 'hidden' }}>
+          {isSearching && (
+            <View style={styles.searchingBar}>
+              <ActivityIndicator size="small" color={Colors.light.primary} />
+              <Text style={styles.searchingText}>Searching locations...</Text>
+            </View>
+          )}
+        </View>
 
-        {/* Suggestion List / Activity indicators */}
-        <View style={styles.listContainer}>
+        {/* Suggestion List / Quick Options (Single stable container prevents keyboard loops) */}
+        <ScrollView
+          style={styles.listContainer}
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           {searchResults.length > 0 ? (
-            <FlatList
-              data={searchResults}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.resultItem}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    handleSelectItem(item);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.resultIconBadge, item.source === 'google' && { backgroundColor: Colors.light.primaryGhost }]}>
-                    <Text style={styles.resultIcon}>{item.source === 'google' ? '📍' : '📌'}</Text>
-                  </View>
-                  <View style={styles.resultTextContainer}>
-                    <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.resultSubtitle} numberOfLines={2}>
-                      {item.subtitle || item.fullAddress}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              keyboardShouldPersistTaps="always"
-              keyboardDismissMode="on-drag"
-            />
+            searchResults.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.resultItem}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  handleSelectItem(item);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.resultIconBadge, item.source === 'google' && { backgroundColor: Colors.light.primaryGhost }]}>
+                  <Text style={styles.resultIcon}>{item.source === 'google' ? '📍' : '📌'}</Text>
+                </View>
+                <View style={styles.resultTextContainer}>
+                  <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.resultSubtitle} numberOfLines={2}>
+                    {item.subtitle || item.fullAddress}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
           ) : (
-            <ScrollView
-              style={{ flex: 1, padding: 20 }}
-              keyboardShouldPersistTaps="always"
-              keyboardDismissMode="on-drag"
-            >
+            <>
               {/* Quick GPS Location Button */}
               {gpsCoords && (
                 <TouchableOpacity
@@ -673,9 +673,9 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                   </View>
                 );
               })()}
-            </ScrollView>
+            </>
           )}
-        </View>
+        </ScrollView>
 
         {/* Continue confirmation button */}
         {pickupPoint && destPoint && (

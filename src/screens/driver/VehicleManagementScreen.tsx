@@ -10,13 +10,16 @@ import {
   ActivityIndicator,
   Modal,
   Image,
+  Dimensions,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 
 const VEHICLE_MAKES = [
@@ -69,6 +72,12 @@ export default function VehicleManagementScreen(): React.JSX.Element {
   const [licenseBackUrl, setLicenseBackUrl] = useState('');
   const [registrationUrl, setRegistrationUrl] = useState('');
   const [insuranceUrl, setInsuranceUrl] = useState('');
+  const [cnicFrontUrl, setCnicFrontUrl] = useState('');
+  const [cnicBackUrl, setCnicBackUrl] = useState('');
+  const [selfieUrl, setSelfieUrl] = useState('');
+
+  // Preview modal state
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
 
   // Modal states
   const [makeModalVisible, setMakeModalVisible] = useState(false);
@@ -82,35 +91,75 @@ export default function VehicleManagementScreen(): React.JSX.Element {
     if (!user) return;
     try {
       setIsLoading(true);
+
+      // 1. Fetch live profile and documents from backend PostgreSQL
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/driver/profile`, {
+          headers: { Authorization: `Bearer ${state.token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.driver) {
+            const d = data.driver;
+            if (d.vehicle_make) setMake(d.vehicle_make);
+            if (d.vehicle_model) setModel(d.vehicle_model);
+            if (d.vehicle_year) setYear(String(d.vehicle_year));
+            if (d.vehicle_plate) setPlate(d.vehicle_plate);
+            if (d.vehicle_color) setColor(d.vehicle_color);
+            if (d.vehicle_photo_url) setPhotoUrl(d.vehicle_photo_url);
+            if (d.ac_option) setAcOption(d.ac_option);
+            if (d.license_front_url) setLicenseFrontUrl(d.license_front_url);
+            if (d.license_back_url) setLicenseBackUrl(d.license_back_url);
+            if (d.cnic_front_url) setCnicFrontUrl(d.cnic_front_url);
+            if (d.cnic_back_url) setCnicBackUrl(d.cnic_back_url);
+            if (d.selfie_url) setSelfieUrl(d.selfie_url);
+          }
+        }
+      } catch (backendErr) {
+        console.warn('Backend driver profile fetch error:', backendErr);
+      }
+
+      // 2. Fetch supplementary/fallback details from Firestore
       const driverSnap = await getDoc(doc(db, 'drivers', user.uid));
       if (driverSnap.exists()) {
         const driverData = driverSnap.data();
         if (driverData.vehicleInfo) {
-          setMake(driverData.vehicleInfo.make || '');
-          setModel(driverData.vehicleInfo.model || '');
-          setYear(driverData.vehicleInfo.year || '');
-          setPlate(driverData.vehicleInfo.plate || '');
-          setColor(driverData.vehicleInfo.color || '');
-          setPhotoUrl(driverData.vehicleInfo.photoUrl || '');
+          setMake((prev) => prev || driverData.vehicleInfo.make || '');
+          setModel((prev) => prev || driverData.vehicleInfo.model || '');
+          setYear((prev) => prev || (driverData.vehicleInfo.year ? String(driverData.vehicleInfo.year) : ''));
+          setPlate((prev) => prev || driverData.vehicleInfo.plate || '');
+          setColor((prev) => prev || driverData.vehicleInfo.color || '');
+          setPhotoUrl((prev) => prev || driverData.vehicleInfo.photoUrl || '');
         }
         if (driverData.acOption) {
-          setAcOption(driverData.acOption);
+          setAcOption((prev) => prev || driverData.acOption);
         }
-        setLicenseFrontUrl(driverData.licenseFrontUrl || '');
-        setLicenseBackUrl(driverData.licenseBackUrl || '');
-        setRegistrationUrl(driverData.registrationUrl || '');
-        setInsuranceUrl(driverData.insuranceUrl || '');
+        setLicenseFrontUrl((prev) => prev || driverData.licenseFrontUrl || '');
+        setLicenseBackUrl((prev) => prev || driverData.licenseBackUrl || '');
+        setRegistrationUrl((prev) => prev || driverData.registrationUrl || '');
+        setInsuranceUrl((prev) => prev || driverData.insuranceUrl || '');
+        setCnicFrontUrl((prev) => prev || driverData.cnicFrontUrl || '');
+        setCnicBackUrl((prev) => prev || driverData.cnicBackUrl || '');
+        setSelfieUrl((prev) => prev || driverData.selfieUrl || '');
       }
     } catch (error) {
       console.error('Error fetching driver profile:', error);
-      Alert.alert('Error', 'Failed to load vehicle information');
+      Alert.alert('Error', 'Failed to load vehicle and document information');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleImagePick = async (type: 'vehicle' | 'licenseFront' | 'licenseBack' | 'registration' | 'insurance') => {
+  const handleImagePick = async (
+    type: 'vehicle' | 'licenseFront' | 'licenseBack' | 'registration' | 'insurance' | 'cnicFront' | 'cnicBack' | 'selfie'
+  ) => {
     try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Photo library access is needed to upload documents.');
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -120,23 +169,56 @@ export default function VehicleManagementScreen(): React.JSX.Element {
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const uri = result.assets[0].uri;
-        
-        // For now, just set the URI. In production, upload to server/cloud
+        let finalUrl = uri;
+
+        try {
+          const base64Data = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const formattedBase64 = `data:image/jpeg;base64,${base64Data}`;
+          const uploadRes = await fetch(`${getApiBaseUrl()}/upload/document`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${state.token}`,
+            },
+            body: JSON.stringify({
+              base64Data: formattedBase64,
+              folder: 'shedrive/documents',
+            }),
+          });
+          const uploadData = await uploadRes.json();
+          if (uploadRes.ok && uploadData.url) {
+            finalUrl = uploadData.url;
+          }
+        } catch (uploadErr) {
+          console.warn('Document upload warning (using fallback URI):', uploadErr);
+        }
+
         switch (type) {
           case 'vehicle':
-            setPhotoUrl(uri);
+            setPhotoUrl(finalUrl);
             break;
           case 'licenseFront':
-            setLicenseFrontUrl(uri);
+            setLicenseFrontUrl(finalUrl);
             break;
           case 'licenseBack':
-            setLicenseBackUrl(uri);
+            setLicenseBackUrl(finalUrl);
             break;
           case 'registration':
-            setRegistrationUrl(uri);
+            setRegistrationUrl(finalUrl);
             break;
           case 'insurance':
-            setInsuranceUrl(uri);
+            setInsuranceUrl(finalUrl);
+            break;
+          case 'cnicFront':
+            setCnicFrontUrl(finalUrl);
+            break;
+          case 'cnicBack':
+            setCnicBackUrl(finalUrl);
+            break;
+          case 'selfie':
+            setSelfieUrl(finalUrl);
             break;
         }
       }
@@ -154,11 +236,14 @@ export default function VehicleManagementScreen(): React.JSX.Element {
 
     try {
       setIsSubmitting(true);
+      const token = state.token;
+
+      // 1. Vehicle info endpoint
       const res = await fetch(`${getApiBaseUrl()}/driver/vehicle-info`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${state.token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           vehicleInfo: {
@@ -175,9 +260,52 @@ export default function VehicleManagementScreen(): React.JSX.Element {
             licenseBackUrl,
             registrationUrl,
             insuranceUrl,
+            cnicFrontUrl,
+            cnicBackUrl,
+            selfieUrl,
           },
         }),
       });
+
+      // 2. Documents endpoint
+      await fetch(`${getApiBaseUrl()}/driver/documents`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          cnicFrontUrl,
+          cnicBackUrl,
+          licenseFrontUrl,
+          licenseBackUrl,
+          selfieUrl,
+          vehiclePhotoUrl: photoUrl,
+        }),
+      }).catch((e) => console.warn('Documents update warning:', e));
+
+      // 3. Firestore sync
+      if (user?.uid) {
+        const driverDocRef = doc(db, 'drivers', user.uid);
+        await setDoc(driverDocRef, {
+          vehicleInfo: {
+            make: make.trim(),
+            model: model.trim(),
+            year: year.trim(),
+            plate: plate.trim(),
+            color: color.trim(),
+            photoUrl,
+          },
+          acOption,
+          licenseFrontUrl,
+          licenseBackUrl,
+          registrationUrl,
+          insuranceUrl,
+          cnicFrontUrl,
+          cnicBackUrl,
+          selfieUrl,
+        }, { merge: true }).catch(() => {});
+      }
 
       const data = await res.json();
       if (!res.ok) {
@@ -187,7 +315,7 @@ export default function VehicleManagementScreen(): React.JSX.Element {
 
       Alert.alert(
         'Success',
-        'Vehicle information updated successfully. Your changes will be reviewed by the admin team.',
+        'Vehicle information and verification documents updated successfully. Your changes will be reviewed by the admin team.',
         [
           {
             text: 'OK',
@@ -334,88 +462,274 @@ export default function VehicleManagementScreen(): React.JSX.Element {
         </View>
 
         <Text style={styles.label}>Vehicle Photo</Text>
-        <TouchableOpacity
-          style={styles.imageUploadButton}
-          onPress={() => handleImagePick('vehicle')}
-          activeOpacity={0.7}
-        >
-          {photoUrl ? (
-            <Image source={{ uri: photoUrl }} style={styles.imagePreview} />
-          ) : (
+        {photoUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: photoUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: photoUrl, title: 'Vehicle Photo' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('vehicle')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('vehicle')}
+            activeOpacity={0.7}
+          >
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePlaceholderIcon}>📷</Text>
               <Text style={styles.imagePlaceholderText}>Tap to upload vehicle photo</Text>
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardHeaderTitle}>Documents</Text>
+        <Text style={styles.cardHeaderTitle}>🪪 Verification Documents</Text>
+        <Text style={{ fontSize: 13, color: Colors.light.textSecondary, marginBottom: 14 }}>
+          Upload clear, readable photos of your required verification documents.
+        </Text>
 
+        {/* CNIC Front */}
+        <Text style={styles.label}>National ID Card (CNIC Front)</Text>
+        {cnicFrontUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: cnicFrontUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: cnicFrontUrl, title: 'CNIC Front' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('cnicFront')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('cnicFront')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.imagePlaceholderIcon}>📷</Text>
+              <Text style={styles.imagePlaceholderText}>Tap to upload CNIC Front</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* CNIC Back */}
+        <Text style={styles.label}>National ID Card (CNIC Back)</Text>
+        {cnicBackUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: cnicBackUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: cnicBackUrl, title: 'CNIC Back' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('cnicBack')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('cnicBack')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.imagePlaceholderIcon}>📷</Text>
+              <Text style={styles.imagePlaceholderText}>Tap to upload CNIC Back</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Profile Photo / Registration Selfie */}
+        <Text style={styles.label}>Driver Registration Photo / Selfie</Text>
+        {selfieUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: selfieUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: selfieUrl, title: 'Driver Photo / Selfie' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('selfie')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('selfie')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.imagePlaceholderIcon}>📷</Text>
+              <Text style={styles.imagePlaceholderText}>Tap to upload Driver Photo</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Driving License (Front) */}
         <Text style={styles.label}>Driving License (Front)</Text>
-        <TouchableOpacity
-          style={styles.imageUploadButton}
-          onPress={() => handleImagePick('licenseFront')}
-          activeOpacity={0.7}
-        >
-          {licenseFrontUrl ? (
-            <Image source={{ uri: licenseFrontUrl }} style={styles.imagePreview} />
-          ) : (
+        {licenseFrontUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: licenseFrontUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: licenseFrontUrl, title: 'Driving License Front' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('licenseFront')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('licenseFront')}
+            activeOpacity={0.7}
+          >
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePlaceholderIcon}>📷</Text>
               <Text style={styles.imagePlaceholderText}>Tap to upload license front</Text>
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
 
+        {/* Driving License (Back) */}
         <Text style={styles.label}>Driving License (Back)</Text>
-        <TouchableOpacity
-          style={styles.imageUploadButton}
-          onPress={() => handleImagePick('licenseBack')}
-          activeOpacity={0.7}
-        >
-          {licenseBackUrl ? (
-            <Image source={{ uri: licenseBackUrl }} style={styles.imagePreview} />
-          ) : (
+        {licenseBackUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: licenseBackUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: licenseBackUrl, title: 'Driving License Back' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('licenseBack')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('licenseBack')}
+            activeOpacity={0.7}
+          >
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePlaceholderIcon}>📷</Text>
               <Text style={styles.imagePlaceholderText}>Tap to upload license back</Text>
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
 
-        <Text style={styles.label}>Vehicle Registration</Text>
-        <TouchableOpacity
-          style={styles.imageUploadButton}
-          onPress={() => handleImagePick('registration')}
-          activeOpacity={0.7}
-        >
-          {registrationUrl ? (
-            <Image source={{ uri: registrationUrl }} style={styles.imagePreview} />
-          ) : (
+        {/* Vehicle Registration */}
+        <Text style={styles.label}>Vehicle Registration Card / Book</Text>
+        {registrationUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: registrationUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: registrationUrl, title: 'Vehicle Registration' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('registration')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('registration')}
+            activeOpacity={0.7}
+          >
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePlaceholderIcon}>📷</Text>
               <Text style={styles.imagePlaceholderText}>Tap to upload registration</Text>
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
 
+        {/* Insurance (Optional) */}
         <Text style={styles.label}>Insurance (Optional)</Text>
-        <TouchableOpacity
-          style={styles.imageUploadButton}
-          onPress={() => handleImagePick('insurance')}
-          activeOpacity={0.7}
-        >
-          {insuranceUrl ? (
-            <Image source={{ uri: insuranceUrl }} style={styles.imagePreview} />
-          ) : (
+        {insuranceUrl ? (
+          <View style={styles.docItemContainer}>
+            <Image source={{ uri: insuranceUrl }} style={styles.docImagePreview} />
+            <View style={styles.docActionsRow}>
+              <TouchableOpacity
+                style={styles.docActionBtn}
+                onPress={() => setPreviewImage({ url: insuranceUrl, title: 'Insurance Document' })}
+              >
+                <Text style={styles.docActionBtnText}>🔍 View Fullscreen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docActionBtn, styles.docChangeBtn]}
+                onPress={() => handleImagePick('insurance')}
+              >
+                <Text style={styles.docChangeBtnText}>📷 Change Photo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={() => handleImagePick('insurance')}
+            activeOpacity={0.7}
+          >
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePlaceholderIcon}>📷</Text>
               <Text style={styles.imagePlaceholderText}>Tap to upload insurance</Text>
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.infoCard}>
@@ -515,6 +829,35 @@ export default function VehicleManagementScreen(): React.JSX.Element {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Fullscreen Document Preview Modal */}
+      <Modal
+        visible={!!previewImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImage(null)}
+      >
+        <View style={styles.previewModalOverlay}>
+          <SafeAreaView style={styles.previewModalHeader}>
+            <Text style={styles.previewModalTitle}>{previewImage?.title || 'Document Preview'}</Text>
+            <TouchableOpacity
+              onPress={() => setPreviewImage(null)}
+              style={styles.previewCloseBtn}
+            >
+              <Text style={styles.previewCloseText}>✕</Text>
+            </TouchableOpacity>
+          </SafeAreaView>
+          <View style={styles.previewImageContainer}>
+            {previewImage?.url ? (
+              <Image
+                source={{ uri: previewImage.url }}
+                style={styles.previewImageFull}
+                resizeMode="contain"
+              />
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -762,5 +1105,84 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.light.text,
+  },
+  docItemContainer: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.background,
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  docImagePreview: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#E5E7EB',
+  },
+  docActionsRow: {
+    flexDirection: 'row',
+    padding: 10,
+    gap: 10,
+    backgroundColor: Colors.light.surface,
+  },
+  docActionBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.light.primaryGhost,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  docChangeBtn: {
+    backgroundColor: '#F3F4F6',
+  },
+  docChangeBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+  },
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+  },
+  previewModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  previewModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  previewCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewCloseText: {
+    fontSize: 18,
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  previewImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  previewImageFull: {
+    width: '100%',
+    height: '100%',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 import { PassengerStackParamList, DriverProfile, EmergencyContact } from '../../types';
@@ -53,41 +53,50 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
     if (isFocused) fetchUnread();
   }, [isFocused, state.token]);
 
-  const { location: currentCoords, errorMessage, isLoading: isLocationLoading } = useLocation();
+  const { location: currentCoords, errorMessage, isLoading: isLocationLoading, refreshLocation } = useLocation();
   const [onlineDrivers, setOnlineDrivers] = useState<DriverProfile[]>([]);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [isMapLoadingDismissed, setIsMapLoadingDismissed] = useState(false);
   
   const mapRef = useRef<LeafletMapRef>(null);
   const isInitialMapReady = useRef(false);
   const lastBackPressRef = useRef<number>(0);
 
-  // Android hardware back handler
+  // Auto-dismiss map loading badge after max 3 seconds so it never stays stuck
   useEffect(() => {
-    const onBackPress = () => {
-      if (drawerVisible) {
-        setDrawerVisible(false);
+    const timer = setTimeout(() => {
+      setIsMapLoadingDismissed(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Android hardware back handler strictly active only when PassengerHomeScreen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (drawerVisible) {
+          setDrawerVisible(false);
+          return true;
+        }
+
+        const now = Date.now();
+        if (now - lastBackPressRef.current < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
+
+        lastBackPressRef.current = now;
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
+        }
         return true;
-      }
+      };
 
-      if (!isFocused) return false;
-
-      const now = Date.now();
-      if (now - lastBackPressRef.current < 2000) {
-        BackHandler.exitApp();
-        return true;
-      }
-
-      lastBackPressRef.current = now;
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
-      }
-      return true;
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => backHandler.remove();
-  }, [drawerVisible, isFocused]);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backHandler.remove();
+    }, [drawerVisible])
+  );
 
   // Auto-center map strictly ONCE when initial real GPS location is acquired
   useEffect(() => {
@@ -245,7 +254,7 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         />
 
         {/* Non-blocking smooth loading indicator over map */}
-        {isLocationLoading && !currentCoords && (
+        {isLocationLoading && !currentCoords && !isMapLoadingDismissed && (
           <View style={styles.mapLoadingBadge}>
             <ActivityIndicator size="small" color={Colors.light.primary} />
             <Text style={styles.mapLoadingText}>Loading map...</Text>
@@ -255,9 +264,14 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         {/* Current Location Button */}
         <TouchableOpacity
           style={styles.currentLocationButton}
-          onPress={() => {
+          onPress={async () => {
             if (currentCoords && mapRef.current) {
               mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
+            } else {
+              await refreshLocation();
+              if (currentCoords && mapRef.current) {
+                mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
+              }
             }
           }}
           activeOpacity={0.8}

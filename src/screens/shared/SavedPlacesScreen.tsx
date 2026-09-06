@@ -73,7 +73,7 @@ export default function SavedPlacesScreen(): React.JSX.Element {
         return;
       }
 
-      const rawList = Array.isArray(data)
+      const rawList = (Array.isArray(data)
         ? data
         : Array.isArray(data?.places)
           ? data.places
@@ -81,7 +81,11 @@ export default function SavedPlacesScreen(): React.JSX.Element {
             ? data.savedPlaces
             : Array.isArray(data?.data)
               ? data.data
-              : [];
+              : []).map((item: any) => ({
+        ...item,
+        latitude: parseFloat(item.latitude) || 0,
+        longitude: parseFloat(item.longitude) || 0,
+      }));
       setPlaces(rawList);
     } catch (err: any) {
       console.error('Fetch saved places error:', err);
@@ -404,7 +408,7 @@ export default function SavedPlacesScreen(): React.JSX.Element {
                     <View style={styles.placeMeta}>
                       <Text style={styles.placeLabel}>{getLabelDisplay(place.label)}</Text>
                       <Text style={styles.placeCoords}>
-                        {place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}
+                        {(Number(place.latitude) || 0).toFixed(4)}, {(Number(place.longitude) || 0).toFixed(4)}
                       </Text>
                     </View>
                   </View>

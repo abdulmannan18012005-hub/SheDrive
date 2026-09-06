@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,10 @@ import {
   Linking,
   Share,
   Image,
+  BackHandler,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { doc, onSnapshot, updateDoc, getDoc, collection, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 import { PassengerStackParamList, RideRequest, DriverProfile, FareOffer } from '../../types';
@@ -44,6 +45,8 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [rating, setRatingValue] = useState(5);
   const [comment, setComment] = useState('');
+  const [searchTimer, setSearchTimer] = useState(30);
+  const [showSearchTimeoutModal, setShowSearchTimeoutModal] = useState(false);
 
   const mapRef = useRef<LeafletMapRef>(null);
   const driverUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -106,6 +109,57 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
 
     driverUnsubscribeRef.current = unsubscribe;
   };
+
+  // 30-second offer waiting countdown when status is 'pending'
+  useEffect(() => {
+    if (!ride || ride.status !== 'pending' || (ride.offers && ride.offers.filter((o: FareOffer) => o.role === 'driver').length > 0)) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSearchTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setShowSearchTimeoutModal(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [ride?.status, ride?.offers]);
+
+  // Android hardware back handler strictly active when RideTrackingScreen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (!ride || ride.status === 'pending' || ride.status === 'negotiating') {
+          handleCancelRide();
+          return true;
+        }
+        if (
+          ride.status === 'accepted' ||
+          ride.status === 'arrived' ||
+          ride.status === 'boarded' ||
+          ride.status === 'started' ||
+          ride.status === 'enroute'
+        ) {
+          Alert.alert(
+            'Ride In Progress',
+            'Your ride is currently active. Please use the Cancel button if you wish to terminate the ride.',
+            [{ text: 'OK' }]
+          );
+          return true;
+        }
+        navigation.goBack();
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backHandler.remove();
+    }, [ride])
+  );
 
   const handleCancelRide = async () => {
     Alert.alert('Cancel Ride', 'Are you sure you want to cancel your ride request?', [
@@ -348,7 +402,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         <View style={styles.statusBanner}>
           <Text style={styles.statusLabel}>
             {ride.status === 'scheduled' && `🕒 Scheduled Ride: Departure at ${ride.scheduledFor ? new Date(ride.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'set time'}`}
-            {ride.status === 'pending' && '🔍 Searching for nearby verified drivers...'}
+            {ride.status === 'pending' && `🔍 Searching for nearby verified drivers (${searchTimer}s)...`}
             {ride.status === 'negotiating' && '💬 Negotiating fare...'}
             {ride.status === 'accepted' && '🚗 Driver arriving in ~3-5 mins (navigating to pickup)...'}
             {ride.status === 'arrived' && '📍 Driver has arrived! Share PIN to board.'}
@@ -616,6 +670,46 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                 <Text style={styles.modalSubmitText}>Submit Rating</Text>
               )}
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 30-Second Search Timeout Dialog (inDrive Style) */}
+      <Modal
+        visible={showSearchTimeoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSearchTimeoutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.timeoutModalCard}>
+            <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 12 }}>⏳</Text>
+            <Text style={styles.timeoutModalTitle}>Still Looking for Drivers</Text>
+            <Text style={styles.timeoutModalSub}>
+              Drivers nearby are reviewing your trip offer. Would you like to keep searching or cancel the request?
+            </Text>
+            <View style={styles.timeoutButtonRow}>
+              <TouchableOpacity
+                style={styles.timeoutCancelBtn}
+                onPress={() => {
+                  setShowSearchTimeoutModal(false);
+                  handleCancelRide();
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.timeoutCancelText}>Cancel Search</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.timeoutKeepBtn}
+                onPress={() => {
+                  setShowSearchTimeoutModal(false);
+                  setSearchTimer(30);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.timeoutKeepText}>Keep Searching</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -918,5 +1012,63 @@ const styles = StyleSheet.create({
     color: Colors.light.textOnPrimary,
     fontWeight: '700',
     fontSize: 16,
+  },
+  timeoutModalCard: {
+    backgroundColor: Colors.light.surface,
+    borderRadius: 24,
+    padding: 24,
+    width: '90%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  timeoutModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.light.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  timeoutModalSub: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  timeoutButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  timeoutCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeoutCancelText: {
+    color: '#EF4444',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  timeoutKeepBtn: {
+    flex: 1.2,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeoutKeepText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
 });

@@ -16,7 +16,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebaseConfig';
 import { PassengerStackParamList, RideRequest, VehicleCategory, LocationPoint, OSRMRoute } from '../../types';
@@ -29,6 +29,7 @@ import { formatCurrency } from '../../utils/helpers';
 import { LeafletMap } from '../../components/LeafletMap';
 import { GoogleMapViewRef } from '../../components/GoogleMapView';
 import { RideBookingSummaryModal } from '../../components/RideBookingSummaryModal';
+import { findMatchingDrivers } from '../../services/driverMatcher';
 
 type FareBidScreenNavigationProp = StackNavigationProp<PassengerStackParamList, 'FareBid'>;
 type FareBidScreenRouteProp = RouteProp<PassengerStackParamList, 'FareBid'>;
@@ -155,19 +156,21 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
     })
   ).current;
 
-  // Android hardware/gesture back handler
-  useEffect(() => {
-    const backAction = () => {
-      if (isSummaryVisible) {
-        setIsSummaryVisible(false);
+  // Android hardware/gesture back handler strictly active when FareBid is focused
+  useFocusEffect(
+    useCallback(() => {
+      const backAction = () => {
+        if (isSummaryVisible) {
+          setIsSummaryVisible(false);
+          return true;
+        }
+        navigation.goBack();
         return true;
-      }
-      navigation.goBack();
-      return true;
-    };
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [isSummaryVisible, navigation]);
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }, [isSummaryVisible, navigation])
+  );
 
   // Switch Vehicle Category
   const handleSelectCategory = (category: VehicleCategory) => {
@@ -196,7 +199,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
     }
   };
 
-  const handleOpenSummary = () => {
+  const handleOpenSummary = async () => {
     if (!user) {
       Alert.alert('Authentication Required', 'Please log in to book a ride.');
       return;
@@ -207,6 +210,28 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
     if (!validation.isValid) {
       Alert.alert('Fare Floor Protection', `Your offered fare cannot be lower than PKR ${dynamicFloor} for this ${distanceKm.toFixed(1)} km trip.`);
       return;
+    }
+
+    // Check 10 KM driver proximity for selected vehicle category
+    try {
+      const nearby = await findMatchingDrivers(
+        { latitude: pickup.latitude, longitude: pickup.longitude },
+        selectedCategory.id,
+        10
+      );
+      if (nearby.length === 0) {
+        Alert.alert(
+          'No Nearby Drivers in Category',
+          `There are currently no active female drivers within 10 km offering ${selectedCategory.name}. Would you like to post your ride offer anyway or choose another category?`,
+          [
+            { text: 'Change Category', style: 'cancel' },
+            { text: 'Post Offer Anyway', onPress: () => setIsSummaryVisible(true) },
+          ]
+        );
+        return;
+      }
+    } catch (e) {
+      // Non-blocking fallback
     }
 
     setIsSummaryVisible(true);

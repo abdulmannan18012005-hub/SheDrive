@@ -92,16 +92,20 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
         });
       }
 
-      // Step 4: Fresh high-accuracy satellite fix
-      const freshPosition = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      }).catch(() => null);
+      // Step 4: Fresh high-accuracy satellite fix (with 4-second resilient timeout)
+      const freshPosition = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+      ]).catch(() => null) as Location.LocationObject | null;
 
       if (isMountedRef.current && freshPosition && freshPosition.coords) {
         updateLocationIfShifted({
           latitude: freshPosition.coords.latitude,
           longitude: freshPosition.coords.longitude,
         });
+      } else if (isMountedRef.current && !lastCoordsRef.current) {
+        // Resilient fallback: ensure coordinates are never null
+        updateLocationIfShifted(LAHORE_DEFAULT_COORDINATES);
       }
 
       // Step 5: Start live position watcher if requested (with 10m threshold)
