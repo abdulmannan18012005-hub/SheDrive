@@ -39,6 +39,14 @@ const formatUserAgentBadge = (deviceInfo) => {
   return { label: 'Web Visitor', icon: '🌐', bg: '#F1F5F9', color: '#475569' };
 };
 
+// Validates an image URL for display (ensures http/https or data URI, prevents local device file:// paths)
+const isValidImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('file://') || trimmed.startsWith('content://')) return false;
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:image/');
+};
+
 // Tab <-> Route Path mapping for complete browser refresh and URL persistence
 const TAB_PATH_MAP = {
   dashboard: '/',
@@ -707,17 +715,28 @@ export default function App() {
   };
 
   const handleDownloadDriverDocs = (driver) => {
+    if (!driver) {
+      addToast('No driver information available for download', 'error');
+      return;
+    }
     const printWin = window.open('', '_blank');
     if (!printWin) {
       alert('Popup blocked! Please allow popups for document download.');
       return;
     }
 
+    const cnicFront = isValidImageUrl(driver.cnic_front_url || driver.cnicFrontUrl) ? (driver.cnic_front_url || driver.cnicFrontUrl) : null;
+    const cnicBack = isValidImageUrl(driver.cnic_back_url || driver.cnicBackUrl) ? (driver.cnic_back_url || driver.cnicBackUrl) : null;
+    const licFront = isValidImageUrl(driver.license_front_url) ? driver.license_front_url : null;
+    const licBack = isValidImageUrl(driver.license_back_url) ? driver.license_back_url : null;
+    const selfie = isValidImageUrl(driver.selfie_url) ? driver.selfie_url : null;
+    const vehiclePhoto = isValidImageUrl(driver.vehicle_photo_url) ? driver.vehicle_photo_url : null;
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>SheDrive Verification Bundle - ${driver.name}</title>
+        <title>SheDrive Verification Bundle - ${driver.name || 'Driver'}</title>
         <style>
           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 24px; color: #181C32; }
           h1 { color: #0D9488; border-bottom: 2px solid #0D9488; padding-bottom: 8px; }
@@ -734,40 +753,40 @@ export default function App() {
       <body>
         <h1>🚗 SheDrive Driver Verification Document Bundle</h1>
         <div class="info-grid">
-          <div class="info-item"><strong>Driver Name:</strong> ${driver.name}</div>
-          <div class="info-item"><strong>Phone Number:</strong> ${driver.phone}</div>
+          <div class="info-item"><strong>Driver Name:</strong> ${driver.name || 'N/A'}</div>
+          <div class="info-item"><strong>Phone Number:</strong> ${driver.phone || 'N/A'}</div>
           <div class="info-item"><strong>Email:</strong> ${driver.email || 'N/A'}</div>
           <div class="info-item"><strong>CNIC Number:</strong> ${driver.cnic || 'N/A'}</div>
           <div class="info-item"><strong>Date of Birth:</strong> ${driver.date_of_birth || 'N/A'}</div>
-          <div class="info-item"><strong>Vehicle Category:</strong> ${driver.vehicle_category}</div>
-          <div class="info-item"><strong>Vehicle Info:</strong> ${driver.vehicle_make} ${driver.vehicle_model} (${driver.vehicle_plate}) - ${driver.vehicle_year}</div>
-          <div class="info-item"><strong>Color:</strong> ${driver.vehicle_color}</div>
+          <div class="info-item"><strong>Vehicle Category:</strong> ${driver.vehicle_category || 'N/A'}</div>
+          <div class="info-item"><strong>Vehicle Info:</strong> ${driver.vehicle_make || ''} ${driver.vehicle_model || ''} (${driver.vehicle_plate || 'N/A'}) - ${driver.vehicle_year || ''}</div>
+          <div class="info-item"><strong>Color:</strong> ${driver.vehicle_color || 'N/A'}</div>
         </div>
 
         <div class="doc-grid">
           <div class="doc-card">
             <div class="doc-title">CNIC Front</div>
-            ${(driver.cnic_front_url || driver.cnicFrontUrl) ? `<img class="doc-img" src="${driver.cnic_front_url || driver.cnicFrontUrl}" />` : `<div class="no-img">Not Provided</div>`}
+            ${cnicFront ? `<img class="doc-img" src="${cnicFront}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">CNIC Back</div>
-            ${(driver.cnic_back_url || driver.cnicBackUrl) ? `<img class="doc-img" src="${driver.cnic_back_url || driver.cnicBackUrl}" />` : `<div class="no-img">Not Provided</div>`}
+            ${cnicBack ? `<img class="doc-img" src="${cnicBack}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">Driving License Front</div>
-            ${driver.license_front_url ? `<img class="doc-img" src="${driver.license_front_url}" />` : `<div class="no-img">Not Provided</div>`}
+            ${licFront ? `<img class="doc-img" src="${licFront}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">Driving License Back</div>
-            ${driver.license_back_url ? `<img class="doc-img" src="${driver.license_back_url}" />` : `<div class="no-img">Not Provided</div>`}
+            ${licBack ? `<img class="doc-img" src="${licBack}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">Driver Profile Photo</div>
-            ${driver.selfie_url ? `<img class="doc-img" src="${driver.selfie_url}" />` : `<div class="no-img">Not Provided</div>`}
+            ${selfie ? `<img class="doc-img" src="${selfie}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">Vehicle Photo (Number Plate Visible)</div>
-            ${driver.vehicle_photo_url ? `<img class="doc-img" src="${driver.vehicle_photo_url}" />` : `<div class="no-img">Not Provided</div>`}
+            ${vehiclePhoto ? `<img class="doc-img" src="${vehiclePhoto}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
         </div>
       </body>
@@ -2069,7 +2088,7 @@ export default function App() {
                               {p.receipt_url ? (
                                 <button
                                   style={{ ...styles.btnAction, backgroundColor: '#7239EA', color: '#FFFFFF', padding: '5px 10px', fontSize: '12px' }}
-                                  onClick={() => setSelectedImage(p.receipt_url)}
+                                  onClick={() => setSelectedImage({ url: p.receipt_url, title: `Payment Receipt: ${p.driver_name || p.transaction_id || 'Driver'}` })}
                                 >
                                   🖼️ View Receipt
                                 </button>
@@ -3590,85 +3609,85 @@ export default function App() {
           <div style={styles.modalContent}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>
-                Document Review: {selectedDriverDocs.name}
+                Document Review: {selectedDriverDocs?.name || 'Driver'}
               </h3>
               <button style={styles.btnDownloadPdf} onClick={() => handleDownloadDriverDocs(selectedDriverDocs)}>
                 📥 Download PDF Bundle
               </button>
             </div>
             <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#757575' }}>
-              Vehicle: {selectedDriverDocs.vehicle_make} {selectedDriverDocs.vehicle_model} ({selectedDriverDocs.vehicle_plate}) - {selectedDriverDocs.vehicle_color}
+              Vehicle: {selectedDriverDocs?.vehicle_make || ''} {selectedDriverDocs?.vehicle_model || ''} ({selectedDriverDocs?.vehicle_plate || 'N/A'}) - {selectedDriverDocs?.vehicle_color || ''}
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>CNIC Front</p>
-                {(selectedDriverDocs.cnic_front_url || selectedDriverDocs.cnicFrontUrl) ? (
+                {isValidImageUrl(selectedDriverDocs?.cnic_front_url || selectedDriverDocs?.cnicFrontUrl) ? (
                   <img 
                     src={selectedDriverDocs.cnic_front_url || selectedDriverDocs.cnicFrontUrl} 
                     alt="CNIC Front" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_front_url || selectedDriverDocs.cnicFrontUrl, title: 'CNIC Front' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_front_url || selectedDriverDocs.cnicFrontUrl, title: `CNIC Front - ${selectedDriverDocs?.name || 'Driver'}` })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>
 
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>CNIC Back</p>
-                {(selectedDriverDocs.cnic_back_url || selectedDriverDocs.cnicBackUrl) ? (
+                {isValidImageUrl(selectedDriverDocs?.cnic_back_url || selectedDriverDocs?.cnicBackUrl) ? (
                   <img 
                     src={selectedDriverDocs.cnic_back_url || selectedDriverDocs.cnicBackUrl} 
                     alt="CNIC Back" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_back_url || selectedDriverDocs.cnicBackUrl, title: 'CNIC Back' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.cnic_back_url || selectedDriverDocs.cnicBackUrl, title: `CNIC Back - ${selectedDriverDocs?.name || 'Driver'}` })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>
 
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>License Front</p>
-                {selectedDriverDocs.license_front_url ? (
+                {isValidImageUrl(selectedDriverDocs?.license_front_url) ? (
                   <img 
                     src={selectedDriverDocs.license_front_url} 
                     alt="License Front" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.license_front_url, title: 'License Front' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.license_front_url, title: `License Front - ${selectedDriverDocs?.name || 'Driver'}` })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>
 
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>License Back</p>
-                {selectedDriverDocs.license_back_url ? (
+                {isValidImageUrl(selectedDriverDocs?.license_back_url) ? (
                   <img 
                     src={selectedDriverDocs.license_back_url} 
                     alt="License Back" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.license_back_url, title: 'License Back' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.license_back_url, title: `License Back - ${selectedDriverDocs?.name || 'Driver'}` })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>
 
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>Profile Photo</p>
-                {selectedDriverDocs.selfie_url ? (
+                {isValidImageUrl(selectedDriverDocs?.selfie_url) ? (
                   <img 
                     src={selectedDriverDocs.selfie_url} 
                     alt="Profile Photo" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.selfie_url, title: 'Profile Photo' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.selfie_url, title: `Profile Photo - ${selectedDriverDocs?.name || 'Driver'}` })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>
 
               <div style={styles.docBox}>
                 <p style={styles.docLabel}>Vehicle Photo (Number Plate)</p>
-                {selectedDriverDocs.vehicle_photo_url ? (
+                {isValidImageUrl(selectedDriverDocs?.vehicle_photo_url) ? (
                   <img 
                     src={selectedDriverDocs.vehicle_photo_url} 
                     alt="Vehicle Photo" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
-                    onClick={() => setSelectedImage({ url: selectedDriverDocs.vehicle_photo_url, title: 'Vehicle Photo' })}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.vehicle_photo_url, title: `Vehicle Photo - ${selectedDriverDocs?.name || 'Driver'}` })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>
@@ -3680,8 +3699,8 @@ export default function App() {
                 style={styles.btnReject}
                 onClick={() =>
                   setConfirmModal({
-                    driverId: selectedDriverDocs.id,
-                    driverName: selectedDriverDocs.name,
+                    driverId: selectedDriverDocs?.id,
+                    driverName: selectedDriverDocs?.name || 'Driver',
                     actionType: 'reject',
                   })
                 }
@@ -3692,8 +3711,8 @@ export default function App() {
                 style={styles.btnApprove}
                 onClick={() =>
                   setConfirmModal({
-                    driverId: selectedDriverDocs.id,
-                    driverName: selectedDriverDocs.name,
+                    driverId: selectedDriverDocs?.id,
+                    driverName: selectedDriverDocs?.name || 'Driver',
                     actionType: 'approve',
                   })
                 }
@@ -3711,12 +3730,18 @@ export default function App() {
       {/* Image Preview Modal */}
       {selectedImage && (
         <div style={styles.modalOverlay} onClick={() => setSelectedImage(null)}>
-          <div style={{ ...styles.modalContent, maxWidth: '90vw', maxHeight: '90vh', padding: '8px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ ...styles.modalContent, maxWidth: '90vw', maxHeight: '90vh', padding: '16px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>{selectedImage.title}</h3>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>
+                {typeof selectedImage === 'string' ? 'Image Preview' : (selectedImage.title || 'Image Preview')}
+              </h3>
               <button style={styles.btnCancel} onClick={() => setSelectedImage(null)}>✕</button>
             </div>
-            <img src={selectedImage.url} alt={selectedImage.title} style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }} />
+            <img 
+              src={typeof selectedImage === 'string' ? selectedImage : selectedImage.url} 
+              alt={typeof selectedImage === 'string' ? 'Preview' : (selectedImage.title || 'Preview')} 
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '8px' }} 
+            />
           </div>
         </div>
       )}

@@ -514,21 +514,19 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           </View>
         </View>
 
-        {/* Search status bar indicator (stable height prevents keyboard displacement) */}
-        <View style={{ height: isSearching ? 32 : 0, overflow: 'hidden' }}>
-          {isSearching && (
-            <View style={styles.searchingBar}>
-              <ActivityIndicator size="small" color={Colors.light.primary} />
-              <Text style={styles.searchingText}>Searching locations...</Text>
-            </View>
-          )}
+        {/* Search status bar indicator (permanent height with opacity eliminates layout shifts) */}
+        <View style={{ height: 28, justifyContent: 'center', opacity: isSearching ? 1 : 0 }}>
+          <View style={styles.searchingBar}>
+            <ActivityIndicator size="small" color={Colors.light.primary} />
+            <Text style={styles.searchingText}>Searching locations...</Text>
+          </View>
         </View>
 
         {/* Suggestion List / Quick Options (Single stable container prevents keyboard loops) */}
         <ScrollView
           style={styles.listContainer}
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
           keyboardDismissMode="on-drag"
         >
           {searchResults.length > 0 ? (

@@ -56,18 +56,26 @@ router.put('/online', authenticateToken, async (req: AuthRequest, res: Response)
     }
 
     // Check shared vehicle constraint: Only ONE driver may use the vehicle at a time
+    // Stale sessions older than 10 minutes (600,000ms) without GPS updates are automatically released
     if (isOnline) {
       const driverVeh = await query('SELECT vehicle_plate FROM drivers WHERE driver_id = $1', [userId]);
       if (driverVeh.rows.length > 0 && driverVeh.rows[0].vehicle_plate) {
         const plate = driverVeh.rows[0].vehicle_plate.trim().toUpperCase();
         if (plate) {
+          const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+          // Auto-offline stale drivers who haven't updated location in 10 minutes
+          await query(
+            'UPDATE drivers SET is_online = false, is_available = false WHERE UPPER(vehicle_plate) = $1 AND is_online = true AND last_location_update < $2 AND driver_id != $3',
+            [plate, tenMinutesAgo, userId]
+          ).catch(() => {});
+
           const activeVehicleRes = await query(
-            'SELECT driver_id FROM drivers WHERE UPPER(vehicle_plate) = $1 AND is_online = true AND driver_id != $2',
-            [plate, userId]
+            'SELECT driver_id FROM drivers WHERE UPPER(vehicle_plate) = $1 AND is_online = true AND driver_id != $2 AND last_location_update >= $3',
+            [plate, userId, tenMinutesAgo]
           );
           if (activeVehicleRes.rows.length > 0) {
             return res.status(403).json({
-              error: 'This vehicle is currently in use by another registered driver.',
+              error: 'This vehicle is currently in use by another active driver. Please try again once the vehicle is released.',
             });
           }
         }

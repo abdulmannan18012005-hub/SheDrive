@@ -64,21 +64,26 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
           return;
         }
 
-        const rideData = docSnapshot.data() as RideRequest;
-        setRide(rideData);
-        setIsLoading(false);
+        const rawData = docSnapshot.data();
+        if (rawData) {
+          // Normalize status: PostgreSQL 'requested' maps to mobile/Firestore 'pending'
+          const normalizedStatus = rawData.status === 'requested' ? 'pending' : rawData.status;
+          const rideData = { ...rawData, status: normalizedStatus } as RideRequest;
+          setRide(rideData);
+          setIsLoading(false);
 
-        // If a driver is assigned and we haven't subscribed to driver location yet
-        if (rideData.driverId && (!driver || driver.uid !== rideData.driverId)) {
-          subscribeToDriver(rideData.driverId);
-        }
+          // If a driver is assigned and we haven't subscribed to driver location yet
+          if (rideData.driverId && (!driver || driver.uid !== rideData.driverId)) {
+            subscribeToDriver(rideData.driverId);
+          }
 
-        // Handle completed or cancelled states
-        if (rideData.status === 'completed') {
-          setShowRatingModal(true);
-        } else if (rideData.status === 'cancelled') {
-          Alert.alert('Ride Cancelled', 'This ride request was cancelled.');
-          navigation.navigate('PassengerHome');
+          // Handle completed or cancelled states
+          if (rideData.status === 'completed') {
+            setShowRatingModal(true);
+          } else if (rideData.status === 'cancelled') {
+            Alert.alert('Ride Cancelled', 'This ride request was cancelled.');
+            navigation.navigate('PassengerHome');
+          }
         }
       },
       (error) => {

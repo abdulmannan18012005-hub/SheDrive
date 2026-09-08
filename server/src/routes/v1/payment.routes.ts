@@ -7,12 +7,12 @@ import { paymentRateLimiter } from '../../middleware/rateLimiter';
 
 const router = Router();
 
-// Bank / Digital Wallet Transfer Details for Platform Fee Payments
+// Official Bank / Raast Transfer Details for Platform Fee Payments
 const PAYMENT_INSTRUCTIONS = {
-  bankName: 'Meezan Bank & JazzCash',
+  bankName: 'Meezan Bank & Raast ID',
   accountTitle: 'SheDrive Operations Account',
-  accountNumber: '0300-1234567 / PK92MEZN0009988776655',
-  instructions: 'Transfer the 5% platform fee to the account above via JazzCash, EasyPaisa, or Bank App. Then enter the Transaction ID and upload your receipt screenshot below.',
+  accountNumber: 'PK92MEZN0009988776655 / Raast ID',
+  instructions: 'Transfer the monthly platform fee to the official bank account or Raast ID above. Then enter the Transaction ID and upload your receipt screenshot below.',
 };
 
 /**

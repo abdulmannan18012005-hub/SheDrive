@@ -18,7 +18,7 @@ router.get('/info', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
     appName: 'SheDrive',
-    packageName: 'com.shedrive.app',
+    packageName: 'com.lahore.pinkrides',
     version: '1.0.0',
     versionCode: 1,
     releaseDate: 'August 2026',

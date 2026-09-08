@@ -127,8 +127,8 @@ app.use((_req: any, res: any, next: any) => {
   next();
 });
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.set('etag', false); // Disable ETag to prevent 304 stale data in Admin Portal
 app.use('/api', (_req: any, res: any, next: any) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');

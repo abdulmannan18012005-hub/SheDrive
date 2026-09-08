@@ -86,7 +86,7 @@ export default function AppNavigator(): React.JSX.Element {
   useEffect(() => {
     const splashTimer = setTimeout(() => {
       setShowSplash(false);
-    }, 2500);
+    }, 1500);
 
     return () => clearTimeout(splashTimer);
   }, []);
@@ -96,9 +96,24 @@ export default function AppNavigator(): React.JSX.Element {
 
     const restoreSession = async () => {
       try {
+        const rememberMeFlag = await AsyncStorage.getItem('@shedrive_remember_me_flag');
         const savedToken = await AsyncStorage.getItem('@shedrive_auth_token');
         const savedUserJson = await AsyncStorage.getItem('@shedrive_user_profile');
         const savedLastRole = await AsyncStorage.getItem('@shedrive_last_active_role');
+
+        // If Remember Me was explicitly unchecked, do not auto-login on cold start
+        if (rememberMeFlag === 'false') {
+          await AsyncStorage.multiRemove([
+            '@shedrive_auth_token',
+            '@shedrive_user_profile',
+            'user_session',
+          ]).catch(() => {});
+          if (isMounted) {
+            dispatch({ type: 'LOGOUT' });
+            dispatch({ type: 'SET_LOADING', payload: false });
+          }
+          return;
+        }
 
         if (savedToken) {
           // Authoritative validation with backend API — verify account actually exists in DB

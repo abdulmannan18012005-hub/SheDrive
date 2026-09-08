@@ -718,6 +718,24 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
             <Text style={styles.mapLoadingText}>Loading map...</Text>
           </View>
         )}
+
+        {/* Current Location / Recenter Button */}
+        <TouchableOpacity
+          style={styles.currentLocationButton}
+          onPress={async () => {
+            if (currentCoords && mapRef.current) {
+              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
+            } else {
+              await refreshLocation();
+              if (currentCoords && mapRef.current) {
+                mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
+              }
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.currentLocationIcon}>📍</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Available Ride Offers Dashboard */}
@@ -1308,5 +1326,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  currentLocationButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    zIndex: 10,
+  },
+  currentLocationIcon: {
+    fontSize: 22,
   },
 });

@@ -68,9 +68,9 @@ class SessionManager {
     await AsyncStorage.setItem('user_session', JSON.stringify(sessionData));
     
     if (rememberMe) {
-      await AsyncStorage.setItem('remember_me', 'true');
+      await AsyncStorage.setItem('@shedrive_remember_me_flag', 'true');
     } else {
-      await AsyncStorage.removeItem('remember_me');
+      await AsyncStorage.setItem('@shedrive_remember_me_flag', 'false');
     }
 
     this.startSessionMonitoring();
@@ -119,7 +119,7 @@ class SessionManager {
 
   async clearSession(): Promise<void> {
     await AsyncStorage.removeItem('user_session');
-    await AsyncStorage.removeItem('remember_me');
+    await AsyncStorage.removeItem('@shedrive_remember_me_flag');
     this.stopSessionMonitoring();
   }
 
@@ -176,7 +176,7 @@ class SessionManager {
   }
 
   async isRememberMeEnabled(): Promise<boolean> {
-    const rememberMe = await AsyncStorage.getItem('remember_me');
+    const rememberMe = await AsyncStorage.getItem('@shedrive_remember_me_flag');
     return rememberMe === 'true';
   }
 

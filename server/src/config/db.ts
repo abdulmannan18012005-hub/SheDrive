@@ -32,7 +32,7 @@ export const pool = new Pool({
   ssl: isRemote ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 3000, // Balanced 3s timeout prevents blocking requests
 });
 
 pool.on('error', (err: Error) => {
@@ -44,12 +44,16 @@ pool.on('error', (err: Error) => {
 let isTcpAvailable: boolean | null = null;
 let lastTcpCheck = 0;
 
-async function checkTcpHealth() {
+async function checkTcpHealth(): Promise<boolean> {
   if (isTcpAvailable !== null && Date.now() - lastTcpCheck < 60000) {
     return isTcpAvailable;
   }
   try {
-    const client = await pool.connect();
+    const connectPromise = pool.connect();
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('TCP health check timeout')), 2500)
+    );
+    const client = await Promise.race([connectPromise, timeoutPromise]);
     await client.query('SELECT 1');
     client.release();
     isTcpAvailable = true;
@@ -62,7 +66,8 @@ async function checkTcpHealth() {
   }
 }
 
-checkTcpHealth();
+// Initial warm-up check in background
+checkTcpHealth().catch(() => {});
 
 // 2. Supabase Client over HTTPS Port 443
 const supabaseUrl = process.env.SUPABASE_URL;

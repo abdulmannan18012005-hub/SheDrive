@@ -74,9 +74,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
   const clientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
   const refreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
 
-  // Strict 3-Second Timeout Promise
+  // Resilient 6-Second Timeout Guarantee
   const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Email dispatch exceeded 3s timeout limit')), 3000)
+    setTimeout(() => reject(new Error('Email dispatch exceeded 6s timeout limit')), 6000)
   );
 
   const dispatchPromise = (async (): Promise<boolean> => {
@@ -96,11 +96,11 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
         return true;
       } catch (apiErr: any) {
         console.error('[Gmail REST API Error]:', apiErr?.message || apiErr);
-        return false;
+        // Do not immediately return false, allow SMTP fallback below
       }
     }
 
-    // ── 2. SECONDARY FALLBACK: Direct SMTP (Only if OAuth2 credentials are unset, max 1500ms) ──
+    // ── 2. SECONDARY FALLBACK: Direct SMTP (If OAuth2 credentials are unset or failed) ──
     try {
       const { user, pass } = getCredentials();
       const transporter = nodemailer.createTransport({
@@ -108,9 +108,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
         port: 465,
         secure: true,
         auth: { user, pass },
-        connectionTimeout: 1500,
-        greetingTimeout: 1500,
-        socketTimeout: 1500,
+        connectionTimeout: 4000,
+        greetingTimeout: 4000,
+        socketTimeout: 4000,
         tls: { rejectUnauthorized: false },
       });
 
