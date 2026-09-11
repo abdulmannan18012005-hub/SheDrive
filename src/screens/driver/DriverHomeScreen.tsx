@@ -66,15 +66,18 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     const fetchUnread = async () => {
       if (!state.token) return;
       try {
-        const res = await fetch(`${getApiBaseUrl()}/user/notifications/unread-count`, {
-          headers: { Authorization: `Bearer ${state.token}` },
+        const res = await fetch(`${getApiBaseUrl()}/user/notifications/unread-count?_t=${Date.now()}`, {
+          headers: { 
+            Authorization: `Bearer ${state.token}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
         });
         const data = await res.json();
-        if (res.ok && typeof data.count === 'number') {
-          setUnreadCount(data.count);
-        }
+        if (res.ok) setUnreadCount(data.count || 0);
       } catch (err) {
-        // Non-critical: unread badge simply remains at current state
+        // Non-critical: badge simply stays at previous value
       }
     };
 
@@ -398,11 +401,14 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                 // Update backend with new coordinates throttled to once per 15 seconds to prevent battery drain & network flooding
                 if (nowMs - lastHttpLocationSyncRef.current >= 15000) {
                   lastHttpLocationSyncRef.current = nowMs;
+                  
+                  // 1. HTTP Update
                   fetch(`${getApiBaseUrl()}/driver/online`, {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',
                       Authorization: `Bearer ${state.token}`,
+                      'Cache-Control': 'no-cache',
                     },
                     body: JSON.stringify({
                       isOnline: true,
@@ -411,18 +417,18 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                       heading: heading || 0,
                     }),
                   }).catch((err) => console.warn('[Driver Location Sync Warning]:', err?.message));
-                }
 
-                // Also update Firestore for real-time passenger visibility
-                if (user?.uid) {
-                  const driverRef = doc(db, 'drivers', user.uid);
-                  await setDoc(driverRef, {
-                    isOnline: true,
-                    latitude,
-                    longitude,
-                    heading: heading || 0,
-                    lastUpdated: Date.now(),
-                  }, { merge: true }).catch(() => {});
+                  // 2. Firestore Update (Moved INSIDE throttle to prevent 10x/sec writes that freeze the UI)
+                  if (user?.uid) {
+                    const driverRef = doc(db, 'drivers', user.uid);
+                    await setDoc(driverRef, {
+                      isOnline: true,
+                      latitude,
+                      longitude,
+                      heading: heading || 0,
+                      lastUpdated: Date.now(),
+                    }, { merge: true }).catch(() => {});
+                  }
                 }
 
                 if (mapRef.current) {

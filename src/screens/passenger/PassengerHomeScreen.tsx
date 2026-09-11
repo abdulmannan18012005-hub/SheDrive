@@ -41,8 +41,13 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
     const fetchUnread = async () => {
       if (!state.token) return;
       try {
-        const res = await fetch(`${getApiBaseUrl()}/user/notifications/unread-count`, {
-          headers: { Authorization: `Bearer ${state.token}` },
+        const res = await fetch(`${getApiBaseUrl()}/user/notifications/unread-count?_t=${Date.now()}`, {
+          headers: { 
+            Authorization: `Bearer ${state.token}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
         });
         const data = await res.json();
         if (res.ok) setUnreadCount(data.count || 0);

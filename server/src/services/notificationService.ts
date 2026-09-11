@@ -61,9 +61,9 @@ export async function sendPushNotification({
     } else if (notifType === 'admin_broadcast' || notifType === 'system' || notifType === 'promo') {
       targetChannel = 'admin_broadcasts';
     } else if (notifType === 'chat_message' || notifType === 'chat_notify') {
-      targetChannel = 'chat_messages';
+      targetChannel = 'chatMessages'; // Matched with app.json
     } else if (notifType === 'sos_alert' || notifType === 'emergency') {
-      targetChannel = 'safety_alerts';
+      targetChannel = 'safetyAlerts'; // Matched with app.json
     }
 
     // 2. Construct FCM payload optimized for background/minimized/heads-up display

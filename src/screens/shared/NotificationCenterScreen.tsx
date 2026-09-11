@@ -38,9 +38,12 @@ export default function NotificationCenterScreen(): React.JSX.Element {
   const fetchNotifications = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`${getApiBaseUrl()}/user/notifications`, {
+      const res = await fetch(`${getApiBaseUrl()}/user/notifications?_t=${Date.now()}`, {
         headers: {
           Authorization: `Bearer ${state.token}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
         },
       });
 
