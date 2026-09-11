@@ -88,13 +88,17 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           const data = await res.json();
           if (data.user && user) {
             const isApproved = Boolean(data.user.is_verified && data.user.verification_status === 'approved');
-            const updatedUser = {
-              ...user,
-              isVerified: isApproved,
-              verificationStatus: data.user.verification_status || (data.user.is_verified ? 'approved' : 'pending'),
-            };
-            dispatch({ type: 'SET_USER', payload: updatedUser });
-            AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser)).catch(() => {});
+            const currentStatus = data.user.verification_status || (data.user.is_verified ? 'approved' : 'pending');
+            // Only update state if verification status actually changed to avoid re-render flicker
+            if (user.isVerified !== isApproved || user.verificationStatus !== currentStatus) {
+              const updatedUser = {
+                ...user,
+                isVerified: isApproved,
+                verificationStatus: currentStatus,
+              };
+              dispatch({ type: 'SET_USER', payload: updatedUser });
+              AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(updatedUser)).catch(() => {});
+            }
           }
         }
       } catch (err) {
@@ -161,15 +165,9 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           return true;
         }
 
-        const now = Date.now();
-        if (now - lastBackPressRef.current < 2000) {
-          BackHandler.exitApp();
-          return true;
-        }
-
-        lastBackPressRef.current = now;
+        // On home screen, do not exit app automatically; show safe informative toast
         if (Platform.OS === 'android') {
-          ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
+          ToastAndroid.show('You are on the Home screen', ToastAndroid.SHORT);
         }
         return true;
       };
@@ -662,7 +660,9 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         <View style={{ position: 'relative', marginRight: 8 }}>
           <TouchableOpacity
             style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light.primaryGhost, justifyContent: 'center', alignItems: 'center' }}
-            onPress={() => navigation.navigate('NotificationCenter')}
+            onPress={() => {
+              navigation.navigate('NotificationCenter');
+            }}
             activeOpacity={0.8}
           >
             <Text style={{ fontSize: 20 }}>🔔</Text>
@@ -710,6 +710,12 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           ref={mapRef}
           center={defaultCenter}
           markers={mapMarkers}
+          onMapReady={() => {
+            if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
+              isInitialMapReady.current = true;
+              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 15);
+            }
+          }}
         />
         {/* Non-blocking smooth loading indicator over map */}
         {isLocationLoading && !currentCoords && !isMapLoadingDismissed && (
@@ -721,20 +727,26 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
 
         {/* Current Location / Recenter Button */}
         <TouchableOpacity
-          style={styles.currentLocationButton}
+          style={[
+            styles.currentLocationButton,
+            { bottom: isOnline && availableRides.length > 0 ? 360 : 140 },
+          ]}
           onPress={async () => {
-            if (currentCoords && mapRef.current) {
-              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
-            } else {
-              await refreshLocation();
-              if (currentCoords && mapRef.current) {
+            try {
+              if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
                 mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
               }
+              await refreshLocation();
+              if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
+                mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
+              }
+            } catch (err) {
+              console.warn('[Driver Recenter Error]:', err);
             }
           }}
           activeOpacity={0.8}
         >
-          <Text style={styles.currentLocationIcon}>📍</Text>
+          <Text style={styles.currentLocationIcon}>🎯</Text>
         </TouchableOpacity>
       </View>
 
@@ -808,24 +820,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           )}
         </View>
       )}
-
-      {/* Floating Recenter GPS Target Button */}
-      <TouchableOpacity
-        style={styles.floatingRecenterBtn}
-        onPress={async () => {
-          try {
-            await refreshLocation();
-            if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
-              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
-            }
-          } catch (err) {
-            console.warn('[Driver Recenter Location Warning]:', err);
-          }
-        }}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.floatingRecenterIcon}>🎯</Text>
-      </TouchableOpacity>
 
       {/* Bottom Panel containing Go Online Action */}
       <View style={styles.bottomPanel}>
@@ -1194,28 +1188,6 @@ const styles = StyleSheet.create({
   },
   actionBtnDisabled: {
     opacity: 0.4,
-  },
-  floatingRecenterBtn: {
-    position: 'absolute',
-    right: 18,
-    bottom: 95,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    zIndex: 99,
-  },
-  floatingRecenterIcon: {
-    fontSize: 22,
   },
   bottomPanel: {
     position: 'absolute',

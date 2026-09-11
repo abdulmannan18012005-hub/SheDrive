@@ -390,6 +390,16 @@ router.put('/admin/payments/:id/review', authenticateToken, requireAdmin, async 
       [notificationId, payment.driver_id, notificationTitle, notificationMessage, now]
     ).catch(err => console.warn('Payment review in-app notification failed:', err));
 
+    try {
+      const { sendPushNotification } = require('../../services/notificationService');
+      sendPushNotification({
+        userId: payment.driver_id,
+        title: notificationTitle,
+        body: notificationMessage,
+        data: { type: 'payment_review', paymentId: id }
+      }).catch((err: any) => console.warn('[FCM] Payment review push failed:', err));
+    } catch (e) {}
+
     // Audit log entry
     const auditId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const auditAction = status === 'paid' ? 'APPROVE_PAYMENT' : 'REJECT_PAYMENT';

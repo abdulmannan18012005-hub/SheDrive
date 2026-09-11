@@ -32,8 +32,8 @@ function getSecurityHeaders(extraHeaders: Record<string, string> = {}): Record<s
   return {
     'Content-Type': 'application/json',
     'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-    'X-Android-Package': ANDROID_PACKAGE_NAME,
-    'X-Android-Cert': ANDROID_SHA1_CERT,
+    // 'X-Android-Package': ANDROID_PACKAGE_NAME,
+    // 'X-Android-Cert': ANDROID_SHA1_CERT,
     ...extraHeaders,
   };
 }
@@ -221,5 +221,20 @@ export async function searchPlacesByTextQuery(
   } catch (error) {
     console.error('Error in searchPlacesByTextQuery:', error);
     return [];
+  }
+}
+
+export async function reverseGeocode(latitude: number, longitude: number): Promise<string | null> {
+  try {
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.results && data.results.length > 0) {
+      return data.results[0].formatted_address;
+    }
+    return null;
+  } catch (err) {
+    console.error('Google reverse geocode error:', err);
+    return null;
   }
 }

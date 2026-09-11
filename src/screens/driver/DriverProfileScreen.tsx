@@ -484,30 +484,6 @@ export default function DriverProfileScreen({ navigation }: Props): React.JSX.El
         </View>
       )}
 
-      {/* Dedicated Vehicle & Verification Documents Shortcut Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardHeaderTitle}>🚗 Vehicle & Verification Documents</Text>
-        <Text style={{ fontSize: 13, color: Colors.light.textSecondary, marginBottom: 14, lineHeight: 18 }}>
-          Manage your registered vehicle specs, CNIC documents, driving license, and vehicle registration.
-        </Text>
-        <TouchableOpacity
-          style={styles.vehicleDocBanner}
-          onPress={() => navigation.navigate('VehicleManagement')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.vehicleDocBannerLeft}>
-            <Text style={{ fontSize: 24 }}>📑</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.vehicleDocBannerTitle}>Manage Vehicle & Documents</Text>
-              <Text style={styles.vehicleDocBannerSub}>
-                View and update vehicle details, license, and verification docs
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.chevron}>›</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Action Buttons */}
       <View style={styles.actionsContainer}>
         <Text style={styles.menuGroupTitle}>Partner Menu</Text>

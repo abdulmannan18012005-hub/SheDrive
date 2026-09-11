@@ -18,9 +18,6 @@ export const MIN_ZOOM = 10;
 export const MAX_ZOOM = 18;
 export const MARKER_ZOOM = 15;
 
-// CartoDB Voyager tile server URL (provides English labels)
-export const OSM_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-export const OSM_TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 // Nominatim API (free geocoding)
 export const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';

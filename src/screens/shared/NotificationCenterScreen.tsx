@@ -199,7 +199,11 @@ export default function NotificationCenterScreen(): React.JSX.Element {
                 </View>
                 <Text style={styles.notifMessage} numberOfLines={2}>{n.message}</Text>
                 <Text style={styles.notifTime}>
-                  {new Date(n.created_at).toLocaleDateString()} • {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {(() => {
+                    if (!n.created_at) return 'Recently';
+                    const d = typeof n.created_at === 'string' && !isNaN(Number(n.created_at)) ? new Date(Number(n.created_at)) : new Date(n.created_at);
+                    return isNaN(d.getTime()) ? 'Recently' : `${d.toLocaleDateString()} • ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                  })()}
                 </Text>
               </View>
             </TouchableOpacity>

@@ -59,6 +59,7 @@ type AppAction =
   | { type: 'SET_AUTHENTICATED'; payload: boolean }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ROLE'; payload: UserRole }
+  | { type: 'RESTORE_SESSION'; payload: { token: string; user: UserProfile; role: UserRole } }
   | { type: 'SET_PICKUP'; payload: LocationPoint | null }
   | { type: 'SET_DROPOFF'; payload: LocationPoint | null }
   | { type: 'SET_CURRENT_LOCATION'; payload: Coordinates | null }
@@ -73,6 +74,15 @@ type AppAction =
 // ─── Reducer ───────────────────────────────────────────────
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
+    case 'RESTORE_SESSION':
+      return {
+        ...state,
+        token: action.payload.token,
+        user: action.payload.user,
+        role: action.payload.role,
+        isAuthenticated: true,
+        isLoading: false,
+      };
     case 'SET_USER':
       return { ...state, user: action.payload };
     case 'SET_TOKEN':

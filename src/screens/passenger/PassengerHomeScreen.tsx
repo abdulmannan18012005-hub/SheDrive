@@ -80,15 +80,9 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
           return true;
         }
 
-        const now = Date.now();
-        if (now - lastBackPressRef.current < 2000) {
-          BackHandler.exitApp();
-          return true;
-        }
-
-        lastBackPressRef.current = now;
+        // On home screen, do not exit app automatically; show safe informative toast
         if (Platform.OS === 'android') {
-          ToastAndroid.show('Press back again to exit SheDrive', ToastAndroid.SHORT);
+          ToastAndroid.show('You are on the Home screen', ToastAndroid.SHORT);
         }
         return true;
       };
@@ -116,7 +110,14 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
       snapshot.forEach((docSnap) => {
         activeDrivers.push(docSnap.data() as DriverProfile);
       });
-      setOnlineDrivers(activeDrivers);
+      setOnlineDrivers((prev) => {
+        if (prev.length !== activeDrivers.length) return activeDrivers;
+        const hasChanged = activeDrivers.some((d, idx) => {
+          const p = prev[idx];
+          return !p || p.uid !== d.uid || p.latitude !== d.latitude || p.longitude !== d.longitude;
+        });
+        return hasChanged ? activeDrivers : prev;
+      });
     }, (error) => {
       console.error('Error fetching online drivers:', error);
     });
@@ -175,8 +176,9 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
           const make = driver.vehicleInfo?.make || '';
           const model = driver.vehicleInfo?.model || '';
           const vehicleDesc = make || model ? ` (${[make, model].filter(Boolean).join(' ')})` : '';
+          const driverId = driver.uid || (driver as any).id || `driver_${driver.latitude}_${driver.longitude}`;
           markersList.push({
-            id: driver.uid || `driver_${Math.random()}`,
+            id: driverId,
             lat: driver.latitude,
             lng: driver.longitude,
             emoji: '🚗',
@@ -212,7 +214,9 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
         </View>
         <View style={{ position: 'relative', marginRight: 8 }}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('NotificationCenter')}
+            onPress={() => {
+              navigation.navigate('NotificationCenter');
+            }}
             activeOpacity={0.8}
             style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light.primaryGhost, justifyContent: 'center', alignItems: 'center' }}
           >
@@ -251,6 +255,12 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
           ref={mapRef}
           center={defaultCenter}
           markers={mapMarkers}
+          onMapReady={() => {
+            if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
+              isInitialMapReady.current = true;
+              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 15);
+            }
+          }}
         />
 
         {/* Non-blocking smooth loading indicator over map */}

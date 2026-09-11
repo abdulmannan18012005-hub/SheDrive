@@ -19,8 +19,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { PassengerStackParamList, LocationPoint, RideStop } from '../../types';
 import Colors from '../../constants/Colors';
-import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction } from '../../services/googlePlaces';
-import { searchAddress, reverseGeocode } from '../../services/nominatim';
+import { getPlaceAutocomplete, getPlaceDetailsById, GooglePlacePrediction, reverseGeocode } from '../../services/googlePlaces';
 import { useDebounce } from '../../hooks/useDebounce';
 import * as Location from 'expo-location';
 import { getLiveTrafficRoute, getLiveTrafficMultiStopRoute } from '../../services/googleRoutes';
@@ -64,22 +63,8 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   );
 
   useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 60000 });
-        if (lastKnown?.coords && isMounted) {
-          const coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
-          gpsCoordsRef.current = coords;
-          setGpsCoords({ ...coords, label: 'Current Location' });
-        }
-      } catch (e) {
-        // Fallback silently without throwing
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
+    // Location fetching removed from mount to prevent Xiaomi/MIUI native crashes during screen transition.
+    // The initial location is passed via route params from PassengerHomeScreen.
   }, []);
 
   const [pickupText, setPickupText] = useState(initialPickup?.label || '');
@@ -94,9 +79,9 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   const pickupInputRef = useRef<TextInput>(null);
   const destInputRef = useRef<TextInput>(null);
 
-  // Stable mount lifecycle — no premature focus during screen transition animation
+  // Stable mount lifecycle
   useEffect(() => {
-    // Let the screen mount and render smoothly without triggering keyboard race conditions
+    // Focus handled safely without setTimeout if necessary
   }, []);
 
   const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
@@ -199,7 +184,22 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
   useEffect(() => {
     const runSearch = async () => {
       const activeQuery = activeField === 'pickup' ? debouncedPickup : debouncedDest;
-      if (!activeQuery || activeQuery.trim().length < 2 || activeQuery === 'My Location') {
+      if (
+        !activeQuery ||
+        activeQuery.trim().length < 2 ||
+        activeQuery === 'My Location' ||
+        activeQuery === 'Current Location'
+      ) {
+        setSearchResults([]);
+        return;
+      }
+
+      // If active field already matches the resolved location point, do not trigger search
+      if (activeField === 'pickup' && pickupPoint && pickupText === pickupPoint.label && !isManualPickupOverride) {
+        setSearchResults([]);
+        return;
+      }
+      if (activeField === 'dest' && destPoint && destText === destPoint.label) {
         setSearchResults([]);
         return;
       }
@@ -221,18 +221,7 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           }));
           setSearchResults(items);
         } else {
-          // 2. Graceful Fallback to Nominatim if Google Places returns empty or quota issue
-          const nominatimPlaces = await searchAddress(activeQuery);
-          const items: SearchItem[] = nominatimPlaces.map((np) => ({
-            id: `nom_${np.place_id}`,
-            title: np.display_name.split(',')[0],
-            subtitle: np.display_name,
-            fullAddress: np.display_name,
-            latitude: parseFloat(np.lat),
-            longitude: parseFloat(np.lon),
-            source: 'nominatim',
-          }));
-          setSearchResults(items);
+          setSearchResults([]);
         }
       } catch (err) {
         console.error('Search failed:', err);
@@ -526,8 +515,8 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
         <ScrollView
           style={styles.listContainer}
           contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-          keyboardShouldPersistTaps="always"
-          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="none"
         >
           {searchResults.length > 0 ? (
             searchResults.map((item) => (
@@ -554,42 +543,52 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
           ) : (
             <>
               {/* Quick GPS Location Button */}
-              {gpsCoords && (
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: Colors.light.surface,
-                    borderRadius: 16,
-                    padding: 14,
-                    marginBottom: 16,
-                    borderWidth: 1,
-                    borderColor: '#BAE6FD',
-                    gap: 14,
-                  }}
-                  onPress={async () => {
-                    try {
-                      setIsCalculatingRoute(true);
-                      const readableAddress = await reverseGeocode(gpsCoords.latitude, gpsCoords.longitude);
-                      const label = readableAddress || 'Current Location';
-                      const currentPt = { latitude: gpsCoords.latitude, longitude: gpsCoords.longitude, label };
-                      if (activeField === 'pickup') {
-                        setPickupPoint(currentPt);
-                        setPickupText(label);
-                        setIsManualPickupOverride(false);
-                        setActiveField('dest');
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: Colors.light.surface,
+                  borderRadius: 16,
+                  padding: 14,
+                  marginBottom: 16,
+                  borderWidth: 1,
+                  borderColor: '#BAE6FD',
+                  gap: 14,
+                }}
+                onPress={async () => {
+                  try {
+                    setIsCalculatingRoute(true);
+                    let targetCoords = gpsCoords;
+                    if (!targetCoords) {
+                      const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 60000 });
+                      if (lastKnown?.coords) {
+                        targetCoords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude, label: 'Current Location' };
+                        setGpsCoords(targetCoords);
                       } else {
-                        setDestPoint(currentPt);
-                        setDestText(label);
+                        Alert.alert('Error', 'Unable to retrieve your location.');
+                        return;
                       }
-                    } catch (e) {
-                      // Fallback
-                    } finally {
-                      setIsCalculatingRoute(false);
                     }
-                  }}
-                  activeOpacity={0.8}
-                >
+                    const readableAddress = await reverseGeocode(targetCoords.latitude, targetCoords.longitude);
+                    const label = readableAddress || 'Current Location';
+                    const currentPt = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, label };
+                    if (activeField === 'pickup') {
+                      setPickupPoint(currentPt);
+                      setPickupText(label);
+                      setIsManualPickupOverride(false);
+                      setActiveField('dest');
+                    } else {
+                      setDestPoint(currentPt);
+                      setDestText(label);
+                    }
+                  } catch (e) {
+                    Alert.alert('Error', 'Failed to get location');
+                  } finally {
+                    setIsCalculatingRoute(false);
+                  }
+                }}
+                activeOpacity={0.8}
+              >
                   <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E0F2FE', justifyContent: 'center', alignItems: 'center' }}>
                     <Text style={{ fontSize: 18 }}>🎯</Text>
                   </View>
@@ -598,7 +597,6 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
                     <Text style={{ fontSize: 12, color: Colors.light.textSecondary }}>Live GPS positioning</Text>
                   </View>
                 </TouchableOpacity>
-              )}
 
               {/* Saved Places Section */}
               <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Saved Places</Text>

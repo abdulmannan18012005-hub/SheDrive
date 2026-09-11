@@ -81,15 +81,6 @@ const linking = {
 
 export default function AppNavigator(): React.JSX.Element {
   const { state, dispatch } = useApp();
-  const [showSplash, setShowSplash] = useState(true);
-
-  useEffect(() => {
-    const splashTimer = setTimeout(() => {
-      setShowSplash(false);
-    }, 1500);
-
-    return () => clearTimeout(splashTimer);
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -175,12 +166,15 @@ export default function AppNavigator(): React.JSX.Element {
                   refreshedUser.cnicBackUrl = data.user.cnic_back_url || userProfile.cnicBackUrl || null;
                 }
 
-                dispatch({ type: 'SET_TOKEN', payload: savedToken });
-                dispatch({ type: 'SET_USER', payload: refreshedUser });
-                dispatch({ type: 'SET_ROLE', payload: activeRole });
-                dispatch({ type: 'SET_AUTHENTICATED', payload: true });
+                dispatch({
+                  type: 'RESTORE_SESSION',
+                  payload: {
+                    token: savedToken,
+                    user: refreshedUser,
+                    role: activeRole,
+                  },
+                });
                 AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(refreshedUser)).catch(() => {});
-                if (isMounted) dispatch({ type: 'SET_LOADING', payload: false });
                 return;
               }
             } else if (res.status === 404 || res.status === 401 || res.status === 403) {
@@ -206,11 +200,14 @@ export default function AppNavigator(): React.JSX.Element {
             if (savedUserJson && isMounted) {
               const userProfile = JSON.parse(savedUserJson);
               const activeRole = (savedLastRole as any) || userProfile.role || 'passenger';
-              dispatch({ type: 'SET_TOKEN', payload: savedToken });
-              dispatch({ type: 'SET_USER', payload: userProfile });
-              dispatch({ type: 'SET_ROLE', payload: activeRole });
-              dispatch({ type: 'SET_AUTHENTICATED', payload: true });
-              dispatch({ type: 'SET_LOADING', payload: false });
+              dispatch({
+                type: 'RESTORE_SESSION',
+                payload: {
+                  token: savedToken,
+                  user: userProfile,
+                  role: activeRole,
+                },
+              });
               return;
             }
           }
@@ -239,7 +236,7 @@ export default function AppNavigator(): React.JSX.Element {
   }, [dispatch]);
 
   // Show brand plum SplashScreen during cold startup or session restore
-  if (showSplash || state.isLoading) {
+  if (state.isLoading) {
     return <SplashScreen />;
   }
 

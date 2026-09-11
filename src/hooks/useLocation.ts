@@ -17,8 +17,8 @@ interface UseLocationResult {
   refreshLocation: () => Promise<void>;
 }
 
-// 0.0001 degrees latitude/longitude is ~11.1 meters in Lahore
-const MIN_DISTANCE_THRESHOLD = 0.0001;
+// 0.0005 degrees latitude/longitude is ~55 meters in Lahore
+const MIN_DISTANCE_THRESHOLD = 0.0005;
 
 function isSignificantShift(prev: Coordinates | null, next: Coordinates): boolean {
   if (!prev) return true;
@@ -39,13 +39,19 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
   const [isGpsEnabled, setIsGpsEnabled] = useState<boolean>(true);
 
   const lastCoordsRef = useRef<Coordinates | null>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
   const watcherSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const isMountedRef = useRef<boolean>(true);
 
   const updateLocationIfShifted = useCallback((newCoords: Coordinates) => {
     if (!isMountedRef.current) return;
+    const now = Date.now();
+    // Enforce a strict 5-second minimum debounce between state updates to prevent render loops
+    if (now - lastUpdateTimeRef.current < 5000) return;
+    
     if (isSignificantShift(lastCoordsRef.current, newCoords)) {
       lastCoordsRef.current = newCoords;
+      lastUpdateTimeRef.current = now;
       setLocation(newCoords);
     }
   }, []);

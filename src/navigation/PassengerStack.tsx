@@ -56,8 +56,7 @@ export default function PassengerStack(): React.JSX.Element {
         name="PassengerHome"
         component={PassengerHomeScreen}
         options={{
-          title: 'SheDrive',
-          headerLeft: () => null,
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -73,7 +72,7 @@ export default function PassengerStack(): React.JSX.Element {
       <Stack.Screen
         name="Search"
         component={SearchScreen}
-        options={{ title: 'Select Route' }}
+        options={{ title: 'Select Route', headerShown: false }}
       />
       <Stack.Screen
         name="FareBid"

@@ -466,7 +466,7 @@ export default function SavedPlacesScreen(): React.JSX.Element {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.label}>Place Type</Text>
               <View style={styles.labelSelector}>
                 {(['home', 'work', 'other'] as PlaceLabel[]).map((type) => (

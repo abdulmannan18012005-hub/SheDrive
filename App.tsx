@@ -56,7 +56,7 @@ export default function App(): React.JSX.Element {
     <SafeAreaProvider>
       <ErrorBoundary>
         <AppProvider>
-          <StatusBar style="light" />
+          <StatusBar style="dark" backgroundColor="#FFFFFF" translucent={false} />
           <AppNavigator />
         </AppProvider>
       </ErrorBoundary>

@@ -103,20 +103,20 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
     const mapRef = useRef<MapView>(null);
     const [isReady, setIsReady] = useState(false);
 
-    const rawLat = center ? ('latitude' in center ? (center as any).latitude : (center as any).lat) : 31.5204;
-    const rawLng = center ? ('longitude' in center ? (center as any).longitude : (center as any).lng) : 74.3587;
-    const centerLat = typeof rawLat === 'number' && !isNaN(rawLat) ? rawLat : 31.5204;
-    const centerLng = typeof rawLng === 'number' && !isNaN(rawLng) ? rawLng : 74.3587;
-
-    const initialRegion: Region = useMemo(() => {
+    const initialRegionRef = useRef<Region | null>(null);
+    if (!initialRegionRef.current) {
+      const rawLat = center ? ('latitude' in center ? (center as any).latitude : (center as any).lat) : 31.5204;
+      const rawLng = center ? ('longitude' in center ? (center as any).longitude : (center as any).lng) : 74.3587;
+      const centerLat = typeof rawLat === 'number' && !isNaN(rawLat) ? rawLat : 31.5204;
+      const centerLng = typeof rawLng === 'number' && !isNaN(rawLng) ? rawLng : 74.3587;
       const { latitudeDelta, longitudeDelta } = zoomToDeltas(zoom);
-      return {
+      initialRegionRef.current = {
         latitude: centerLat,
         longitude: centerLng,
         latitudeDelta,
         longitudeDelta,
       };
-    }, [centerLat, centerLng, zoom]);
+    }
 
     // Format route coordinates for Polyline component
     const parsedRouteCoordinates: LatLng[] = useMemo(() => {
@@ -129,41 +129,49 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
       });
     }, [routeCoordinates]);
 
+    const pendingRegionRef = useRef<Region | null>(null);
+
     // Expose ref methods to parent screens
     useImperativeHandle(ref, () => ({
       setCenter: (lat: number, lng: number, targetZoom?: number) => {
         if (!mapRef.current) return;
         const deltas = zoomToDeltas(targetZoom || zoom);
-        mapRef.current.animateToRegion(
-          {
-            latitude: lat,
-            longitude: lng,
-            ...deltas,
-          },
-          600
-        );
+        const region = { latitude: lat, longitude: lng, ...deltas };
+        if (!isReady) {
+          pendingRegionRef.current = region;
+          return;
+        }
+        try {
+          mapRef.current.animateToRegion(region, 600);
+        } catch (e) { console.warn('animateToRegion failed', e); }
       },
       drawRoute: (coords) => {
-        if (!mapRef.current || !coords || coords.length === 0) return;
+        if (!mapRef.current || !isReady || !coords || coords.length === 0) return;
         const formatted = coords.map((c) => (Array.isArray(c) ? { latitude: c[0], longitude: c[1] } : c));
-        mapRef.current.fitToCoordinates(formatted, {
-          edgePadding: { top: 70, right: 60, bottom: 120, left: 60 },
-          animated: true,
-        });
+        try {
+          mapRef.current.fitToCoordinates(formatted, {
+            edgePadding: { top: 70, right: 60, bottom: 120, left: 60 },
+            animated: true,
+          });
+        } catch (e) { console.warn('fitToCoordinates failed', e); }
       },
       clearRoute: () => {
         // Clear is handled reactively by routeCoordinates prop
       },
       fitToCoordinates: (coords: LatLng[], animated = true) => {
-        if (!mapRef.current || !coords || coords.length === 0) return;
-        mapRef.current.fitToCoordinates(coords, {
-          edgePadding: { top: 60, right: 50, bottom: 100, left: 50 },
-          animated,
-        });
+        if (!mapRef.current || !isReady || !coords || coords.length === 0) return;
+        try {
+          mapRef.current.fitToCoordinates(coords, {
+            edgePadding: { top: 60, right: 50, bottom: 100, left: 50 },
+            animated,
+          });
+        } catch (e) { console.warn('fitToCoordinates failed', e); }
       },
       animateToRegion: (region: Region, duration = 600) => {
-        if (mapRef.current) {
-          mapRef.current.animateToRegion(region, duration);
+        if (mapRef.current && isReady) {
+          try {
+            mapRef.current.animateToRegion(region, duration);
+          } catch (e) { console.warn('animateToRegion failed', e); }
         }
       },
     }));
@@ -178,6 +186,15 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
       }
     }, [isReady, parsedRouteCoordinates]);
 
+    useEffect(() => {
+      if (isReady && pendingRegionRef.current && mapRef.current) {
+        try {
+          mapRef.current.animateToRegion(pendingRegionRef.current, 600);
+        } catch (e) { console.warn('animateToRegion failed', e); }
+        pendingRegionRef.current = null;
+      }
+    }, [isReady]);
+
 
 
     return (
@@ -186,8 +203,7 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
-          initialRegion={initialRegion}
-          customMapStyle={GOOGLE_MAP_STYLE}
+          initialRegion={initialRegionRef.current || undefined}
           mapPadding={{ top: Platform.OS === 'ios' ? 85 : 90, right: 16, bottom: 20, left: 16 }}
           showsUserLocation={showsUserLocation}
           showsMyLocationButton={showsMyLocationButton}

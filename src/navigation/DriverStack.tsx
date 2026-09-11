@@ -54,8 +54,7 @@ export default function DriverStack(): React.JSX.Element {
         name="DriverHome"
         component={DriverHomeScreen}
         options={{
-          title: 'SheDrive — Driver',
-          headerLeft: () => null,
+          headerShown: false,
         }}
       />
       <Stack.Screen

@@ -119,32 +119,35 @@ export default function VehicleManagementScreen(): React.JSX.Element {
         console.warn('Backend driver profile fetch error:', backendErr);
       }
 
-      // 2. Fetch supplementary/fallback details from Firestore
-      const driverSnap = await getDoc(doc(db, 'drivers', user.uid));
-      if (driverSnap.exists()) {
-        const driverData = driverSnap.data();
-        if (driverData.vehicleInfo) {
-          setMake((prev) => prev || driverData.vehicleInfo.make || '');
-          setModel((prev) => prev || driverData.vehicleInfo.model || '');
-          setYear((prev) => prev || (driverData.vehicleInfo.year ? String(driverData.vehicleInfo.year) : ''));
-          setPlate((prev) => prev || driverData.vehicleInfo.plate || '');
-          setColor((prev) => prev || driverData.vehicleInfo.color || '');
-          setPhotoUrl((prev) => prev || driverData.vehicleInfo.photoUrl || '');
+      // 2. Fetch supplementary/fallback details from Firestore (isolated try/catch so missing doc doesn't throw)
+      try {
+        const driverSnap = await getDoc(doc(db, 'drivers', user.uid));
+        if (driverSnap.exists()) {
+          const driverData = driverSnap.data();
+          if (driverData.vehicleInfo) {
+            setMake((prev) => prev || driverData.vehicleInfo.make || '');
+            setModel((prev) => prev || driverData.vehicleInfo.model || '');
+            setYear((prev) => prev || (driverData.vehicleInfo.year ? String(driverData.vehicleInfo.year) : ''));
+            setPlate((prev) => prev || driverData.vehicleInfo.plate || '');
+            setColor((prev) => prev || driverData.vehicleInfo.color || '');
+            setPhotoUrl((prev) => prev || driverData.vehicleInfo.photoUrl || '');
+          }
+          if (driverData.acOption) {
+            setAcOption((prev) => prev || driverData.acOption);
+          }
+          setLicenseFrontUrl((prev) => prev || driverData.licenseFrontUrl || '');
+          setLicenseBackUrl((prev) => prev || driverData.licenseBackUrl || '');
+          setRegistrationUrl((prev) => prev || driverData.registrationUrl || '');
+          setInsuranceUrl((prev) => prev || driverData.insuranceUrl || '');
+          setCnicFrontUrl((prev) => prev || driverData.cnicFrontUrl || '');
+          setCnicBackUrl((prev) => prev || driverData.cnicBackUrl || '');
+          setSelfieUrl((prev) => prev || driverData.selfieUrl || '');
         }
-        if (driverData.acOption) {
-          setAcOption((prev) => prev || driverData.acOption);
-        }
-        setLicenseFrontUrl((prev) => prev || driverData.licenseFrontUrl || '');
-        setLicenseBackUrl((prev) => prev || driverData.licenseBackUrl || '');
-        setRegistrationUrl((prev) => prev || driverData.registrationUrl || '');
-        setInsuranceUrl((prev) => prev || driverData.insuranceUrl || '');
-        setCnicFrontUrl((prev) => prev || driverData.cnicFrontUrl || '');
-        setCnicBackUrl((prev) => prev || driverData.cnicBackUrl || '');
-        setSelfieUrl((prev) => prev || driverData.selfieUrl || '');
+      } catch (firestoreErr) {
+        console.warn('Firestore driver profile fallback notice:', firestoreErr);
       }
     } catch (error) {
       console.error('Error fetching driver profile:', error);
-      Alert.alert('Error', 'Failed to load vehicle and document information');
     } finally {
       setIsLoading(false);
     }
