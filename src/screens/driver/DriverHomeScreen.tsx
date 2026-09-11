@@ -636,12 +636,15 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     return markers;
   }, [currentCoords, availableRides]);
 
-  const defaultCenter = useMemo(() => {
-    if (currentCoords && typeof currentCoords.latitude === 'number' && typeof currentCoords.longitude === 'number') {
-      return { lat: currentCoords.latitude, lng: currentCoords.longitude };
-    }
-    return { lat: 31.5204, lng: 74.3587 };
-  }, [currentCoords]);
+  const defaultCenterRef = useRef({ lat: 31.5204, lng: 74.3587 });
+  if (currentCoords && typeof currentCoords.latitude === 'number' && typeof currentCoords.longitude === 'number') {
+    defaultCenterRef.current = { lat: currentCoords.latitude, lng: currentCoords.longitude };
+  }
+  const defaultCenter = defaultCenterRef.current;
+
+  const onMapReadyCallback = useCallback(() => {
+    // Map centering handled by auto-center useEffect
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -710,12 +713,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           ref={mapRef}
           center={defaultCenter}
           markers={mapMarkers}
-          onMapReady={() => {
-            if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
-              isInitialMapReady.current = true;
-              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 15);
-            }
-          }}
+          onMapReady={onMapReadyCallback}
         />
         {/* Non-blocking smooth loading indicator over map */}
         {isLocationLoading && !currentCoords && !isMapLoadingDismissed && (

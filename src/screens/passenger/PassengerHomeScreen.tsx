@@ -191,11 +191,17 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
     return markersList;
   }, [currentCoords, onlineDrivers]);
 
-  const defaultCenter = React.useMemo(() => {
-    return currentCoords
-      ? { lat: currentCoords.latitude, lng: currentCoords.longitude }
-      : { lat: 31.5204, lng: 74.3587 }; // default Lahore Center
-  }, [currentCoords]);
+  const defaultCenterRef = useRef({ lat: 31.5204, lng: 74.3587 });
+  if (currentCoords) {
+    defaultCenterRef.current = { lat: currentCoords.latitude, lng: currentCoords.longitude };
+  }
+  const defaultCenter = defaultCenterRef.current;
+
+  const onMapReadyCallback = useCallback(() => {
+    if (mapRef.current && !isInitialMapReady.current) {
+      // Will be centered by the auto-center useEffect when currentCoords arrive
+    }
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -255,12 +261,7 @@ export default function PassengerHomeScreen({ navigation }: Props): React.JSX.El
           ref={mapRef}
           center={defaultCenter}
           markers={mapMarkers}
-          onMapReady={() => {
-            if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
-              isInitialMapReady.current = true;
-              mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 15);
-            }
-          }}
+          onMapReady={onMapReadyCallback}
         />
 
         {/* Non-blocking smooth loading indicator over map */}

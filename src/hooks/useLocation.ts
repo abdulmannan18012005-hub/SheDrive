@@ -17,21 +17,13 @@ interface UseLocationResult {
   refreshLocation: () => Promise<void>;
 }
 
-// 0.0005 degrees latitude/longitude is ~55 meters in Lahore
-const MIN_DISTANCE_THRESHOLD = 0.0005;
-
-function isSignificantShift(prev: Coordinates | null, next: Coordinates): boolean {
-  if (!prev) return true;
-  const dLat = Math.abs(prev.latitude - next.latitude);
-  const dLng = Math.abs(prev.longitude - next.longitude);
-  return dLat > MIN_DISTANCE_THRESHOLD || dLng > MIN_DISTANCE_THRESHOLD;
-}
-
 /**
- * Enterprise-grade location hook with debouncing, distance thresholding,
- * and resilient non-blocking fallback coordinates.
+ * Location hook that fetches GPS position ONCE on mount.
+ * Does NOT use a live watcher to prevent re-render loops that cause
+ * map blinking, keyboard bounce, and app crashes.
+ * Call refreshLocation() explicitly to update position.
  */
-export function useLocation(enableLiveWatcher: boolean = true): UseLocationResult {
+export function useLocation(): UseLocationResult {
   const [location, setLocation] = useState<Coordinates | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -39,22 +31,8 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
   const [isGpsEnabled, setIsGpsEnabled] = useState<boolean>(true);
 
   const lastCoordsRef = useRef<Coordinates | null>(null);
-  const lastUpdateTimeRef = useRef<number>(0);
-  const watcherSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const isMountedRef = useRef<boolean>(true);
-
-  const updateLocationIfShifted = useCallback((newCoords: Coordinates) => {
-    if (!isMountedRef.current) return;
-    const now = Date.now();
-    // Enforce a strict 5-second minimum debounce between state updates to prevent render loops
-    if (now - lastUpdateTimeRef.current < 5000) return;
-    
-    if (isSignificantShift(lastCoordsRef.current, newCoords)) {
-      lastCoordsRef.current = newCoords;
-      lastUpdateTimeRef.current = now;
-      setLocation(newCoords);
-    }
-  }, []);
+  const hasFetchedRef = useRef<boolean>(false);
 
   const fetchLocation = useCallback(async (isSilent: boolean = false) => {
     if (!isMountedRef.current) return;
@@ -91,47 +69,32 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
 
       // Step 3: Fast-path: get last known location immediately
       const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
-      if (isMountedRef.current && lastKnown && lastKnown.coords) {
-        updateLocationIfShifted({
+      if (isMountedRef.current && lastKnown && lastKnown.coords && !lastCoordsRef.current) {
+        const coords = {
           latitude: lastKnown.coords.latitude,
           longitude: lastKnown.coords.longitude,
-        });
+        };
+        lastCoordsRef.current = coords;
+        setLocation(coords);
       }
 
-      // Step 4: Fresh high-accuracy satellite fix (with 4-second resilient timeout)
+      // Step 4: Fresh GPS fix (with 6-second timeout)
       const freshPosition = await Promise.race([
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
       ]).catch(() => null) as Location.LocationObject | null;
 
       if (isMountedRef.current && freshPosition && freshPosition.coords) {
-        updateLocationIfShifted({
+        const newCoords = {
           latitude: freshPosition.coords.latitude,
           longitude: freshPosition.coords.longitude,
-        });
+        };
+        lastCoordsRef.current = newCoords;
+        setLocation(newCoords);
       } else if (isMountedRef.current && !lastCoordsRef.current) {
         // Resilient fallback: ensure coordinates are never null
-        updateLocationIfShifted(LAHORE_DEFAULT_COORDINATES);
-      }
-
-      // Step 5: Start live position watcher if requested (with 10m threshold)
-      if (enableLiveWatcher && !watcherSubscriptionRef.current) {
-        const sub = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 5000,
-            distanceInterval: 10,
-          },
-          (newPosition) => {
-            if (isMountedRef.current && newPosition && newPosition.coords) {
-              updateLocationIfShifted({
-                latitude: newPosition.coords.latitude,
-                longitude: newPosition.coords.longitude,
-              });
-            }
-          }
-        );
-        watcherSubscriptionRef.current = sub;
+        lastCoordsRef.current = LAHORE_DEFAULT_COORDINATES;
+        setLocation(LAHORE_DEFAULT_COORDINATES);
       }
     } catch (error: any) {
       if (isMountedRef.current) {
@@ -143,18 +106,23 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
         setIsLoading(false);
       }
     }
-  }, [enableLiveWatcher, updateLocationIfShifted]);
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
-    fetchLocation(false);
+
+    // Only fetch once on mount
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchLocation(false);
+    }
 
     // Listen to AppState (e.g. user goes to system settings to enable GPS and returns to app)
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active' && isMountedRef.current) {
         const servicesEnabled = await Location.hasServicesEnabledAsync().catch(() => false);
-        if (servicesEnabled) {
-          fetchLocation(true); // Silent refresh so screen never flickers or unmounts
+        if (servicesEnabled && !lastCoordsRef.current) {
+          fetchLocation(true); // Silent refresh only if we don't have coords yet
         }
       }
     };
@@ -164,12 +132,8 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
     return () => {
       isMountedRef.current = false;
       appStateSubscription.remove();
-      if (watcherSubscriptionRef.current) {
-        watcherSubscriptionRef.current.remove();
-        watcherSubscriptionRef.current = null;
-      }
     };
-  }, [fetchLocation]);
+  }, []); // Empty deps - runs only once, no watcher to clean up
 
   return {
     location,
@@ -177,7 +141,11 @@ export function useLocation(enableLiveWatcher: boolean = true): UseLocationResul
     isLoading,
     hasPermission,
     isGpsEnabled,
-    refreshLocation: async () => fetchLocation(false),
+    refreshLocation: async () => {
+      // Reset so manual refresh always works
+      lastCoordsRef.current = null;
+      await fetchLocation(false);
+    },
   };
 }
 

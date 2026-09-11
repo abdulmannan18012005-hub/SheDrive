@@ -142,8 +142,12 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
           return;
         }
         try {
-          mapRef.current.animateToRegion(region, 600);
-        } catch (e) { console.warn('animateToRegion failed', e); }
+          // Use animateCamera instead of animateToRegion to prevent Native Android crash when MapView layout isn't fully measured
+          mapRef.current.animateCamera({
+            center: { latitude: lat, longitude: lng },
+            zoom: targetZoom || zoom
+          }, { duration: 600 });
+        } catch (e) { console.warn('animateCamera failed', e); }
       },
       drawRoute: (coords) => {
         if (!mapRef.current || !isReady || !coords || coords.length === 0) return;
@@ -185,17 +189,6 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
         });
       }
     }, [isReady, parsedRouteCoordinates]);
-
-    useEffect(() => {
-      if (isReady && pendingRegionRef.current && mapRef.current) {
-        try {
-          mapRef.current.animateToRegion(pendingRegionRef.current, 600);
-        } catch (e) { console.warn('animateToRegion failed', e); }
-        pendingRegionRef.current = null;
-      }
-    }, [isReady]);
-
-
 
     return (
       <View style={[styles.container, style]}>
