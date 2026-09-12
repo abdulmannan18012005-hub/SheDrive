@@ -404,6 +404,11 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                 if (nowMs - lastHttpLocationSyncRef.current >= 15000) {
                   lastHttpLocationSyncRef.current = nowMs;
                   
+                  // Center the map periodically without freezing the UI thread
+                  if (mapRef.current) {
+                    mapRef.current.setCenter(latitude, longitude);
+                  }
+
                   // 1. HTTP Update
                   fetch(`${getApiBaseUrl()}/driver/online`, {
                     method: 'PUT',

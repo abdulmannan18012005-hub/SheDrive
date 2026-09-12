@@ -30,10 +30,22 @@ export default function NotificationCenterScreen(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [globalUnreadCount, setGlobalUnreadCount] = useState<number>(0);
 
   useEffect(() => {
     fetchNotifications();
+    fetchGlobalUnreadCount();
   }, []);
+
+  const fetchGlobalUnreadCount = async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/user/notifications/unread-count?_t=${Date.now()}`, {
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      const data = await res.json();
+      if (res.ok) setGlobalUnreadCount(data.count || 0);
+    } catch (err) {}
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -41,9 +53,7 @@ export default function NotificationCenterScreen(): React.JSX.Element {
       const res = await fetch(`${getApiBaseUrl()}/user/notifications?_t=${Date.now()}`, {
         headers: {
           Authorization: `Bearer ${state.token}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+          'Cache-Control': 'no-cache',
         },
       });
 
@@ -68,10 +78,12 @@ export default function NotificationCenterScreen(): React.JSX.Element {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${state.token}`,
+          'Content-Type': 'application/json',
         },
       });
 
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setGlobalUnreadCount(0);
     } catch (err) {
       console.error('Mark all read error:', err);
     }
@@ -147,9 +159,11 @@ export default function NotificationCenterScreen(): React.JSX.Element {
       </View>
 
       {/* Mark All Read Action Bar */}
-      {unreadCount > 0 && (
+      {(unreadCount > 0 || globalUnreadCount > 0) && (
         <View style={styles.actionRow}>
-          <Text style={styles.unreadBadgeText}>{unreadCount} unread notification(s)</Text>
+          <Text style={styles.unreadBadgeText}>
+            {globalUnreadCount > unreadCount ? globalUnreadCount : unreadCount} unread notification(s)
+          </Text>
           <TouchableOpacity onPress={handleMarkAllRead}>
             <Text style={styles.markReadText}>✓ Mark All as Read</Text>
           </TouchableOpacity>
@@ -178,9 +192,13 @@ export default function NotificationCenterScreen(): React.JSX.Element {
                 if (!n.is_read) {
                   // Mark as read locally and sync
                   setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, is_read: true } : item));
+                  setGlobalUnreadCount(prev => Math.max(0, prev - 1));
                   fetch(`${getApiBaseUrl()}/user/notifications/${n.id}/read`, {
                     method: 'PUT',
-                    headers: { Authorization: `Bearer ${state.token}` },
+                    headers: { 
+                      Authorization: `Bearer ${state.token}`,
+                      'Content-Type': 'application/json'
+                    },
                   }).catch(() => {});
                 }
                 navigation.navigate('NotificationDetail', {
