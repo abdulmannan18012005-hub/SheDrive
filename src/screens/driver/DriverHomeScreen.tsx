@@ -400,8 +400,8 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                 const { latitude, longitude, heading } = newLocation.coords;
 
                 const nowMs = Date.now();
-                // Update backend with new coordinates throttled to once per 15 seconds to prevent battery drain & network flooding
-                if (nowMs - lastHttpLocationSyncRef.current >= 15000) {
+                // Update backend with new coordinates throttled to once per 10 seconds to prevent battery drain & network flooding
+                if (nowMs - lastHttpLocationSyncRef.current >= 10000) {
                   lastHttpLocationSyncRef.current = nowMs;
                   
                   // Center the map periodically without freezing the UI thread
