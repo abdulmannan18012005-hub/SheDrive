@@ -221,11 +221,11 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       );
       if (nearby.length === 0) {
         Alert.alert(
-          'No Nearby Drivers in Category',
-          `There are currently no active female drivers within 10 km offering ${selectedCategory.name}. Would you like to post your ride offer anyway or choose another category?`,
+          'High Demand Area',
+          `At this moment, our driver partners in the ${selectedCategory.name} category are slightly further than 10 km from your location. You may still post your request, and the nearest available drivers will be notified, or you can select a different vehicle category.`,
           [
             { text: 'Change Category', style: 'cancel' },
-            { text: 'Post Offer Anyway', onPress: () => setIsSummaryVisible(true) },
+            { text: 'Post Offer Anyway', onPress: handleConfirmBooking },
           ]
         );
         return;

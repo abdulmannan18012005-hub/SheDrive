@@ -300,6 +300,8 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
   }, []);
 
   const handleToggleOnline = async () => {
+    if (isUpdatingStatus) return;
+
     if (!user) {
       Alert.alert('Authentication Error', 'Driver user session not found. Please log in again.');
       return;
@@ -429,10 +431,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                       lastUpdated: Date.now(),
                     }, { merge: true }).catch(() => {});
                   }
-                }
-
-                if (mapRef.current) {
-                  mapRef.current.setCenter(latitude, longitude);
                 }
               } catch (locErr) {
                 console.warn('[Driver Location Watcher Callback Warning]:', locErr);
