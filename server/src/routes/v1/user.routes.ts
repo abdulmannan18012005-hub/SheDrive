@@ -280,11 +280,22 @@ router.post('/deactivate', authenticateToken, async (req: AuthRequest, res: Resp
 
 /**
  * GET /api/v1/user/notifications
- * Description: Fetches list of notifications for the user.
+ * Description: Fetches list of notifications for the user, and auto-deletes read ones older than 24h.
  */
 router.get('/notifications', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
+
+    // Auto-cleanup: remove read notifications older than 24 hours
+    try {
+      await query(
+        "DELETE FROM user_notifications WHERE user_id = $1 AND is_read = true AND created_at < NOW() - INTERVAL '24 hours'",
+        [userId]
+      );
+    } catch (cleanupErr) {
+      // Ignore cleanup errors so we still return notifications
+    }
+
     const result = await query(
       'SELECT id, title, message, category, is_read, created_at FROM user_notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
       [userId]
