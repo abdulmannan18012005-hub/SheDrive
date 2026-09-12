@@ -23,6 +23,7 @@ export interface GoogleMapViewRef {
   clearRoute: () => void;
   fitToCoordinates: (coordinates: Array<LatLng>, animated?: boolean) => void;
   animateToRegion: (region: Region, duration?: number) => void;
+  updateMarkerCoordinate: (id: string, lat: number, lng: number, duration?: number) => void;
 }
 
 export interface GoogleMapViewProps {
@@ -101,6 +102,7 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
     ref
   ) => {
     const mapRef = useRef<MapView>(null);
+    const markerRefs = useRef<Record<string, any>>({});
     const [isReady, setIsReady] = useState(false);
 
     const initialRegionRef = useRef<Region | null>(null);
@@ -178,6 +180,14 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
           } catch (e) { console.warn('animateToRegion failed', e); }
         }
       },
+      updateMarkerCoordinate: (id: string, lat: number, lng: number, duration: number = 1000) => {
+        const marker = markerRefs.current[id];
+        if (marker && marker.animateMarkerToCoordinate) {
+          marker.animateMarkerToCoordinate({ latitude: lat, longitude: lng }, duration);
+        } else if (marker && marker.setNativeProps) {
+          marker.setNativeProps({ coordinate: { latitude: lat, longitude: lng } });
+        }
+      },
     }));
 
     // Auto-fit route when routeCoordinates changes
@@ -240,6 +250,7 @@ export const GoogleMapView = forwardRef<GoogleMapViewRef, GoogleMapViewProps>(
 
             return (
               <Marker
+                ref={(m) => { if (m) markerRefs.current[marker.id] = m; }}
                 key={marker.id}
                 coordinate={{ latitude: marker.lat, longitude: marker.lng }}
                 title={marker.title}

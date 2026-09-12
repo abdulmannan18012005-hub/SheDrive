@@ -289,15 +289,76 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     };
   }, []);
 
-  // Stop watching location when component unmounts
+  const coordsRef = useRef<{ latitude: number; longitude: number; heading: number } | null>(null);
+
+  // Background Telemetry Loop: Strict ONCE mount when driver is online
   useEffect(() => {
-    return () => {
-      if (locationWatcherRef.current) {
-        locationWatcherRef.current.remove();
-        locationWatcherRef.current = null;
+    let watcher: Location.LocationSubscription | null = null;
+    let isActive = true;
+
+    const startBackgroundTracking = async () => {
+      if (!isOnline || !user) return;
+      try {
+        watcher = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 10000,
+            distanceInterval: 10,
+          },
+          async (newLocation) => {
+            if (!isActive || !newLocation || !newLocation.coords) return;
+            const { latitude, longitude, heading } = newLocation.coords;
+            const h = heading || 0;
+            
+            // 1. Update mutable ref silently (No React state re-renders!)
+            coordsRef.current = { latitude, longitude, heading: h };
+
+            // 2. Animate the marker natively without triggering a component tree render or camera jerk
+            if (mapRef.current) {
+              mapRef.current.updateMarkerCoordinate('driver_current', latitude, longitude, 1000);
+            }
+
+            const nowMs = Date.now();
+            // Throttled Network Sync
+            if (nowMs - lastHttpLocationSyncRef.current >= 10000) {
+              lastHttpLocationSyncRef.current = nowMs;
+
+              // 3. Silent HTTP Telemetry
+              const tokenToUse = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
+              fetch(`${getApiBaseUrl()}/driver/online`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${tokenToUse}`,
+                  'Cache-Control': 'no-cache',
+                },
+                body: JSON.stringify({ isOnline: true, latitude, longitude, heading: h }),
+              }).catch(() => {});
+
+              // 4. Silent Firestore Telemetry
+              if (user?.uid) {
+                const driverRef = doc(db, 'drivers', user.uid);
+                setDoc(driverRef, { isOnline: true, latitude, longitude, heading: h, lastUpdated: nowMs }, { merge: true }).catch(() => {});
+              }
+            }
+          }
+        );
+      } catch (err) {
+        console.warn('[Driver Background Telemetry Error]:', err);
       }
     };
-  }, []);
+
+    if (isOnline) {
+      startBackgroundTracking();
+    }
+
+    return () => {
+      isActive = false;
+      if (watcher) {
+        watcher.remove();
+      }
+    };
+  }, [isOnline, user, state.token]);
 
   const handleToggleOnline = async () => {
     if (isUpdatingStatus) return;
@@ -307,8 +368,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       return;
     }
 
-    // Immediate verification gate: if not verified/approved, cleanly show review modal
-    // without blocking on GPS scans, connecting sockets, or calling online APIs
+    // Immediate verification gate
     if (!isOnline && !isDriverVerified) {
       setVerificationModalVisible(true);
       return;
@@ -318,7 +378,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       setIsUpdatingStatus(true);
 
       if (!isOnline) {
-        // Request Location permissions
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           Alert.alert('Permission Denied', 'Foreground location permission is required to accept rides.');
@@ -326,9 +385,9 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           return;
         }
 
-        // Fast non-blocking coordinate resolution (<2s go-online) using cached/last-known coordinates
-        let resolvedLat = currentCoords?.latitude;
-        let resolvedLng = currentCoords?.longitude;
+        // Fast non-blocking coordinate resolution (<2s go-online) using coordsRef or fallback
+        let resolvedLat = coordsRef.current?.latitude || currentCoords?.latitude;
+        let resolvedLng = coordsRef.current?.longitude || currentCoords?.longitude;
 
         if (!resolvedLat || !resolvedLng) {
           try {
@@ -337,20 +396,15 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
               resolvedLat = lastKnown.coords.latitude;
               resolvedLng = lastKnown.coords.longitude;
             }
-          } catch (e) {
-            // Fallback gracefully to default coordinates
-          }
+          } catch (e) {}
         }
 
         resolvedLat = resolvedLat || 31.5204;
         resolvedLng = resolvedLng || 74.3587;
 
-        let tokenToUse = state.token;
-        if (!tokenToUse) {
-          tokenToUse = (await AsyncStorage.getItem('@shedrive_auth_token')) || undefined;
-        }
+        let tokenToUse = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
 
-        // Call backend API to go online (backend will verify driver status)
+        // Call backend API to go online
         const res = await fetch(`${getApiBaseUrl()}/driver/online`, {
           method: 'PUT',
           headers: {
@@ -368,9 +422,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         const data = await res.json();
 
         if (!res.ok) {
-          if (res.status === 403) {
-            setVerificationModalVisible(true);
-          }
+          if (res.status === 403) setVerificationModalVisible(true);
           Alert.alert(
             res.status === 403 ? 'Account Under Review' : 'Cannot Go Online',
             data.error || 'Your account is currently under review. Please wait for admin approval.'
@@ -379,84 +431,15 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           return;
         }
 
-        // Backend approved — sync local state to approved
         if (user && (!user.isVerified || user.verificationStatus !== 'approved')) {
           const approvedUser = { ...user, isVerified: true, verificationStatus: 'approved' };
           dispatch({ type: 'SET_USER', payload: approvedUser });
           AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(approvedUser)).catch(() => {});
         }
 
-        // Start location watcher if backend approves (throttled to 10m / 4s for zero-lag 60fps performance)
-        try {
-          const watcher = await Location.watchPositionAsync(
-            {
-              accuracy: Location.Accuracy.Balanced,
-              timeInterval: 4000,
-              distanceInterval: 10,
-            },
-            async (newLocation) => {
-              try {
-                if (!newLocation || !newLocation.coords) return;
-                const { latitude, longitude, heading } = newLocation.coords;
-
-                const nowMs = Date.now();
-                // Update backend with new coordinates throttled to once per 10 seconds to prevent battery drain & network flooding
-                if (nowMs - lastHttpLocationSyncRef.current >= 10000) {
-                  lastHttpLocationSyncRef.current = nowMs;
-                  
-                  // Center the map periodically without freezing the UI thread
-                  if (mapRef.current) {
-                    mapRef.current.setCenter(latitude, longitude);
-                  }
-
-                  // 1. HTTP Update
-                  fetch(`${getApiBaseUrl()}/driver/online`, {
-                    method: 'PUT',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${state.token}`,
-                      'Cache-Control': 'no-cache',
-                    },
-                    body: JSON.stringify({
-                      isOnline: true,
-                      latitude,
-                      longitude,
-                      heading: heading || 0,
-                    }),
-                  }).catch((err) => console.warn('[Driver Location Sync Warning]:', err?.message));
-
-                  // 2. Firestore Update (Moved INSIDE throttle to prevent 10x/sec writes that freeze the UI)
-                  if (user?.uid) {
-                    const driverRef = doc(db, 'drivers', user.uid);
-                    await setDoc(driverRef, {
-                      isOnline: true,
-                      latitude,
-                      longitude,
-                      heading: heading || 0,
-                      lastUpdated: Date.now(),
-                    }, { merge: true }).catch(() => {});
-                  }
-                }
-              } catch (locErr) {
-                console.warn('[Driver Location Watcher Callback Warning]:', locErr);
-              }
-            }
-          );
-
-          locationWatcherRef.current = watcher;
-        } catch (watchErr) {
-          console.warn('[Driver Location Watcher Init Warning]:', watchErr);
-        }
-
         setIsOnline(true);
       } else {
         // Go Offline
-        if (locationWatcherRef.current) {
-          locationWatcherRef.current.remove();
-          locationWatcherRef.current = null;
-        }
-
-        // Call backend API to go offline
         await fetch(`${getApiBaseUrl()}/driver/online`, {
           method: 'PUT',
           headers: {
@@ -468,7 +451,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           }),
         }).catch(() => {});
 
-        // Also update Firestore
         if (user?.uid) {
           const driverRef = doc(db, 'drivers', user.uid);
           await setDoc(driverRef, {
@@ -480,8 +462,8 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         setIsOnline(false);
       }
     } catch (error) {
-      console.error('Error toggling online status:', error);
-      Alert.alert('Status Error', 'Could not update online status. Please check your network connection.');
+      console.warn('[Driver Toggle Online Error]:', error);
+      Alert.alert('Network Error', 'Could not update your online status. Please check your connection.');
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -740,13 +722,13 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           ]}
           onPress={async () => {
             try {
-              if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
-                mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
+              // Instantly snap to the most recent actively tracked location
+              const lat = coordsRef.current?.latitude || currentCoords?.latitude;
+              const lng = coordsRef.current?.longitude || currentCoords?.longitude;
+              if (lat && lng && mapRef.current) {
+                mapRef.current.setCenter(lat, lng, 16);
               }
               await refreshLocation();
-              if (currentCoords?.latitude && currentCoords?.longitude && mapRef.current) {
-                mapRef.current.setCenter(currentCoords.latitude, currentCoords.longitude, 16);
-              }
             } catch (err) {
               console.warn('[Driver Recenter Error]:', err);
             }
