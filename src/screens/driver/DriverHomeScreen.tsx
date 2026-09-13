@@ -249,45 +249,10 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     }
   }, [isOnline, driverCategory]);
 
-  // Countdown timer effect
-  useEffect(() => {
-    if (!isOnline || !Array.isArray(availableRides) || availableRides.length === 0) return;
+  // Countdown timer effect removed to prevent blinking
 
-    const interval = setInterval(() => {
-      setRideTimers((prevTimers) => {
-        const updatedTimers: Record<string, number> = {};
 
-        availableRides.forEach((ride) => {
-          if (ride?.rideId) {
-            const currentTime = prevTimers[ride.rideId] ?? 10;
-            if (currentTime > 0) {
-              updatedTimers[ride.rideId] = currentTime - 1;
-            }
-          }
-        });
-
-        return updatedTimers;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isOnline, availableRides]);
-
-  // AppState minimize/resume location refresh listener
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextAppState) => {
-      if (nextAppState === 'active') {
-        try {
-          await refreshLocation();
-        } catch (err) {
-          console.warn('[Driver Location AppState Resume Warning]:', err);
-        }
-      }
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, []);
+  // AppState minimize/resume location refresh listener removed to match passenger side
 
   const coordsRef = useRef<{ latitude: number; longitude: number; heading: number } | null>(null);
 
