@@ -245,10 +245,12 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       const rideDocRef = doc(ridesCollectionRef);
       const rideId = rideDocRef.id;
 
-      const polylineString = JSON.stringify(routeData.geometry.coordinates);
+      const polylineString = routeData?.geometry?.coordinates
+        ? JSON.stringify(routeData.geometry.coordinates)
+        : '[]';
       const effectiveScheduledFor = isScheduled ? scheduledTimestamp : null;
 
-      const rideRequest: RideRequest = {
+      const rideRequest: any = {
         rideId,
         vehicleCategory: selectedCategory.id,
         passengerId: user!.uid,
@@ -256,7 +258,6 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
         passengerPhone: user!.phone,
         pickup,
         dropoff: destination,
-        stops: stops.length > 0 ? stops : undefined,
         distanceKm,
         durationMin,
         initialBid: bidAmount,
@@ -299,12 +300,12 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
           body: JSON.stringify({
             rideId,
             vehicleCategory: selectedCategory.id,
-            pickupLocation: {
+            pickup: {
               address: pickup.label,
               latitude: pickup.latitude,
               longitude: pickup.longitude,
             },
-            destinationLocation: {
+            destination: {
               address: destination.label,
               latitude: destination.latitude,
               longitude: destination.longitude,
@@ -314,7 +315,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
             estimatedFare: bidAmount,
             offeredFare: bidAmount,
             paymentMethod: 'cash',
-            multiStopWaypoints: stops.length > 0 ? stops : undefined,
+            ...(stops && stops.length > 0 ? { stops } : {}),
             isScheduled,
             scheduledFor: effectiveScheduledFor,
           }),
