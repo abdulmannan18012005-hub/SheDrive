@@ -58,12 +58,14 @@ export async function findMatchingDrivers(
       }
 
       // Ensure driver has active valid GPS location
-      if (driver.latitude && driver.longitude) {
+      const lat = driver.latitude;
+      const lng = driver.longitude;
+      if (lat && lng) {
         const distKm = haversineDistance(
           pickupCoords.latitude,
           pickupCoords.longitude,
-          driver.latitude,
-          driver.longitude
+          lat,
+          lng
         );
 
         if (distKm <= maxSearchRadiusKm) {

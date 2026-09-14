@@ -23,6 +23,8 @@ import Colors from '../../constants/Colors';
 import { useApp } from '../../contexts/AppContext';
 import { isValidPhone } from '../../utils/helpers';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { auth } from '../../config/firebaseConfig';
+import { signInWithCustomToken } from 'firebase/auth';
 import PasswordStrengthIndicator from '../../components/PasswordStrengthIndicator';
 
 type RegisterScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Register'>;
@@ -104,6 +106,8 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
   const [cnicBackUri, setCnicBackUri] = useState<string | null>(null);
   const [licenseFrontUri, setLicenseFrontUri] = useState<string | null>(null);
   const [licenseBackUri, setLicenseBackUri] = useState<string | null>(null);
+  const [registrationUri, setRegistrationUri] = useState<string | null>(null);
+  const [insuranceUri, setInsuranceUri] = useState<string | null>(null);
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
   const [vehiclePhotoUri, setVehiclePhotoUri] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -145,14 +149,15 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
       if (!uri || typeof uri !== 'string') return '';
       const fileInfo = await FileSystem.getInfoAsync(uri);
       if (!fileInfo.exists) {
-        return uri;
+        return '';
       }
       const base64Data = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
       return `data:image/jpeg;base64,${base64Data}`;
-    } catch {
-      return uri;
+    } catch (e) {
+      console.warn('convertToBase64 failed:', e);
+      return '';
     }
   };
 
@@ -347,10 +352,10 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
         Alert.alert('Vehicle Details Required', 'All vehicle details (Make, Model, Year, Plate, Color) are required for drivers.');
         return;
       }
-      if (!cnicFrontUri || !cnicBackUri || !licenseFrontUri || !licenseBackUri || !selfieUri || !vehiclePhotoUri) {
+      if (!cnicFrontUri || !cnicBackUri || !licenseFrontUri || !licenseBackUri || !registrationUri || !selfieUri || !vehiclePhotoUri) {
         Alert.alert(
           'Documents Required',
-          'CNIC (Front & Back), Driving License (Front & Back), Profile Photo, and Vehicle Photo are all required for driver registration.'
+          'CNIC, Driving License, Vehicle Registration, Profile Photo, and Vehicle Photo are all required for driver registration.'
         );
         return;
       }
@@ -486,6 +491,8 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
           vehicleInfo,
           licenseFrontUrl: role === 'driver' ? licenseFrontUri : undefined,
           licenseBackUrl: role === 'driver' ? licenseBackUri : undefined,
+          registrationUrl: role === 'driver' ? registrationUri : undefined,
+          insuranceUrl: role === 'driver' ? insuranceUri : undefined,
           selfieUrl: role === 'driver' ? selfieUri : undefined,
           vehiclePhotoUrl: role === 'driver' ? vehiclePhotoUri : undefined,
           acOption: role === 'driver' ? acOption : undefined,
@@ -536,6 +543,8 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
         newUserProfile.isFeeSuspended = false;
         newUserProfile.licenseFrontUrl = regData.user.licenseFrontUrl || licenseFrontUri || null;
         newUserProfile.licenseBackUrl = regData.user.licenseBackUrl || licenseBackUri || null;
+        newUserProfile.registrationUrl = regData.user.registrationUrl || registrationUri || null;
+        newUserProfile.insuranceUrl = regData.user.insuranceUrl || insuranceUri || null;
         newUserProfile.selfieUrl = regData.user.selfieUrl || selfieUri || null;
         newUserProfile.vehiclePhotoUrl = regData.user.vehiclePhotoUrl || vehiclePhotoUri || null;
         newUserProfile.cnicFrontUrl = regData.user.cnicFrontUrl || cnicFrontUri || null;
@@ -549,6 +558,14 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
         AsyncStorage.setItem('@shedrive_last_active_role', regData.user.role).catch(() => {});
         AsyncStorage.setItem('@shedrive_remember_me', formattedEmail).catch(() => {});
         AsyncStorage.setItem('@shedrive_remember_me_flag', 'true').catch(() => {});
+        
+        if (regData.firebaseCustomToken) {
+          try {
+            await signInWithCustomToken(auth, regData.firebaseCustomToken);
+          } catch (fbErr) {
+            console.warn('Firebase custom token sign in failed:', fbErr);
+          }
+        }
       }
 
       // Successfully registered & verified — log user in
@@ -1018,6 +1035,28 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                   >
                     <Text style={styles.uploadButtonText}>
                       {licenseBackUri ? '✓ License Back' : 'License Back'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.label, { marginTop: 12 }]}>Vehicle Documents</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[styles.uploadButton, { flex: 1, marginRight: 8 }]}
+                    onPress={() => handlePickDocument(setRegistrationUri, 'Vehicle Registration')}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.uploadButtonText}>
+                      {registrationUri ? '✅ Registration' : 'Registration *'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.uploadButton, { flex: 1 }]}
+                    onPress={() => handlePickDocument(setInsuranceUri, 'Vehicle Insurance')}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.uploadButtonText}>
+                      {insuranceUri ? '✅ Insurance' : 'Insurance'}
                     </Text>
                   </TouchableOpacity>
                 </View>

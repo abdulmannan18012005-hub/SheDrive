@@ -39,4 +39,5 @@ if (serviceAccount && !admin.apps.length) {
 }
 
 export const fcm = admin.apps.length ? admin.messaging() : (null as any);
+export const adminAuth = admin.apps.length ? admin.auth() : (null as any);
 

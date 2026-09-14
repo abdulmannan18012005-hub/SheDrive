@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS drivers (
     selfie_url TEXT,
     cnic_front_url TEXT,
     cnic_back_url TEXT,
+    registration_url TEXT,
+    insurance_url TEXT,
     license_expiry BIGINT,
     registration_expiry BIGINT,
     insurance_expiry BIGINT,

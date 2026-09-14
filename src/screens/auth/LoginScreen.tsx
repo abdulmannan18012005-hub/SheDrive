@@ -21,7 +21,8 @@ import { useApp } from '../../contexts/AppContext';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import loginSecurity from '../../utils/loginSecurity';
 import sessionManager from '../../utils/sessionManager';
-
+import { auth } from '../../config/firebaseConfig';
+import { signInWithCustomToken } from 'firebase/auth';
 
 type LoginScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -255,6 +256,14 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
         dispatch({ type: 'SET_TOKEN', payload: data.token });
         AsyncStorage.setItem('@shedrive_auth_token', data.token).catch(() => {});
         AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(userProfile)).catch(() => {});
+        
+        if (data.firebaseCustomToken) {
+          try {
+            await signInWithCustomToken(auth, data.firebaseCustomToken);
+          } catch (fbErr) {
+            console.warn('Firebase custom token sign in failed:', fbErr);
+          }
+        }
       }
 
       dispatch({ type: 'SET_USER', payload: userProfile });

@@ -106,6 +106,9 @@ export default function NotificationCenterScreen(): React.JSX.Element {
   };
 
   const filteredNotifications = notifications.filter((n) => {
+    // Only show unread notifications based on user request
+    if (n.is_read) return false;
+
     if (selectedCategory === 'all') return true;
     if (selectedCategory === 'promo' || selectedCategory === 'promotional') {
       return n.category === 'promo' || n.category === 'promotional';

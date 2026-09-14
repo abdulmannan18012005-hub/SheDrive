@@ -333,6 +333,20 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(approvedUser)).catch(() => {});
         }
 
+        if (user?.uid) {
+          const driverRef = doc(db, 'drivers', user.uid);
+          await setDoc(driverRef, {
+            driverId: user.uid,
+            isOnline: true,
+            isAvailable: true,
+            latitude: resolvedLat,
+            longitude: resolvedLng,
+            heading: 0,
+            vehicleInfo: { category: driverCategory },
+            lastUpdated: Date.now(),
+          }, { merge: true }).catch(() => {});
+        }
+
         setIsOnline(true);
       } else {
         // Go Offline

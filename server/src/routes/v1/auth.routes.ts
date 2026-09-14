@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { query, withTransaction } from '../../config/db';
 import { generateToken, hashPassword, comparePassword, authenticateToken } from '../../middleware/auth';
 import { supabase } from '../../config/supabase';
+import { adminAuth } from '../../config/firebaseAdmin';
 import { sendEmail } from '../../services/smtp';
 import { buildPasswordResetEmailHtml, buildRegistrationOtpEmailHtml } from '../../utils/emailTemplates';
 import { loginRateLimiter, otpRateLimiter, passwordResetRateLimiter } from '../../middleware/rateLimiter';

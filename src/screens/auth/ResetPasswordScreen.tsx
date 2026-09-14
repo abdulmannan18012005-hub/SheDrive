@@ -17,6 +17,8 @@ import Colors from '../../constants/Colors';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { useApp } from '../../contexts/AppContext';
 import PasswordStrengthIndicator from '../../components/PasswordStrengthIndicator';
+import { auth } from '../../config/firebaseConfig';
+import { signInWithCustomToken } from 'firebase/auth';
 
 type ResetPasswordNavigationProp = StackNavigationProp<AuthStackParamList, 'ResetPassword'>;
 
@@ -101,19 +103,33 @@ export default function ResetPasswordScreen({ navigation, route }: Props): React
 
       if (autoSignIn && data.user && data.token) {
         // Automatically sign user in and navigate to their dashboard
-        dispatch({
-          type: 'SET_USER',
-          payload: {
-            uid: data.user.id,
-            phone: data.user.phone,
-            email: data.user.email,
-            name: data.user.name,
-            role: data.user.role,
-            createdAt: Date.now(),
-          },
-        });
+        const userPayload = {
+          uid: data.user.id,
+          phone: data.user.phone,
+          email: data.user.email,
+          name: data.user.name,
+          role: data.user.role,
+          createdAt: Date.now(),
+        };
+        
+        dispatch({ type: 'SET_TOKEN', payload: data.token });
+        dispatch({ type: 'SET_USER', payload: userPayload });
         dispatch({ type: 'SET_ROLE', payload: data.user.role });
         dispatch({ type: 'SET_AUTHENTICATED', payload: true });
+        
+        import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
+          AsyncStorage.setItem('@shedrive_auth_token', data.token).catch(() => {});
+          AsyncStorage.setItem('@shedrive_user_profile', JSON.stringify(userPayload)).catch(() => {});
+          AsyncStorage.setItem('@shedrive_last_active_role', data.user.role).catch(() => {});
+        });
+
+        if (data.firebaseCustomToken) {
+          try {
+            await signInWithCustomToken(auth, data.firebaseCustomToken);
+          } catch (fbErr) {
+            console.warn('Firebase custom token sign in failed:', fbErr);
+          }
+        }
       } else {
         // Redirect to Login screen
         Alert.alert(

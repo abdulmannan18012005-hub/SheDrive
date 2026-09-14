@@ -42,7 +42,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
     // If driver, attach vehicle details & document expiries
     if (user.role === 'driver') {
       const driverRes = await query(
-        `SELECT driver_id, vehicle_category, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, vehicle_year, ac_option, is_verified, is_active, is_online, is_available, rating, total_rides, is_fee_suspended, license_front_url, license_back_url, selfie_url, vehicle_photo_url FROM drivers WHERE driver_id = $1`,
+        `SELECT driver_id, vehicle_category, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, vehicle_year, ac_option, is_verified, is_active, is_online, is_available, rating, total_rides, is_fee_suspended, license_front_url, license_back_url, registration_url, insurance_url, selfie_url, vehicle_photo_url FROM drivers WHERE driver_id = $1`,
         [userId]
       );
       if (driverRes.rows.length > 0) {
@@ -286,15 +286,16 @@ router.get('/notifications', authenticateToken, async (req: AuthRequest, res: Re
   try {
     const userId = req.user?.id;
 
-    // Auto-cleanup: remove read notifications older than 24 hours
-    try {
-      await query(
-        "DELETE FROM user_notifications WHERE user_id = $1 AND is_read = true AND created_at < NOW() - INTERVAL '24 hours'",
-        [userId]
-      );
-    } catch (cleanupErr) {
-      // Ignore cleanup errors so we still return notifications
-    }
+      // Auto-cleanup: remove read notifications older than 24 hours
+      try {
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        await query(
+          "DELETE FROM user_notifications WHERE user_id = $1 AND is_read = true AND created_at < $2",
+          [userId, oneDayAgo]
+        );
+      } catch (cleanupErr) {
+        // Ignore cleanup errors so we still return notifications
+      }
 
     const result = await query(
       'SELECT id, title, message, category, is_read, created_at FROM user_notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',

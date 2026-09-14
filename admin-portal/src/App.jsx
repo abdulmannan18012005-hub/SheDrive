@@ -729,6 +729,8 @@ export default function App() {
     const cnicBack = isValidImageUrl(driver.cnic_back_url || driver.cnicBackUrl) ? (driver.cnic_back_url || driver.cnicBackUrl) : null;
     const licFront = isValidImageUrl(driver.license_front_url) ? driver.license_front_url : null;
     const licBack = isValidImageUrl(driver.license_back_url) ? driver.license_back_url : null;
+    const registration = isValidImageUrl(driver.registration_url) ? driver.registration_url : null;
+    const insurance = isValidImageUrl(driver.insurance_url) ? driver.insurance_url : null;
     const selfie = isValidImageUrl(driver.selfie_url) ? driver.selfie_url : null;
     const vehiclePhoto = isValidImageUrl(driver.vehicle_photo_url) ? driver.vehicle_photo_url : null;
 
@@ -773,12 +775,20 @@ export default function App() {
             ${cnicBack ? `<img class="doc-img" src="${cnicBack}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
-            <div class="doc-title">Driving License Front</div>
+            <div class="doc-title">License Front</div>
             ${licFront ? `<img class="doc-img" src="${licFront}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
-            <div class="doc-title">Driving License Back</div>
+            <div class="doc-title">License Back</div>
             ${licBack ? `<img class="doc-img" src="${licBack}" />` : `<div class="no-img">Not Provided</div>`}
+          </div>
+          <div class="doc-card">
+            <div class="doc-title">Vehicle Registration</div>
+            ${registration ? `<img class="doc-img" src="${registration}" />` : `<div class="no-img">Not Provided</div>`}
+          </div>
+          <div class="doc-card">
+            <div class="doc-title">Insurance</div>
+            ${insurance ? `<img class="doc-img" src="${insurance}" />` : `<div class="no-img">Not Provided</div>`}
           </div>
           <div class="doc-card">
             <div class="doc-title">Driver Profile Photo</div>
@@ -3664,6 +3674,30 @@ export default function App() {
                     alt="License Back" 
                     style={{ ...styles.docImg, cursor: 'pointer' }}
                     onClick={() => setSelectedImage({ url: selectedDriverDocs.license_back_url, title: `License Back - ${selectedDriverDocs?.name || 'Driver'}` })}
+                  />
+                ) : <p style={styles.noDoc}>Not Uploaded</p>}
+              </div>
+
+              <div style={styles.docBox}>
+                <p style={styles.docLabel}>Vehicle Registration</p>
+                {isValidImageUrl(selectedDriverDocs?.registration_url) ? (
+                  <img 
+                    src={selectedDriverDocs.registration_url} 
+                    alt="Vehicle Registration" 
+                    style={{ ...styles.docImg, cursor: 'pointer' }}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.registration_url, title: `Vehicle Registration - ${selectedDriverDocs?.name || 'Driver'}` })}
+                  />
+                ) : <p style={styles.noDoc}>Not Uploaded</p>}
+              </div>
+
+              <div style={styles.docBox}>
+                <p style={styles.docLabel}>Insurance</p>
+                {isValidImageUrl(selectedDriverDocs?.insurance_url) ? (
+                  <img 
+                    src={selectedDriverDocs.insurance_url} 
+                    alt="Insurance" 
+                    style={{ ...styles.docImg, cursor: 'pointer' }}
+                    onClick={() => setSelectedImage({ url: selectedDriverDocs.insurance_url, title: `Insurance - ${selectedDriverDocs?.name || 'Driver'}` })}
                   />
                 ) : <p style={styles.noDoc}>Not Uploaded</p>}
               </div>

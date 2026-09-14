@@ -87,12 +87,13 @@ router.put('/online', authenticateToken, async (req: AuthRequest, res: Response)
     await query(
       `UPDATE drivers 
        SET is_online = $1, 
-           is_available = $1,
-           latitude = $2,
-           longitude = $3,
-           last_location_update = $4
-       WHERE driver_id = $5`,
+           is_available = $2,
+           latitude = $3,
+           longitude = $4,
+           last_location_update = $5
+       WHERE driver_id = $6`,
       [
+        Boolean(isOnline),
         Boolean(isOnline),
         latitude || null,
         longitude || null,
@@ -128,7 +129,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
     const result = await query(
       `SELECT u.id, u.name, u.phone, u.email, u.cnic, u.cnic_front_url, u.cnic_back_url, u.photo_url, u.date_of_birth, u.is_verified, u.is_blocked,
               d.vehicle_category, d.vehicle_make, d.vehicle_model, d.vehicle_plate, d.vehicle_color, d.vehicle_year, d.ac_option,
-              d.license_front_url, d.license_back_url, d.selfie_url, d.vehicle_photo_url,
+              d.license_front_url, d.license_back_url, d.registration_url, d.insurance_url, d.selfie_url, d.vehicle_photo_url,
               d.is_online, d.is_available, d.is_active, d.rating, d.total_rides
        FROM users u
        JOIN drivers d ON u.id = d.driver_id
@@ -148,6 +149,65 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
 });
 
 /**
+ * PUT /api/v1/driver/vehicle-info
+ * Body: { make, model, year, plate, color, acOption }
+ * Description: Update driver vehicle information
+ */
+router.put('/vehicle-info', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    if (role !== 'driver' || !userId) {
+      return res.status(403).json({ error: 'Only drivers can update vehicle info' });
+    }
+
+    const { make, model, year, plate, color, acOption } = req.body;
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (make) {
+      params.push(make.trim());
+      updates.push(`vehicle_make = $${params.length}`);
+    }
+    if (model) {
+      params.push(model.trim());
+      updates.push(`vehicle_model = $${params.length}`);
+    }
+    if (year) {
+      params.push(year.trim());
+      updates.push(`vehicle_year = $${params.length}`);
+    }
+    if (plate) {
+      params.push(plate.trim());
+      updates.push(`vehicle_plate = $${params.length}`);
+    }
+    if (color) {
+      params.push(color.trim());
+      updates.push(`vehicle_color = $${params.length}`);
+    }
+    if (acOption) {
+      params.push(acOption);
+      updates.push(`ac_option = $${params.length}`);
+    }
+
+    if (updates.length > 0) {
+      params.push(userId);
+      await query(`UPDATE drivers SET ${updates.join(', ')} WHERE driver_id = $${params.length}`, params);
+      
+      // Update verification status in users table if vehicle details change to trigger re-review
+      await query(`UPDATE users SET verification_status = 'pending', is_verified = false WHERE id = $1`, [userId]);
+    }
+
+    res.status(200).json({ success: true, message: 'Vehicle info updated successfully' });
+  } catch (error) {
+    console.error('Update vehicle info error:', error);
+    res.status(500).json({ error: 'Failed to update vehicle info' });
+  }
+});
+
+/**
  * PUT /api/v1/driver/documents
  * Body: { cnicFrontUrl?, cnicBackUrl?, licenseFrontUrl?, licenseBackUrl?, selfieUrl?, vehiclePhotoUrl?, photoURL? }
  * Description: Update driver verification document URLs and profile picture in database
@@ -161,9 +221,9 @@ router.put('/documents', authenticateToken, async (req: AuthRequest, res: Respon
       return res.status(403).json({ error: 'Only drivers can update documents' });
     }
 
-    const { cnicFrontUrl, cnicBackUrl, licenseFrontUrl, licenseBackUrl, selfieUrl, vehiclePhotoUrl, acOption, photoURL } = req.body;
+    const { cnicFrontUrl, cnicBackUrl, licenseFrontUrl, licenseBackUrl, registrationUrl, insuranceUrl, selfieUrl, vehiclePhotoUrl, acOption, photoURL } = req.body;
 
-    const isDocUpdate = Boolean(cnicFrontUrl || cnicBackUrl || licenseFrontUrl || licenseBackUrl || vehiclePhotoUrl);
+    const isDocUpdate = Boolean(cnicFrontUrl || cnicBackUrl || licenseFrontUrl || licenseBackUrl || vehiclePhotoUrl || registrationUrl || insuranceUrl);
 
     if (cnicFrontUrl || cnicBackUrl || photoURL || isDocUpdate) {
       const uParams: any[] = [];
@@ -191,7 +251,7 @@ router.put('/documents', authenticateToken, async (req: AuthRequest, res: Respon
       await query(`UPDATE users SET ${uUpdates.join(', ')} WHERE id = $${uParams.length}`, uParams);
     }
 
-    if (licenseFrontUrl || licenseBackUrl || selfieUrl || vehiclePhotoUrl || acOption) {
+    if (licenseFrontUrl || licenseBackUrl || registrationUrl || insuranceUrl || selfieUrl || vehiclePhotoUrl || acOption) {
       const dParams: any[] = [];
       const dUpdates: string[] = [];
       if (licenseFrontUrl) {
@@ -201,6 +261,14 @@ router.put('/documents', authenticateToken, async (req: AuthRequest, res: Respon
       if (licenseBackUrl) {
         dParams.push(licenseBackUrl);
         dUpdates.push(`license_back_url = $${dParams.length}`);
+      }
+      if (registrationUrl) {
+        dParams.push(registrationUrl);
+        dUpdates.push(`registration_url = $${dParams.length}`);
+      }
+      if (insuranceUrl) {
+        dParams.push(insuranceUrl);
+        dUpdates.push(`insurance_url = $${dParams.length}`);
       }
       if (selfieUrl) {
         dParams.push(selfieUrl);

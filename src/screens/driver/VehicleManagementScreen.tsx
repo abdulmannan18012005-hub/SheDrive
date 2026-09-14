@@ -193,9 +193,13 @@ export default function VehicleManagementScreen(): React.JSX.Element {
           const uploadData = await uploadRes.json();
           if (uploadRes.ok && uploadData.url) {
             finalUrl = uploadData.url;
+          } else {
+            throw new Error(uploadData.error || 'Upload failed');
           }
         } catch (uploadErr) {
-          console.warn('Document upload warning (using fallback URI):', uploadErr);
+          console.warn('Document upload warning:', uploadErr);
+          Alert.alert('Upload Error', 'Failed to upload document. Please try again.');
+          return;
         }
 
         switch (type) {
