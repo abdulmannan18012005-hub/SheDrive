@@ -446,8 +446,17 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     setCounterModalVisible(true);
   };
 
-  const handleSendCounterOffer = async () => {
+    const handleSendCounterOffer = async () => {
     if (!user || !selectedRide) return;
+
+    // Restrict to single counter-offer
+    const existingOffers = Array.isArray(selectedRide.offers) ? selectedRide.offers : [];
+    const hasAlreadyOffered = existingOffers.some(o => o.senderId === user.uid && o.role === 'driver');
+    if (hasAlreadyOffered) {
+      Alert.alert('Limit Reached', 'You have already submitted a counter-offer for this ride.');
+      setCounterModalVisible(false);
+      return;
+    }
 
     const amountNum = parseInt(counterAmount, 10);
     if (isNaN(amountNum) || amountNum <= (selectedRide.currentFare || 0)) {
@@ -466,8 +475,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         amount: amountNum,
         timestamp: Date.now(),
       };
-
-      const existingOffers = Array.isArray(selectedRide.offers) ? selectedRide.offers : [];
 
       await updateDoc(rideRef, {
         status: 'negotiating',

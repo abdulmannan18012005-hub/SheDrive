@@ -35,6 +35,68 @@ interface Props {
   route: RideTrackingRouteProp;
 }
 
+const DriverOfferCard = ({ offer, idx, handleAcceptBid, handleDeclineBid }: any) => {
+  const [timeLeft, setTimeLeft] = React.useState(10);
+  const driverIdToAccept = offer.userId || offer.senderId;
+  const isExpired = timeLeft <= 0;
+
+  React.useEffect(() => {
+    // If there's no timestamp, default to 10s.
+    const age = Math.floor((Date.now() - (offer.timestamp || Date.now())) / 1000);
+    let initialLeft = 10 - age;
+    if (initialLeft < 0) initialLeft = 0;
+    setTimeLeft(initialLeft);
+
+    if (initialLeft > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [offer.timestamp]);
+
+  if (isExpired) return null;
+
+  return (
+    <View style={{ padding: 12, backgroundColor: Colors.light.background, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.light.border }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.text }}>
+          {offer.userName || 'Verified Driver'}
+        </Text>
+        <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.light.primary }}>
+          Rs. {offer.amount}
+        </Text>
+      </View>
+
+      {/* Countdown Bar */}
+      <View style={{ height: 4, backgroundColor: '#F1F5F9', borderRadius: 2, marginBottom: 12, overflow: 'hidden' }}>
+        <View style={{ height: '100%', width: `${(timeLeft / 10) * 100}%`, backgroundColor: Colors.light.primary }} />
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 10, backgroundColor: Colors.light.primary, borderRadius: 10, alignItems: 'center' }}
+          onPress={() => handleAcceptBid(idx, driverIdToAccept, offer.amount)}
+        >
+          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Accept Rs. {offer.amount}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: Colors.light.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center' }}
+          onPress={() => handleDeclineBid(idx)}
+        >
+          <Text style={{ color: Colors.light.textSecondary, fontWeight: '600', fontSize: 13 }}>Decline</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
 export default function RideTrackingScreen({ navigation, route }: Props): React.JSX.Element {
   const { rideId } = route.params;
   const { state, dispatch } = useApp();
@@ -450,35 +512,15 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
             <Text style={{ fontSize: 14, fontWeight: '800', color: Colors.light.primary, marginBottom: 12 }}>
               💬 Driver Fare Counter-Offers ({driverOffers.length})
             </Text>
-            {driverOffers.map((offer: FareOffer, idx: number) => {
-              const driverIdToAccept = offer.userId || offer.senderId;
-              return (
-                <View key={idx} style={{ padding: 12, backgroundColor: Colors.light.background, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.light.border }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.text }}>
-                      {offer.userName || 'Verified Driver'}
-                    </Text>
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.light.primary }}>
-                      Rs. {offer.amount}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <TouchableOpacity
-                      style={{ flex: 1, paddingVertical: 10, backgroundColor: Colors.light.primary, borderRadius: 10, alignItems: 'center' }}
-                      onPress={() => handleAcceptBid(idx, driverIdToAccept, offer.amount)}
-                    >
-                      <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>Accept Rs. {offer.amount}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: Colors.light.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center' }}
-                      onPress={() => handleDeclineBid(idx)}
-                    >
-                      <Text style={{ color: Colors.light.textSecondary, fontWeight: '600', fontSize: 13 }}>Decline</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
+            {driverOffers.map((offer: FareOffer, idx: number) => (
+              <DriverOfferCard
+                key={idx}
+                offer={offer}
+                idx={idx}
+                handleAcceptBid={handleAcceptBid}
+                handleDeclineBid={handleDeclineBid}
+              />
+            ))}
           </View>
         )}
 

@@ -56,6 +56,12 @@ export default function SettingsScreen(): React.JSX.Element {
 
   const settingsItems: SettingsItem[] = [
     {
+      icon: '💬',
+      title: 'Default Chat Messages',
+      subtitle: 'Customize pre-written quick replies',
+      onPress: () => navigation.navigate('DefaultChatMessages'),
+    },
+    {
       icon: '🔔',
       title: 'Notification Settings',
       subtitle: 'Manage your notification preferences',

@@ -18,6 +18,7 @@ import DeleteAccountScreen from '../screens/shared/DeleteAccountScreen';
 import VehicleManagementScreen from '../screens/driver/VehicleManagementScreen';
 import LanguageSelectionScreen from '../screens/shared/LanguageSelectionScreen';
 import HelpSupportScreen from '../screens/shared/HelpSupportScreen';
+import DefaultChatMessagesScreen from '../screens/shared/DefaultChatMessagesScreen';
 import AIChatbotScreen from '../screens/shared/AIChatbotScreen';
 import CallingScreen from '../screens/shared/CallingScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
@@ -121,6 +122,11 @@ export default function DriverStack(): React.JSX.Element {
         name="HelpSupport"
         component={HelpSupportScreen}
         options={{ title: 'Help & Support' }}
+      />
+      <Stack.Screen
+        name="DefaultChatMessages"
+        component={DefaultChatMessagesScreen}
+        options={{ title: 'Default Chat Messages' }}
       />
       <Stack.Screen
         name="AIChatbot"
