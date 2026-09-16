@@ -541,7 +541,15 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
             <Text style={{ fontSize: 13, fontWeight: '800', color: Colors.light.textSecondary, marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase' }}>
               🚗 Assigned Driver Partner
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (ride.driverId) {
+                  navigation.navigate('PublicProfile', { userId: ride.driverId });
+                }
+              }}
+            >
               <View style={{ width: 60, height: 60, borderRadius: 30, overflow: 'hidden', backgroundColor: Colors.light.primaryGhost, justifyContent: 'center', alignItems: 'center' }}>
                 {driver?.photoURL || driver?.selfieUrl ? (
                   <Image source={{ uri: driver?.photoURL || driver?.selfieUrl }} style={{ width: 60, height: 60, borderRadius: 30 }} />
@@ -564,7 +572,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                   <Text style={{ fontSize: 12, fontWeight: '800', color: Colors.light.text }}>{driver.vehicleInfo.plate}</Text>
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* Quick Action Bar: Call, Chat, Share Ride */}
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>

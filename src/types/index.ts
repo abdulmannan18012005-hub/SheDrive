@@ -282,6 +282,7 @@ export type PassengerStackParamList = {
   LanguageSelection: undefined;
   HelpSupport: undefined;
   DefaultChatMessages: undefined;
+  PublicProfile: { userId: string };
   AIChatbot: undefined;
   Calling: { name?: string; phone?: string; role?: string };
   ContactUs: undefined;
@@ -322,6 +323,7 @@ export type DriverStackParamList = {
   LanguageSelection: undefined;
   HelpSupport: undefined;
   DefaultChatMessages: undefined;
+  PublicProfile: { userId: string };
   AIChatbot: undefined;
   Calling: { name?: string; phone?: string; role?: string };
   ContactUs: undefined;

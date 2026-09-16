@@ -535,4 +535,59 @@ const handleDeleteAccount = async (req: AuthRequest, res: Response) => {
 router.delete('/delete-account', authenticateToken, handleDeleteAccount);
 router.post('/delete-account', authenticateToken, handleDeleteAccount);
 
+/**
+ * GET /api/v1/user/public-profile/:id
+ * Description: Fetches public profile info of a driver or passenger for mutual visibility.
+ */
+router.get('/public-profile/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: 'User ID required' });
+
+    const userRes = await query(
+      'SELECT id, name, role, created_at, profile_image_url FROM users WHERE id = $1',
+      [id]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userRes.rows[0];
+    let publicProfile: any = {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      memberSince: user.created_at,
+      avatar: user.profile_image_url
+    };
+
+    if (user.role === 'driver') {
+      const driverRes = await query(
+        'SELECT vehicle_category, vehicle_make, vehicle_model, vehicle_color, vehicle_plate, vehicle_year, rating, total_rides FROM drivers WHERE driver_id = $1',
+        [id]
+      );
+      if (driverRes.rows.length > 0) {
+        const d = driverRes.rows[0];
+        publicProfile = {
+          ...publicProfile,
+          vehicleCategory: d.vehicle_category,
+          vehicleMake: d.vehicle_make,
+          vehicleModel: d.vehicle_model,
+          vehicleColor: d.vehicle_color,
+          vehiclePlate: d.vehicle_plate,
+          vehicleYear: d.vehicle_year,
+          rating: parseFloat(d.rating || '5.0'),
+          totalRides: parseInt(d.total_rides || '0', 10)
+        };
+      }
+    }
+
+    res.status(200).json({ profile: publicProfile });
+  } catch (error) {
+    console.error('Fetch public profile error:', error);
+    res.status(500).json({ error: 'Failed to fetch public profile' });
+  }
+});
+
 export default router;

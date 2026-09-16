@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from 'express';
+﻿import { Router, Request, Response, NextFunction } from 'express';
 import { query } from '../../config/db';
 import { generateToken, comparePassword, hashPassword, authenticateToken } from '../../middleware/auth';
 import { sendPushNotification } from '../../services/notificationService';
@@ -131,7 +131,7 @@ router.get('/drivers/pending', authenticateToken, requireAdmin, async (_req: Req
     const result = await query(
       `SELECT u.id, u.name, u.phone, u.email, u.cnic, u.cnic_front_url, u.cnic_back_url, u.date_of_birth, u.verification_status,
               d.vehicle_category, d.vehicle_make, d.vehicle_model, d.vehicle_plate, d.vehicle_color, d.vehicle_year,
-              d.license_front_url, d.license_back_url, d.selfie_url, d.vehicle_photo_url, u.is_verified, d.is_active
+              d.license_front_url, d.license_back_url, d.registration_url, d.insurance_url, d.selfie_url, d.vehicle_photo_url, u.is_verified, d.is_active
        FROM users u
        JOIN drivers d ON u.id = d.driver_id
        WHERE u.verification_status = 'pending'
@@ -164,7 +164,7 @@ router.put('/drivers/:id/verify', authenticateToken, requireAdmin, async (req: R
       );
       await query('UPDATE drivers SET is_active = true, is_available = true WHERE driver_id = $1', [id]);
 
-      const approvalTitle = '🎉 Account Approved!';
+      const approvalTitle = 'ðŸŽ‰ Account Approved!';
       const approvalBody = 'Welcome to SheDrive! Your driver documents have been approved. You can now go online.';
 
       // Push notification to driver (non-blocking)
@@ -384,7 +384,7 @@ router.get('/drivers', authenticateToken, requireAdmin, async (req: Request, res
     let queryStr = `
       SELECT u.id, u.name, u.phone, u.email, u.cnic, u.cnic_front_url, u.cnic_back_url, u.is_verified, u.is_blocked, u.date_of_birth, u.verification_status,
               d.vehicle_category, d.vehicle_make, d.vehicle_model, d.vehicle_plate, d.vehicle_color, d.vehicle_year,
-              d.license_front_url, d.license_back_url, d.selfie_url, d.vehicle_photo_url, d.rating, d.total_rides, d.is_online, d.is_active
+              d.license_front_url, d.license_back_url, d.registration_url, d.insurance_url, d.selfie_url, d.vehicle_photo_url, d.rating, d.total_rides, d.is_online, d.is_active
        FROM users u
        JOIN drivers d ON u.id = d.driver_id
        WHERE 1=1`;
@@ -1262,8 +1262,8 @@ router.post('/users/:id/warn', authenticateToken, requireAdmin, async (req: Requ
     const user = userRes.rows[0];
     const now = Date.now();
     const warningTitle = warningType === 'cancellation_rate'
-      ? '⚠️ SheDrive Notice: Excessive Cancellation Rate'
-      : (warningType === 'behavior' ? '⚠️ SheDrive Community Guidelines Notice' : '⚠️ SheDrive Official Policy Notice');
+      ? 'âš ï¸ SheDrive Notice: Excessive Cancellation Rate'
+      : (warningType === 'behavior' ? 'âš ï¸ SheDrive Community Guidelines Notice' : 'âš ï¸ SheDrive Official Policy Notice');
 
     const notifId = `notif_warn_${now}_${Math.random().toString(36).substring(2, 6)}`;
 
@@ -1305,4 +1305,5 @@ router.post('/users/:id/warn', authenticateToken, requireAdmin, async (req: Requ
 });
 
 export default router;
+
 

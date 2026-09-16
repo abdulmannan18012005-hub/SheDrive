@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -316,16 +316,16 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
   const getMapMarkers = (): MapMarker[] => {
     if (!ride) return [];
     const markers: MapMarker[] = [
-      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '📍', title: 'Pickup point', isCustomer: true },
+      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: 'ðŸ“', title: 'Pickup point', isCustomer: true },
       ...(ride.stops || []).map((s, idx) => ({
         id: `stop_${idx}`,
         lat: s.latitude,
         lng: s.longitude,
-        emoji: s.completed ? '✅' : '🟡',
+        emoji: s.completed ? 'âœ…' : 'ðŸŸ¡',
         title: `Stop #${idx + 1}: ${s.label} (${s.completed ? 'Completed' : 'Pending'})`,
         isCustomer: false,
       })),
-      { id: 'destination', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🏁', title: 'Dropoff point', isDestination: true },
+      { id: 'destination', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: 'ðŸ', title: 'Dropoff point', isDestination: true },
     ];
 
     if (driverCoords) {
@@ -333,7 +333,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         id: 'driver',
         lat: driverCoords.latitude,
         lng: driverCoords.longitude,
-        emoji: '🚗',
+        emoji: 'ðŸš—',
         title: 'My Position',
         isDriver: true,
       });
@@ -389,9 +389,9 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         {/* Status Tracker */}
         <View style={styles.statusBanner}>
           <Text style={styles.statusLabel}>
-            {ride.status === 'accepted' && '🚗 Driving to passenger pickup point'}
-            {ride.status === 'arrived' && '📍 Waiting for passenger to enter vehicle'}
-            {ride.status === 'enroute' && '🌟 Driving to dropoff destination'}
+            {ride.status === 'accepted' && 'ðŸš— Driving to passenger pickup point'}
+            {ride.status === 'arrived' && 'ðŸ“ Waiting for passenger to enter vehicle'}
+            {ride.status === 'enroute' && 'ðŸŒŸ Driving to dropoff destination'}
           </Text>
         </View>
 
@@ -400,27 +400,27 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
           <View style={styles.passengerRow}>
             <View style={styles.passengerMeta}>
               <Text style={styles.passengerName}>Passenger: {ride.passengerName}</Text>
-              <Text style={styles.routeText} numberOfLines={1}>🟢 {ride.pickup.label}</Text>
+              <Text style={styles.routeText} numberOfLines={1}>ðŸŸ¢ {ride.pickup.label}</Text>
               
               {/* Intermediate Stops Display */}
               {ride.stops && ride.stops.length > 0 && ride.stops.map((s, idx) => (
                 <Text key={s.id || `stop-${idx}`} style={[styles.routeText, { color: s.completed ? '#10B981' : '#F59E0B' }]} numberOfLines={1}>
-                  {s.completed ? '✅' : '🟡'} Stop #{idx + 1}: {s.label}
+                  {s.completed ? 'âœ…' : 'ðŸŸ¡'} Stop #{idx + 1}: {s.label}
                 </Text>
               ))}
 
-              <Text style={styles.routeText} numberOfLines={1}>🔴 {ride.dropoff.label}</Text>
+              <Text style={styles.routeText} numberOfLines={1}>ðŸ”´ {ride.dropoff.label}</Text>
             </View>
             <View style={styles.actionButtonsRow}>
               <TouchableOpacity style={styles.callButton} onPress={handleCallPassenger}>
-                <Text style={styles.callIcon}>📞</Text>
+                <Text style={styles.callIcon}>ðŸ“ž</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.chatButton} onPress={() => navigation.navigate('Chat', {
                 rideId: ride.rideId,
                 otherUserName: ride.passengerName || 'Passenger',
                 otherUserRole: 'passenger',
               })}>
-                <Text style={styles.chatIcon}>💬</Text>
+                <Text style={styles.chatIcon}>ðŸ’¬</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -429,7 +429,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
             <View>
               <Text style={styles.fareLabel}>Trip Fare</Text>
               <Text style={{ fontSize: 11, color: Colors.light.textSecondary }}>
-                Method: {ride.paymentMethod === 'jazzcash' ? '💳 JazzCash' : ride.paymentMethod === 'easypaisa' ? '💳 Easypaisa' : '💵 Cash'}
+                Method: {ride.paymentMethod === 'jazzcash' ? 'ðŸ’³ JazzCash' : ride.paymentMethod === 'easypaisa' ? 'ðŸ’³ Easypaisa' : 'ðŸ’µ Cash'}
               </Text>
             </View>
             <Text style={styles.fareValue}>{formatCurrency(ride.currentFare)}</Text>
@@ -446,10 +446,10 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
             >
               <Text style={styles.navButtonText}>
                 {ride.status === 'accepted' 
-                  ? '🗺️ Navigate to Pickup' 
+                  ? 'ðŸ—ºï¸ Navigate to Pickup' 
                   : nextIncompleteStop 
-                    ? `🗺️ Navigate to Stop #${nextIncompleteStop.stopOrder}` 
-                    : '🗺️ Navigate to Destination'}
+                    ? `ðŸ—ºï¸ Navigate to Stop #${nextIncompleteStop.stopOrder}` 
+                    : 'ðŸ—ºï¸ Navigate to Destination'}
               </Text>
             </TouchableOpacity>
           )}
@@ -463,7 +463,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
               activeOpacity={0.8}
             >
               <Text style={styles.actionButtonText}>
-                ✅ Complete Stop #{nextIncompleteStop.stopOrder}: {nextIncompleteStop.label}
+                âœ… Complete Stop #{nextIncompleteStop.stopOrder}: {nextIncompleteStop.label}
               </Text>
             </TouchableOpacity>
           )}
@@ -500,13 +500,13 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
               }
             }}
           >
-            <Text style={styles.sosText}>🚨 EMERGENCY SOS</Text>
+            <Text style={styles.sosText}>ðŸš¨ EMERGENCY SOS</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.directCallBtn}
             onPress={() => Linking.openURL('tel:15').catch(() => Alert.alert('Call Failed', 'Unable to open phone dialer.'))}
           >
-            <Text style={styles.directCallBtnText}>📞 Call 15 (Emergency)</Text>
+            <Text style={styles.directCallBtnText}>ðŸ“ž Call 15 (Emergency)</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -533,7 +533,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
                   onPress={() => setRatingValue(starVal)}
                 >
                   <Text style={[styles.starIcon, rating >= starVal ? styles.starIconActive : null]}>
-                    ★
+                    â˜…
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -819,3 +819,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+

@@ -21,6 +21,7 @@ import DeleteAccountScreen from '../screens/shared/DeleteAccountScreen';
 import LanguageSelectionScreen from '../screens/shared/LanguageSelectionScreen';
 import HelpSupportScreen from '../screens/shared/HelpSupportScreen';
 import DefaultChatMessagesScreen from '../screens/shared/DefaultChatMessagesScreen';
+import PublicProfileScreen from '../screens/shared/PublicProfileScreen';
 import AIChatbotScreen from '../screens/shared/AIChatbotScreen';
 import CallingScreen from '../screens/shared/CallingScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
@@ -136,6 +137,11 @@ export default function PassengerStack(): React.JSX.Element {
         name="DefaultChatMessages"
         component={DefaultChatMessagesScreen}
         options={{ title: 'Default Chat Messages' }}
+      />
+      <Stack.Screen
+        name="PublicProfile"
+        component={PublicProfileScreen}
+        options={{ title: 'User Profile' }}
       />
       <Stack.Screen
         name="AIChatbot"

@@ -77,7 +77,7 @@ router.post('/calculate-fare', authenticateToken, async (req: AuthRequest, res: 
       return res.status(400).json({ error: 'Invalid vehicle category' });
     }
 
-    // Calculate fare: baseFare + (distance × perKmRate) + (duration × perMinuteRate)
+    // Calculate fare: baseFare + (distance Ã— perKmRate) + (duration Ã— perMinuteRate)
     const baseFare = parseFloat(category.baseFare) || 0;
     const perKmRate = parseFloat(category.perKmRate) || 0;
     const perMinuteRate = parseFloat(category.perMinuteRate) || 0;
@@ -580,7 +580,7 @@ router.post('/share', authenticateToken, async (req: AuthRequest, res: Response)
       return res.status(200).json({
         shareToken: existingShare.rows[0].share_token,
         expiresAt: existingShare.rows[0].expires_at,
-        shareUrl: `https://shedrive.com/track/${existingShare.rows[0].share_token}`,
+        shareUrl: `https://shedrive.onrender.com/track.html?token=${existingShare.rows[0].share_token}`,
       });
     }
 
@@ -717,7 +717,7 @@ router.post('/:id/chat-notify', authenticateToken, async (req: AuthRequest, res:
     // Send FCM notification to recipient
     const sent = await sendPushNotification({
       userId: recipientId,
-      title: '💬 New Chat Message',
+      title: 'ðŸ’¬ New Chat Message',
       body: 'You have a new message in your active ride chat.',
       data: {
         type: 'chat_message',
@@ -954,4 +954,5 @@ if (scheduledDispatchTimer.unref) {
 }
 
 export default router;
+
 

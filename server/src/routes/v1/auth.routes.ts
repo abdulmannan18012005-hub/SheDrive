@@ -251,6 +251,8 @@ router.post('/register', async (req: Request, res: Response) => {
       licenseBackUrl,
       selfieUrl,
       vehiclePhotoUrl,
+      registrationUrl,
+      insuranceUrl,
       cnicFrontUrl,
       cnicBackUrl,
       acOption,
