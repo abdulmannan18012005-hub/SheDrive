@@ -183,4 +183,64 @@ router.get('/feedback', authenticateToken, async (req: Request, res: Response) =
   }
 });
 
+/**
+ * POST /api/v1/support/ai-chat
+ * Description: Proxy to Gemini API for AI Customer Care
+ */
+router.post('/ai-chat', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array is required' });
+    }
+
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+      console.warn('GEMINI_API_KEY is not set in environment.');
+      return res.status(500).json({ error: 'AI Support is currently unavailable' });
+    }
+
+    const systemPrompt = `You are the SheDrive AI Customer Care Assistant. 
+SheDrive is Pakistan's exclusive female-only ride-hailing platform.
+Your tone should be professional, empathetic, and helpful.
+If asked about driver requirements: Female only, valid CNIC, driving license, and vehicle registration.
+If asked about safety: We offer a built-in SOS button, live ride sharing, and strictly verified female users.
+If asked about fares: Fares are determined by a bidding system between the passenger and driver.
+Do not promise refunds; advise them to submit a support ticket via the app.
+Be concise and clear in your responses.`;
+
+    const contents = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: 'Understood. How can I assist you today?' }] }
+    ];
+
+    for (const msg of messages) {
+      contents.push({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.text }]
+      });
+    }
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 250, temperature: 0.3 } })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error('Gemini API Error:', data);
+      return res.status(500).json({ error: 'Failed to generate response' });
+    }
+
+    const aiMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || 'I apologize, but I am unable to process your request at the moment.';
+    res.status(200).json({ text: aiMessage });
+
+  } catch (error) {
+    console.error('AI Chat Error:', error);
+    res.status(500).json({ error: 'Internal server error during AI chat' });
+  }
+});
+
 export default router;

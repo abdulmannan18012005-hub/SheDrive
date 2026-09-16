@@ -212,6 +212,13 @@ export default function HelpSupportScreen(): React.JSX.Element {
           If you couldn't find the answer to your question, please contact our support team. We're here to help you 24/7.
         </Text>
         <TouchableOpacity
+          style={[styles.contactButton, { backgroundColor: '#10B981', marginBottom: 16 }]}
+          onPress={() => (navigation as any).navigate('AIChatbot')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.contactButtonText}>Ask AI Assistant (24/7)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={styles.contactButton}
           onPress={handleContactSupport}
           activeOpacity={0.7}

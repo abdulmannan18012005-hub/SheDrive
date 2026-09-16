@@ -281,6 +281,8 @@ export type PassengerStackParamList = {
   DeleteAccount: undefined;
   LanguageSelection: undefined;
   HelpSupport: undefined;
+  AIChatbot: undefined;
+  Calling: { name?: string; phone?: string; role?: string };
   ContactUs: undefined;
   ReportProblem: undefined;
   Settings: undefined;
@@ -318,6 +320,8 @@ export type DriverStackParamList = {
   DeleteAccount: undefined;
   LanguageSelection: undefined;
   HelpSupport: undefined;
+  AIChatbot: undefined;
+  Calling: { name?: string; phone?: string; role?: string };
   ContactUs: undefined;
   ReportProblem: undefined;
   AboutUs: undefined;

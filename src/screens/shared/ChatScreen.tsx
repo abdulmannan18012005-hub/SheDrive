@@ -176,12 +176,18 @@ export default function ChatScreen({ navigation, route }: Props): React.JSX.Elem
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>←</Text>
+          <Text style={styles.backButtonText}>{'<'}</Text>
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>Chat with {otherUserName}</Text>
           <Text style={styles.headerSubtitle}>{otherUserRole === 'driver' ? 'Verified Female Driver' : 'Passenger'}</Text>
         </View>
+        <TouchableOpacity 
+          style={{ padding: 10, backgroundColor: Colors.light.primary, borderRadius: 20 }}
+          onPress={() => (navigation as any).navigate('Calling', { name: otherUserName, phone: '', role: otherUserRole })}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold' }}>Call</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Safety Notice Banner */}

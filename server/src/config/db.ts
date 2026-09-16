@@ -800,7 +800,7 @@ async function runSupabaseHttpsQuery(text: string, params: any[] = []) {
         }
       }
     } else if (lowerSql.includes('update user_notifications')) {
-      let builder = supabaseClient.from('user_notifications').update({ is_read: true });
+      let builder = supabaseClient.from('user_notifications').update({ is_read: true, read_at: Date.now() });
       if (lowerSql.includes('where id = $1 and user_id = $2') && params) {
         builder = builder.eq('id', params[0]).eq('user_id', params[1]);
       } else if (lowerSql.includes('where user_id = $1') && params) {

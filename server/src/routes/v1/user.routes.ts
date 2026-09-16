@@ -290,7 +290,7 @@ router.get('/notifications', authenticateToken, async (req: AuthRequest, res: Re
       try {
         const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
         await query(
-          "DELETE FROM user_notifications WHERE user_id = $1 AND is_read = true AND created_at < $2",
+          "DELETE FROM user_notifications WHERE user_id = $1 AND is_read = true AND read_at <= $2",
           [userId, oneDayAgo]
         );
       } catch (cleanupErr) {
