@@ -212,28 +212,7 @@ export default function FareBidScreen({ navigation, route }: Props): React.JSX.E
       return;
     }
 
-    // Check 10 KM driver proximity for selected vehicle category
-    try {
-      const nearby = await findMatchingDrivers(
-        { latitude: pickup.latitude, longitude: pickup.longitude },
-        selectedCategory.id,
-        10
-      );
-      if (nearby.length === 0) {
-        Alert.alert(
-          'High Demand Area',
-          `At this moment, our driver partners in the ${selectedCategory.name} category are slightly further than 10 km from your location. You may still post your request, and the nearest available drivers will be notified, or you can select a different vehicle category.`,
-          [
-            { text: 'Change Category', style: 'cancel' },
-            { text: 'Post Offer Anyway', onPress: handleConfirmBooking },
-          ]
-        );
-        return;
-      }
-    } catch (e) {
-      // Non-blocking fallback
-    }
-
+    // (Check removed to allow passenger to post global ride request without being blocked)
     setIsSummaryVisible(true);
   };
 

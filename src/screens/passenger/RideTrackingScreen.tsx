@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { doc, onSnapshot, updateDoc, getDoc, collection, addDoc } from 'firebase/firestore';
+import * as Location from 'expo-location';
 import { db } from '../../config/firebaseConfig';
 import { PassengerStackParamList, RideRequest, DriverProfile, FareOffer } from '../../types';
 import Colors from '../../constants/Colors';
@@ -41,37 +42,47 @@ const DriverOfferCard = ({ offer, idx, handleAcceptBid, handleDeclineBid }: any)
   const isExpired = timeLeft <= 0;
 
   React.useEffect(() => {
-    // If there's no timestamp, default to 10s.
-    const age = Math.floor((Date.now() - (offer.timestamp || Date.now())) / 1000);
-    let initialLeft = 10 - age;
-    if (initialLeft < 0) initialLeft = 0;
-    setTimeLeft(initialLeft);
-
-    if (initialLeft > 0) {
+    // Calculate remaining time from server-provided expiresAt
+    const targetTime = offer.expiresAt || ((offer.timestamp || Date.now()) + 10000);
+    const initialLeft = Math.ceil((targetTime - Date.now()) / 1000);
+    if (initialLeft <= 0) {
+      setTimeLeft(0);
+    } else {
+      setTimeLeft(initialLeft);
       const timer = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
+        const remaining = Math.ceil((targetTime - Date.now()) / 1000);
+        if (remaining <= 0) {
+          clearInterval(timer);
+          setTimeLeft(0);
+        } else {
+          setTimeLeft(remaining);
+        }
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [offer.timestamp]);
+  }, [offer.expiresAt, offer.timestamp]);
 
   if (isExpired) return null;
 
+  const vInfo = offer.vehicleInfo || {};
+  const vehicleText = vInfo.make ? `${vInfo.color || ''} ${vInfo.make} ${vInfo.model}`.trim() : 'Verified Vehicle';
+  const plateText = vInfo.plate || '';
+  const ratingText = offer.rating ? `â­ ${offer.rating.toFixed(1)}` : 'â­ 5.0';
+
   return (
     <View style={{ padding: 12, backgroundColor: Colors.light.background, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: Colors.light.border }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.text }}>
-          {offer.userName || 'Verified Driver'}
+          {offer.userName || 'Verified Driver'} <Text style={{ fontSize: 12, color: Colors.light.textSecondary, fontWeight: 'normal' }}>{ratingText}</Text>
         </Text>
         <Text style={{ fontSize: 16, fontWeight: '800', color: Colors.light.primary }}>
           Rs. {offer.amount}
         </Text>
+      </View>
+      
+      <View style={{ marginBottom: 12 }}>
+        <Text style={{ fontSize: 13, color: Colors.light.textSecondary }}>{vehicleText}</Text>
+        {plateText ? <Text style={{ fontSize: 12, color: Colors.light.textTertiary, marginTop: 2 }}>Plate: {plateText}</Text> : null}
       </View>
 
       {/* Countdown Bar */}
@@ -411,16 +422,16 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
   const getMapMarkers = (): MapMarker[] => {
     if (!ride) return [];
     const markers: MapMarker[] = [
-      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: '📍', title: 'Pickup', isCustomer: true },
+      { id: 'pickup', lat: ride.pickup.latitude, lng: ride.pickup.longitude, emoji: 'ðŸ“', title: 'Pickup', isCustomer: true },
       ...(ride.stops || []).map((s, idx) => ({
         id: `stop_${idx}`,
         lat: s.latitude,
         lng: s.longitude,
-        emoji: s.completed ? '✅' : '🟡',
+        emoji: s.completed ? 'âœ…' : 'ðŸŸ¡',
         title: `Stop #${idx + 1}: ${s.label} (${s.completed ? 'Completed' : 'Pending'})`,
         isCustomer: false,
       })),
-      { id: 'dropoff', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: '🏁', title: 'Destination', isDestination: true },
+      { id: 'dropoff', lat: ride.dropoff.latitude, lng: ride.dropoff.longitude, emoji: 'ðŸ', title: 'Destination', isDestination: true },
     ];
 
     // Show driver vehicle moving on the map if accepted/arrived/enroute
@@ -432,7 +443,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         id: 'driver',
         lat: dLat,
         lng: dLng,
-        emoji: '🚗',
+        emoji: 'ðŸš—',
         title: `${ride.driverName || driver?.name || 'Driver'} (${ride.status === 'accepted' ? 'Approaching' : 'On Trip'})`,
         isDriver: true,
       });
@@ -468,14 +479,14 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         {/* State Banner */}
         <View style={styles.statusBanner}>
           <Text style={styles.statusLabel}>
-            {ride.status === 'scheduled' && `🕒 Scheduled Ride: Departure at ${ride.scheduledFor ? new Date(ride.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'set time'}`}
-            {ride.status === 'pending' && `🔍 Searching for nearby verified drivers (${searchTimer}s)...`}
-            {ride.status === 'negotiating' && '💬 Negotiating fare...'}
-            {ride.status === 'accepted' && '🚗 Driver arriving in ~3-5 mins (navigating to pickup)...'}
-            {ride.status === 'arrived' && '📍 Driver has arrived! Share PIN to board.'}
-            {ride.status === 'boarded' && '🔑 Ride Verification PIN Confirmed!'}
-            {ride.status === 'started' && '🏎️ Ride Started! Driving to destination...'}
-            {ride.status === 'enroute' && '🌟 Ride in progress...'}
+            {ride.status === 'scheduled' && `ðŸ•’ Scheduled Ride: Departure at ${ride.scheduledFor ? new Date(ride.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'set time'}`}
+            {ride.status === 'pending' && `ðŸ” Searching for nearby verified drivers (${searchTimer}s)...`}
+            {ride.status === 'negotiating' && 'ðŸ’¬ Negotiating fare...'}
+            {ride.status === 'accepted' && 'ðŸš— Driver arriving in ~3-5 mins (navigating to pickup)...'}
+            {ride.status === 'arrived' && 'ðŸ“ Driver has arrived! Share PIN to board.'}
+            {ride.status === 'boarded' && 'ðŸ”‘ Ride Verification PIN Confirmed!'}
+            {ride.status === 'started' && 'ðŸŽï¸ Ride Started! Driving to destination...'}
+            {ride.status === 'enroute' && 'ðŸŒŸ Ride in progress...'}
           </Text>
         </View>
 
@@ -483,23 +494,23 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         {ride.stops && ride.stops.length > 0 && (
           <View style={{ marginHorizontal: 24, padding: 14, backgroundColor: Colors.light.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: '800', color: Colors.light.textSecondary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
-              🗺️ Multi-Stop Route Progress
+              ðŸ—ºï¸ Multi-Stop Route Progress
             </Text>
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Text style={{ fontSize: 14 }}>🟢</Text>
+                <Text style={{ fontSize: 14 }}>ðŸŸ¢</Text>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.light.text, flex: 1 }} numberOfLines={1}>Pickup: {ride.pickup.label}</Text>
               </View>
               {ride.stops.map((s, idx) => (
                 <View key={s.id || `stop-${idx}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontSize: 14 }}>{s.completed ? '✅' : '🟡'}</Text>
+                  <Text style={{ fontSize: 14 }}>{s.completed ? 'âœ…' : 'ðŸŸ¡'}</Text>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: s.completed ? '#10B981' : Colors.light.text, flex: 1 }} numberOfLines={1}>
                     Stop #{idx + 1}: {s.label} ({s.completed ? 'Completed' : 'Next'})
                   </Text>
                 </View>
               ))}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Text style={{ fontSize: 14 }}>🔴</Text>
+                <Text style={{ fontSize: 14 }}>ðŸ”´</Text>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: Colors.light.text, flex: 1 }} numberOfLines={1}>Destination: {ride.dropoff.label}</Text>
               </View>
             </View>
@@ -510,7 +521,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         {driverOffers.length > 0 && (ride.status === 'pending' || ride.status === 'negotiating') && (
           <View style={{ marginHorizontal: 24, padding: 16, backgroundColor: Colors.light.surface, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.light.primary, marginBottom: 20 }}>
             <Text style={{ fontSize: 14, fontWeight: '800', color: Colors.light.primary, marginBottom: 12 }}>
-              💬 Driver Fare Counter-Offers ({driverOffers.length})
+              ðŸ’¬ Driver Fare Counter-Offers ({driverOffers.length})
             </Text>
             {driverOffers.map((offer: FareOffer, idx: number) => (
               <DriverOfferCard
@@ -539,7 +550,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         {ride.driverId && (
           <View style={{ marginHorizontal: 24, padding: 16, backgroundColor: Colors.light.surface, borderRadius: 20, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 20, elevation: 2 }}>
             <Text style={{ fontSize: 13, fontWeight: '800', color: Colors.light.textSecondary, marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-              🚗 Assigned Driver Partner
+              ðŸš— Assigned Driver Partner
             </Text>
             <TouchableOpacity 
               style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
@@ -554,7 +565,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                 {driver?.photoURL || driver?.selfieUrl ? (
                   <Image source={{ uri: driver?.photoURL || driver?.selfieUrl }} style={{ width: 60, height: 60, borderRadius: 30 }} />
                 ) : (
-                  <Text style={{ fontSize: 24 }}>👩</Text>
+                  <Text style={{ fontSize: 24 }}>ðŸ‘©</Text>
                 )}
               </View>
               <View style={{ flex: 1 }}>
@@ -563,8 +574,8 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                   {driver?.vehicleInfo ? `${driver.vehicleInfo.make} ${driver.vehicleInfo.model} (${driver.vehicleInfo.color})` : (ride.driverVehicle || 'Vehicle Verified')}
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: Colors.light.primary }}>⭐ {driver?.rating?.toFixed(1) || '5.0'}</Text>
-                  <Text style={{ fontSize: 12, color: Colors.light.textSecondary }}>• {driver?.totalRides || 1} completed trips</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: Colors.light.primary }}>â­ {driver?.rating?.toFixed(1) || '5.0'}</Text>
+                  <Text style={{ fontSize: 12, color: Colors.light.textSecondary }}>â€¢ {driver?.totalRides || 1} completed trips</Text>
                 </View>
               </View>
               {driver?.vehicleInfo?.plate && (
@@ -587,7 +598,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                   }
                 }}
               >
-                <Text style={{ fontSize: 15 }}>📞</Text>
+                <Text style={{ fontSize: 15 }}>ðŸ“ž</Text>
                 <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 13 }}>Call Driver</Text>
               </TouchableOpacity>
 
@@ -599,7 +610,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                   otherUserRole: 'driver',
                 })}
               >
-                <Text style={{ fontSize: 15 }}>💬</Text>
+                <Text style={{ fontSize: 15 }}>ðŸ’¬</Text>
                 <Text style={{ color: Colors.light.primary, fontWeight: '800', fontSize: 13 }}>Chat</Text>
               </TouchableOpacity>
 
@@ -621,7 +632,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                       return;
                     }
                     Share.share({
-                      message: `📌 Track my live SheDrive trip!\nDriver: ${ride.driverName || 'Partner'}\nPickup: ${ride.pickup.label}\nDestination: ${ride.dropoff.label}\nLive Tracking: ${data.shareUrl}`,
+                      message: `ðŸ“Œ Track my live SheDrive trip!\nDriver: ${ride.driverName || 'Partner'}\nPickup: ${ride.pickup.label}\nDestination: ${ride.dropoff.label}\nLive Tracking: ${data.shareUrl}`,
                       title: 'Share My SheDrive Ride',
                     }).catch(() => Alert.alert('Share Failed', 'Unable to open share sheet.'));
                   } catch (err) {
@@ -629,7 +640,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                   }
                 }}
               >
-                <Text style={{ fontSize: 15 }}>🔗</Text>
+                <Text style={{ fontSize: 15 }}>ðŸ”—</Text>
                 <Text style={{ color: Colors.light.primary, fontWeight: '800', fontSize: 13 }}>Share Ride</Text>
               </TouchableOpacity>
             </View>
@@ -648,26 +659,36 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
             <View style={styles.safetyRow}>
               <TouchableOpacity
                 style={styles.sosButton}
-                onPress={() => {
+                onPress={async () => {
                   if (user) {
+                    let currentCoords = { latitude: ride.pickup.latitude, longitude: ride.pickup.longitude };
+                    try {
+                      const { status } = await Location.requestForegroundPermissionsAsync();
+                      if (status === 'granted') {
+                        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                        currentCoords = loc.coords;
+                      }
+                    } catch (e) {
+                      console.warn('Could not get SOS location:', e);
+                    }
                     triggerEmergencySOS({
                       userId: user.uid,
                       userName: user.name,
                       userRole: 'passenger',
-                      coords: { latitude: ride.pickup.latitude, longitude: ride.pickup.longitude },
+                      coords: currentCoords,
                       activeRideId: ride.rideId,
                       token: state.token,
                     });
                   }
                 }}
               >
-                <Text style={styles.sosText}>🚨 EMERGENCY SOS</Text>
+                <Text style={styles.sosText}>ðŸš¨ EMERGENCY SOS</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.directCallBtn}
                 onPress={() => Linking.openURL('tel:15').catch(() => Alert.alert('Call Failed', 'Unable to open phone dialer.'))}
               >
-                <Text style={styles.directCallBtnText}>📞 Call 15 (Emergency)</Text>
+                <Text style={styles.directCallBtnText}>ðŸ“ž Call 15 (Emergency)</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -696,7 +717,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                   onPress={() => setRatingValue(starVal)}
                 >
                   <Text style={[styles.starIcon, rating >= starVal ? styles.starIconActive : null]}>
-                    ★
+                    â˜…
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -738,7 +759,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
       >
         <View style={styles.modalOverlay}>
           <View style={styles.timeoutModalCard}>
-            <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 12 }}>⏳</Text>
+            <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 12 }}>â³</Text>
             <Text style={styles.timeoutModalTitle}>Still Looking for Drivers</Text>
             <Text style={styles.timeoutModalSub}>
               Drivers nearby are reviewing your trip offer. Would you like to keep searching or cancel the request?

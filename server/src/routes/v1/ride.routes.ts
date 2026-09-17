@@ -77,7 +77,7 @@ router.post('/calculate-fare', authenticateToken, async (req: AuthRequest, res: 
       return res.status(400).json({ error: 'Invalid vehicle category' });
     }
 
-    // Calculate fare: baseFare + (distance Ã— perKmRate) + (duration Ã— perMinuteRate)
+    // Calculate fare: baseFare + (distance Ãƒâ€” perKmRate) + (duration Ãƒâ€” perMinuteRate)
     const baseFare = parseFloat(category.baseFare) || 0;
     const perKmRate = parseFloat(category.perKmRate) || 0;
     const perMinuteRate = parseFloat(category.perMinuteRate) || 0;
@@ -415,6 +415,26 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res: Respo
       );
     }
 
+    // Phase 2: Send Push Notifications for Offer/Acceptance
+    if (normalizedStatus === 'negotiating') {
+      sendPushNotification({
+        userId: currentRide.passenger_id,
+        title: 'ðŸš– New Counter Offer',
+        body: 'A driver has sent a counter-offer for your ride request.',
+        data: { type: 'ride_offer', rideId }
+      }).catch(err => console.warn('[FCM] Offer Push error:', err));
+    } else if (normalizedStatus === 'accepted') {
+      const recipientId = userRole === 'passenger' ? (currentRide.driver_id || (driverId || userId)) : currentRide.passenger_id;
+      if (recipientId) {
+        sendPushNotification({
+          userId: recipientId,
+          title: 'âœ… Ride Accepted',
+          body: userRole === 'passenger' ? 'Your counter-offer was accepted by the passenger!' : 'A driver has accepted your ride request.',
+          data: { type: 'ride_accepted', rideId }
+        }).catch(err => console.warn('[FCM] Accept Push error:', err));
+      }
+    }
+
     res.status(200).json({
       success: true,
       rideId,
@@ -717,7 +737,7 @@ router.post('/:id/chat-notify', authenticateToken, async (req: AuthRequest, res:
     // Send FCM notification to recipient
     const sent = await sendPushNotification({
       userId: recipientId,
-      title: 'ðŸ’¬ New Chat Message',
+      title: 'Ã°Å¸â€™Â¬ New Chat Message',
       body: 'You have a new message in your active ride chat.',
       data: {
         type: 'chat_message',
@@ -953,6 +973,38 @@ if (scheduledDispatchTimer.unref) {
   scheduledDispatchTimer.unref();
 }
 
-export default router;
 
+
+
+/**
+ * PUT /api/v1/rides/:id/location
+ * Description: Updates the live driver coordinates for the ride in PostgreSQL.
+ */
+router.put('/:id/location', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id: rideId } = req.params;
+    const userId = req.user?.id;
+    const { driverCoords } = req.body;
+
+    if (!driverCoords || !driverCoords.latitude || !driverCoords.longitude) {
+      return res.status(400).json({ error: 'Valid driverCoords are required' });
+    }
+
+    const rideRes = await query('SELECT driver_id FROM rides WHERE ride_id = $1', [rideId]);
+    if (rideRes.rows.length === 0) return res.status(404).json({ error: 'Ride not found' });
+    if (rideRes.rows[0].driver_id !== userId) return res.status(403).json({ error: 'Unauthorized' });
+
+    await query(
+      `UPDATE rides SET driver_coords = $1, updated_at = $2 WHERE ride_id = $3`,
+      [JSON.stringify(driverCoords), Date.now(), rideId]
+    );
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Update ride location error:', error);
+    res.status(500).json({ error: 'Failed to update ride location' });
+  }
+});
+
+export default router;
 

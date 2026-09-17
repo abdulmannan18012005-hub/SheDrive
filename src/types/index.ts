@@ -111,8 +111,11 @@ export interface FareOffer {
   role: UserRole;
   amount: number;
   timestamp: number;
+  expiresAt?: number;
   userName?: string;
   userId?: string;
+  rating?: number;
+  vehicleInfo?: any;
 }
 
 // ─── Ride Status ───────────────────────────────────────────

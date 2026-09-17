@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -104,14 +104,24 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
 
             // Sync driver location inside the ride document (throttled to 4s)
             const now = Date.now();
-            if (now - lastFirestoreSyncRef.current >= 4000) {
-              lastFirestoreSyncRef.current = now;
-              const rideRef = doc(db, 'rides', rideId);
-              await updateDoc(rideRef, {
-                driverCoords: { latitude, longitude },
-                updatedAt: now,
-              }).catch(() => {});
-            }
+              if (now - lastFirestoreSyncRef.current >= 4000) {
+                lastFirestoreSyncRef.current = now;
+                const rideRef = doc(db, 'rides', rideId);
+                await updateDoc(rideRef, {
+                  driverCoords: { latitude, longitude },
+                  updatedAt: now,
+                }).catch(() => {});
+
+                // Phase 3: Sync driver location to PostgreSQL backend
+                fetch(`${getApiBaseUrl()}/rides/${rideId}/location`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${state.token}`,
+                  },
+                  body: JSON.stringify({ driverCoords: { latitude, longitude } }),
+                }).catch(() => {});
+              }
 
             // Keep map centering on driver coords only if not user-panning
             if (mapRef.current && !isUserPanningRef.current) {

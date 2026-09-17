@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -49,7 +49,6 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
     make: (driverProfile as any)?.vehicle_make || '',
     model: (driverProfile as any)?.vehicle_model || '',
     plate: (driverProfile as any)?.vehicle_plate || '',
-    plateNumber: (driverProfile as any)?.vehicle_plate || '',
     category: (driverProfile as any)?.vehicle_category || 'mini',
     color: (driverProfile as any)?.vehicle_color || '',
     year: (driverProfile as any)?.vehicle_year || '2022',
@@ -315,13 +314,20 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           }),
         });
 
-        const data = await res.json();
+        // Safe JSON parsing
+        let data: any = {};
+        const responseText = await res.text();
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.warn('[DriverHome] Non-JSON response from backend:', responseText);
+        }
 
         if (!res.ok) {
           if (res.status === 403) setVerificationModalVisible(true);
           Alert.alert(
             res.status === 403 ? 'Account Under Review' : 'Cannot Go Online',
-            data.error || 'Your account is currently under review. Please wait for admin approval.'
+            data.error || 'Your account is currently under review or fee is suspended. Please wait for admin approval.'
           );
           setIsUpdatingStatus(false);
           return;
@@ -350,11 +356,13 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         setIsOnline(true);
       } else {
         // Go Offline
+        let tokenToUse = state.token || (await AsyncStorage.getItem('@shedrive_auth_token'));
+        
         await fetch(`${getApiBaseUrl()}/driver/online`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${state.token}`,
+            Authorization: `Bearer ${tokenToUse}`,
           },
           body: JSON.stringify({
             isOnline: false,
@@ -468,12 +476,23 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
       setIsSubmittingCounter(true);
       const rideRef = doc(db, 'rides', selectedRide.rideId);
 
-      // Construct the counter offer object
+      // Construct the counter offer object with full driver details for 10s timer
       const driverOffer: FareOffer = {
         senderId: user.uid,
+        userId: user.uid,
         role: 'driver',
         amount: amountNum,
         timestamp: Date.now(),
+        expiresAt: Date.now() + 10000,
+        userName: user.name || 'Driver',
+        rating: (driverProfile as any)?.rating || 5.0,
+        vehicleInfo: {
+          make: vehicle.make,
+          model: vehicle.model,
+          color: vehicle.color,
+          plate: vehicle.plate,
+          category: vehicle.category,
+        }
       };
 
       await updateDoc(rideRef, {
@@ -519,7 +538,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
         id: 'driver_current',
         lat: currentCoords.latitude,
         lng: currentCoords.longitude,
-        emoji: '🚗',
+        emoji: 'ðŸš—',
         title: 'My Location',
         isDriver: true,
       });
@@ -533,7 +552,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
             id: ride.rideId,
             lat: ride.pickup.latitude,
             lng: ride.pickup.longitude,
-            emoji: '📍',
+            emoji: 'ðŸ“',
             title: `Ride Offer: ${formatCurrency(ride.currentFare || 0)}`,
             isCustomer: true,
           });
@@ -563,7 +582,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           onPress={() => setDrawerVisible(true)}
           activeOpacity={0.7}
         >
-          <Text style={styles.hamburgerIcon}>☰</Text>
+          <Text style={styles.hamburgerIcon}>â˜°</Text>
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
           <Text style={styles.welcomeText}>Hello, {user?.name || 'Driver'}</Text>
@@ -576,7 +595,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
             }}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: 20 }}>🔔</Text>
+            <Text style={{ fontSize: 20 }}>ðŸ””</Text>
           </TouchableOpacity>
           {unreadCount > 0 && (
             <View style={{ position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 }}>
@@ -589,7 +608,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           onPress={() => navigation.navigate('MonthlyPayment')}
           activeOpacity={0.8}
         >
-          <Text style={styles.feeShortcutText}>💳 Fee Statement</Text>
+          <Text style={styles.feeShortcutText}>ðŸ’³ Fee Statement</Text>
         </TouchableOpacity>
       </View>
 
@@ -600,12 +619,12 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
           onPress={() => setVerificationModalVisible(true)}
           activeOpacity={0.85}
         >
-          <Text style={styles.verificationBannerIcon}>🔍</Text>
+          <Text style={styles.verificationBannerIcon}>ðŸ”</Text>
           <View style={styles.verificationBannerTextContainer}>
             <Text style={styles.verificationBannerTitle}>Verification in Progress</Text>
             <Text style={styles.verificationBannerSub}>Tap to view 4-step approval checklist</Text>
           </View>
-          <Text style={styles.verificationBannerChevron}>›</Text>
+          <Text style={styles.verificationBannerChevron}>â€º</Text>
         </TouchableOpacity>
       )}
 
@@ -646,13 +665,13 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                 mapRef.current.setCenter(lat, lng, 16);
               }
               await refreshLocation();
-            } catch (err) {
-              console.warn('[Driver Recenter Error]:', err);
+            } catch (err: any) {
+              console.warn('[Driver Recenter Error]:', err?.message || err);
             }
           }}
           activeOpacity={0.8}
         >
-          <Text style={styles.currentLocationIcon}>🎯</Text>
+          <Text style={styles.currentLocationIcon}>ðŸŽ¯</Text>
         </TouchableOpacity>
       </View>
 
@@ -681,13 +700,13 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                 return (
                   <View style={[styles.rideCard, isExpired && styles.rideCardExpired]}>
                     <View style={styles.cardHeader}>
-                      <Text style={styles.passengerLabel}>👩 {item.passengerName || 'Passenger'}</Text>
+                      <Text style={styles.passengerLabel}>ðŸ‘© {item.passengerName || 'Passenger'}</Text>
                       <Text style={styles.fareLabel}>{formatCurrency(item.currentFare || 0)}</Text>
                     </View>
 
                     <View style={styles.routeContainer}>
-                      <Text style={styles.routeText} numberOfLines={1}>🟢 {item.pickup?.label || 'Pickup point'}</Text>
-                      <Text style={styles.routeText} numberOfLines={1}>🔴 {item.dropoff?.label || 'Drop-off point'}</Text>
+                      <Text style={styles.routeText} numberOfLines={1}>ðŸŸ¢ {item.pickup?.label || 'Pickup point'}</Text>
+                      <Text style={styles.routeText} numberOfLines={1}>ðŸ”´ {item.dropoff?.label || 'Drop-off point'}</Text>
                     </View>
 
                     <View style={styles.cardDetails}>
@@ -699,7 +718,7 @@ export default function DriverHomeScreen({ navigation }: Props): React.JSX.Eleme
                     {/* Timer Display */}
                     <View style={styles.timerContainer}>
                       <Text style={[styles.timerText, isExpired && styles.timerTextExpired]}>
-                        {isExpired ? '⏰ Expired' : `⏱️ ${timeRemaining}s`}
+                        {isExpired ? 'â° Expired' : `â±ï¸ ${timeRemaining}s`}
                       </Text>
                     </View>
 
