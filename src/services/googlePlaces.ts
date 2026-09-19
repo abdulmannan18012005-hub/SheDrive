@@ -32,8 +32,8 @@ function getSecurityHeaders(extraHeaders: Record<string, string> = {}): Record<s
   return {
     'Content-Type': 'application/json',
     'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-    // 'X-Android-Package': ANDROID_PACKAGE_NAME,
-    // 'X-Android-Cert': ANDROID_SHA1_CERT,
+    'X-Android-Package': ANDROID_PACKAGE_NAME,
+    'X-Android-Cert': ANDROID_SHA1_CERT,
     ...extraHeaders,
   };
 }

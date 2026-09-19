@@ -542,61 +542,62 @@ export default function SearchScreen({ navigation, route }: Props): React.JSX.El
             ))
           ) : (
             <>
-              {/* Quick GPS Location Button */}
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: Colors.light.surface,
-                  borderRadius: 16,
-                  padding: 14,
-                  marginBottom: 16,
-                  borderWidth: 1,
-                  borderColor: '#BAE6FD',
-                  gap: 14,
-                }}
-                onPress={async () => {
-                  try {
-                    setIsCalculatingRoute(true);
-                    let targetCoords = gpsCoords;
-                    if (!targetCoords) {
-                      const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 60000 });
-                      if (lastKnown?.coords) {
-                        targetCoords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude, label: 'Current Location' };
-                        setGpsCoords(targetCoords);
-                      } else {
-                        Alert.alert('Error', 'Unable to retrieve your location.');
-                        return;
+              {/* Quick GPS Location Button (Only show for pickup) */}
+              {activeField === 'pickup' && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: Colors.light.surface,
+                    borderRadius: 16,
+                    padding: 14,
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: '#BAE6FD',
+                    gap: 14,
+                  }}
+                  onPress={async () => {
+                    try {
+                      setIsCalculatingRoute(true);
+                      let targetCoords = gpsCoords;
+                      if (!targetCoords) {
+                        const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 60000 });
+                        if (lastKnown?.coords) {
+                          targetCoords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude, label: 'Current Location' };
+                          setGpsCoords(targetCoords);
+                        } else {
+                          Alert.alert('Error', 'Unable to retrieve your location.');
+                          return;
+                        }
                       }
-                    }
-                    const readableAddress = await reverseGeocode(targetCoords.latitude, targetCoords.longitude);
-                    const label = readableAddress || 'Current Location';
-                    const currentPt = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, label };
-                    if (activeField === 'pickup') {
+                      const readableAddress = await reverseGeocode(targetCoords.latitude, targetCoords.longitude);
+                      const label = readableAddress || 'Current Location';
+                      const currentPt = { latitude: targetCoords.latitude, longitude: targetCoords.longitude, label };
+                      
                       setPickupPoint(currentPt);
                       setPickupText(label);
                       setIsManualPickupOverride(false);
                       setActiveField('dest');
-                    } else {
-                      setDestPoint(currentPt);
-                      setDestText(label);
+                      setTimeout(() => {
+                        destInputRef.current?.focus();
+                      }, 100);
+                    } catch (e) {
+                      Alert.alert('Error', 'Failed to get location');
+                    } finally {
+                      setIsCalculatingRoute(false);
                     }
-                  } catch (e) {
-                    Alert.alert('Error', 'Failed to get location');
-                  } finally {
-                    setIsCalculatingRoute(false);
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E0F2FE', justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 18 }}>🎯</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.light.text }}>Use Current Location</Text>
-                    <Text style={{ fontSize: 12, color: Colors.light.textSecondary }}>Live GPS positioning</Text>
-                  </View>
-                </TouchableOpacity>
+                  }}
+                  activeOpacity={0.8}
+                >
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E0F2FE', justifyContent: 'center', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 18 }}>🎯</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.light.text }}>Use Current Location</Text>
+                      <Text style={{ fontSize: 12, color: Colors.light.textSecondary }}>Live GPS positioning</Text>
+                    </View>
+                  </TouchableOpacity>
+              )}
 
               {/* Saved Places Section */}
               <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>Saved Places</Text>

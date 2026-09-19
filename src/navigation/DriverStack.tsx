@@ -27,6 +27,8 @@ import NotificationCenterScreen from '../screens/shared/NotificationCenterScreen
 import NotificationDetailScreen from '../screens/shared/NotificationDetailScreen';
 import ContactUsScreen from '../screens/shared/ContactUsScreen';
 import ReportProblemScreen from '../screens/shared/ReportProblemScreen';
+import { CustomerCareListScreen } from '../screens/shared/CustomerCareListScreen';
+import { CustomerCareChatScreen } from '../screens/shared/CustomerCareChatScreen';
 
 const Stack = createStackNavigator<DriverStackParamList>();
 
@@ -183,6 +185,16 @@ export default function DriverStack(): React.JSX.Element {
         name="Earnings"
         component={MonthlyPaymentScreen}
         options={{ title: 'Earnings & Platform Fee' }}
+      />
+      <Stack.Screen
+        name="CustomerCareList"
+        component={CustomerCareListScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CustomerCareChat"
+        component={CustomerCareChatScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

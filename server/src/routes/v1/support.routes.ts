@@ -37,6 +37,119 @@ router.get('/faqs', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/support/tickets
+ * Headers: Authorization: Bearer <token>
+ * Description: Fetches all tickets for the logged-in user.
+ */
+router.get('/tickets', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const result = await query(
+      'SELECT * FROM support_tickets WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+
+    res.status(200).json({ tickets: result.rows });
+  } catch (error) {
+    console.error('Fetch tickets error:', error);
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+/**
+ * GET /api/v1/support/tickets/:id/messages
+ * Headers: Authorization: Bearer <token>
+ * Description: Fetches messages for a specific ticket.
+ */
+router.get('/tickets/:id/messages', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const ticketId = req.params.id;
+
+    // Verify ticket ownership
+    const ticketRes = await query('SELECT user_id FROM support_tickets WHERE id = $1', [ticketId]);
+    if (ticketRes.rows.length === 0 || ticketRes.rows[0].user_id !== userId) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const messagesRes = await query(
+      'SELECT * FROM support_chat_messages WHERE ticket_id = $1 ORDER BY created_at ASC',
+      [ticketId]
+    );
+
+    res.status(200).json({ messages: messagesRes.rows });
+  } catch (error) {
+    console.error('Fetch ticket messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+/**
+ * POST /api/v1/support/tickets/:id/messages
+ * Headers: Authorization: Bearer <token>
+ * Body: { text: string }
+ * Description: Adds a new message to a specific ticket.
+ */
+router.post('/tickets/:id/messages', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const ticketId = req.params.id;
+    const { text } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Message text is required' });
+    }
+
+    // Verify ticket ownership
+    const ticketRes = await query('SELECT user_id FROM support_tickets WHERE id = $1', [ticketId]);
+    if (ticketRes.rows.length === 0 || ticketRes.rows[0].user_id !== userId) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const now = Date.now();
+
+    await query(
+      `INSERT INTO support_chat_messages (id, ticket_id, sender_id, text, is_from_admin, created_at)
+       VALUES ($1, $2, $3, $4, false, $5)`,
+      [messageId, ticketId, userId, text.trim(), now]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: { id: messageId, ticket_id: ticketId, sender_id: userId, text: text.trim(), is_from_admin: false, created_at: now },
+    });
+  } catch (error) {
+    console.error('Create ticket message error:', error);
+    res.status(500).json({ error: 'Failed to submit message' });
+  }
+});
+
+/**
+ * DELETE /api/v1/support/tickets/:id
+ * Headers: Authorization: Bearer <token>
+ * Description: Deletes a specific ticket.
+ */
+router.delete('/tickets/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const ticketId = req.params.id;
+
+    // Verify ticket ownership
+    const ticketRes = await query('SELECT user_id FROM support_tickets WHERE id = $1', [ticketId]);
+    if (ticketRes.rows.length === 0 || ticketRes.rows[0].user_id !== userId) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    await query('DELETE FROM support_tickets WHERE id = $1', [ticketId]);
+    res.status(200).json({ success: true, message: 'Ticket deleted successfully' });
+  } catch (error) {
+    console.error('Delete ticket error:', error);
+    res.status(500).json({ error: 'Failed to delete ticket' });
+  }
+});
+
+/**
  * POST /api/v1/support/tickets
  * Headers: Authorization: Bearer <token>
  * Body: { category: string, subject: string, message: string }
@@ -53,10 +166,19 @@ router.post('/tickets', authenticateToken, async (req: Request, res: Response) =
     const ticketId = `tkt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const now = Date.now();
 
+    // Insert the ticket
     await query(
       `INSERT INTO support_tickets (id, user_id, category, subject, message, screenshot_url, status, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, 'open', $7)`,
       [ticketId, userId, category.trim(), subject.trim(), message.trim(), screenshotUrl || null, now]
+    );
+
+    // Insert the initial message into support_chat_messages
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    await query(
+      `INSERT INTO support_chat_messages (id, ticket_id, sender_id, text, is_from_admin, created_at)
+       VALUES ($1, $2, $3, $4, false, $5)`,
+      [messageId, ticketId, userId, message.trim(), now]
     );
 
     res.status(201).json({

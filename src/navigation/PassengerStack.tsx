@@ -29,6 +29,8 @@ import NotificationCenterScreen from '../screens/shared/NotificationCenterScreen
 import NotificationDetailScreen from '../screens/shared/NotificationDetailScreen';
 import ContactUsScreen from '../screens/shared/ContactUsScreen';
 import ReportProblemScreen from '../screens/shared/ReportProblemScreen';
+import { CustomerCareListScreen } from '../screens/shared/CustomerCareListScreen';
+import { CustomerCareChatScreen } from '../screens/shared/CustomerCareChatScreen';
 
 const Stack = createStackNavigator<PassengerStackParamList>();
 
@@ -182,6 +184,16 @@ export default function PassengerStack(): React.JSX.Element {
         name="ReportProblem"
         component={ReportProblemScreen}
         options={{ title: 'Report a Problem' }}
+      />
+      <Stack.Screen
+        name="CustomerCareList"
+        component={CustomerCareListScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CustomerCareChat"
+        component={CustomerCareChatScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

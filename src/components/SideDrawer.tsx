@@ -191,6 +191,15 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                   <Text style={styles.menuText}>Settings & Legal</Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleNavigate('CustomerCareList')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.menuIcon}>💬</Text>
+                  <Text style={styles.menuText}>Customer Care</Text>
+                </TouchableOpacity>
+
                 <View style={styles.divider} />
 
                 <TouchableOpacity

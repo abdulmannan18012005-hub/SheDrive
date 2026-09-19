@@ -215,6 +215,13 @@ io.on('connection', (socket) => {
           socket.emit('bid_error', { error: 'Ride is already assigned to another driver' });
           return;
         }
+        
+        // Req 2: Enforce 1-counter-offer limit per driver per ride
+        const existingBidCheck = await query('SELECT id FROM bids WHERE ride_id = $1 AND sender_id = $2 LIMIT 1', [rideId, senderId]);
+        if (existingBidCheck.rows.length > 0) {
+          socket.emit('bid_error', { error: 'You have already submitted an offer for this ride.' });
+          return;
+        }
       }
 
       // Persist bid event into bids table

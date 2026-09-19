@@ -290,6 +290,8 @@ export type PassengerStackParamList = {
   Calling: { name?: string; phone?: string; role?: string };
   ContactUs: undefined;
   ReportProblem: undefined;
+  CustomerCareList: undefined;
+  CustomerCareChat: { ticketId: string; subject: string; };
   Settings: undefined;
   AboutUs: undefined;
   UserAgreement: undefined;
@@ -331,6 +333,8 @@ export type DriverStackParamList = {
   Calling: { name?: string; phone?: string; role?: string };
   ContactUs: undefined;
   ReportProblem: undefined;
+  CustomerCareList: undefined;
+  CustomerCareChat: { ticketId: string; subject: string; };
   AboutUs: undefined;
   UserAgreement: undefined;
   TermsAndConditions: undefined;
