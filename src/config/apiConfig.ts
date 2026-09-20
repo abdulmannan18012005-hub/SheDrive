@@ -7,7 +7,7 @@
  */
 
 // ✏️ Configuration Mode: Set to false for production release builds, or true for local development
-const IS_LOCAL_DEV = false;
+const IS_LOCAL_DEV = true;
 
 // ✏️ Local Development: Update this IP to your laptop's current Wi-Fi IP address
 const LOCAL_LAPTOP_IP = '192.168.100.9';

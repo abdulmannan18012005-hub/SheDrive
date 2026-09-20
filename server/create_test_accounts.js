@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 
 async function seed() {
   try {
-    const hash = await bcrypt.hash('Test#2026', 10);
+    const hash = await bcrypt.hash('password', 10);
     const now = Date.now();
     
     // Insert Passengers

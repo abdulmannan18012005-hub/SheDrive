@@ -129,44 +129,9 @@ export function useLocation(): UseLocationResult {
 
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Silent telemetry: watch position in background without triggering React state re-renders
-    let watcherSub: Location.LocationSubscription | null = null;
-    const startSilentWatcher = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        
-        watcherSub = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 10000, // 10 seconds
-            distanceInterval: 15, // 15 meters
-          },
-          (newLocation) => {
-            if (newLocation && newLocation.coords && isMountedRef.current) {
-              const silentCoords = {
-                latitude: newLocation.coords.latitude,
-                longitude: newLocation.coords.longitude,
-              };
-              // Update ref for global knowledge, but DO NOT call setLocation() 
-              // to avoid UI re-renders, blinking, and keyboard closure
-              lastCoordsRef.current = silentCoords;
-            }
-          }
-        );
-      } catch (err) {
-        console.warn('Silent location watcher failed:', err);
-      }
-    };
-
-    startSilentWatcher();
-
     return () => {
       isMountedRef.current = false;
       appStateSubscription.remove();
-      if (watcherSub) {
-        watcherSub.remove();
-      }
     };
   }, []); // Empty deps - runs only once
 
