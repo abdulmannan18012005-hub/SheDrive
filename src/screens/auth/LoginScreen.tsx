@@ -329,7 +329,8 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
               <Text style={styles.inputIcon}>📱</Text>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. 03001234567 or email@example.com"
+                nativeID="login_email"
+                  placeholder="e.g. 03001234567 or email@example.com"
                 placeholderTextColor={Colors.light.textTertiary}
                 value={identifier}
                 onChangeText={setIdentifier}
@@ -351,7 +352,8 @@ export default function LoginScreen({ navigation }: Props): React.JSX.Element {
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your password"
+                nativeID="login_password"
+                  placeholder="Enter your password"
                 placeholderTextColor={Colors.light.textTertiary}
                 value={password}
                 onChangeText={setPassword}
@@ -783,3 +785,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+
