@@ -609,7 +609,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             disabled={isLoading}
           >
             <Text style={[styles.roleTabText, role === 'passenger' && styles.roleTabActiveText]}>
-              ðŸ‘© Passenger
+              👩 Passenger
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -618,7 +618,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             disabled={isLoading}
           >
             <Text style={[styles.roleTabText, role === 'driver' && styles.roleTabActiveText]}>
-              ðŸš— Driver
+              🚗 Driver
             </Text>
           </TouchableOpacity>
         </View>
@@ -649,7 +649,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Mobile Phone * (11 Digits)</Text>
               <View style={styles.inputWrapper}>
-                <Text style={styles.inputIcon}>ðŸ“±</Text>
+                <Text style={styles.inputIcon}>📱</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g., 03001234567"
@@ -699,7 +699,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Password * (Min 8 chars, Upper, Lower, Special)</Text>
               <View style={styles.inputWrapper}>
-                <Text style={styles.inputIcon}>ðŸ”’</Text>
+                <Text style={styles.inputIcon}>🔒</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. SheDrive#2026"
@@ -716,7 +716,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                   onPress={() => setShowPassword(!showPassword)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.eyeIconText}>{showPassword ? 'ðŸ™ˆ' : 'ðŸ‘ï¸'}</Text>
+                  <Text style={styles.eyeIconText}>{showPassword ? '🙈' : '👁️'}</Text>
                 </TouchableOpacity>
               </View>
               <PasswordStrengthIndicator password={password} />
@@ -726,7 +726,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Confirm Password *</Text>
               <View style={styles.inputWrapper}>
-                <Text style={styles.inputIcon}>ðŸ”’</Text>
+                <Text style={styles.inputIcon}>🔒</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Re-enter your password"
@@ -740,7 +740,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                   onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                   style={styles.eyeIcon}
                 >
-                  <Text style={styles.eyeIconText}>{showConfirmPassword ? 'ðŸ™ˆ' : 'ðŸ‘ï¸'}</Text>
+                  <Text style={styles.eyeIconText}>{showConfirmPassword ? '🙈' : '👁️'}</Text>
                 </TouchableOpacity>
               </View>
               {password.length > 0 && confirmPassword.length > 0 && (
@@ -772,7 +772,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
           {role === 'driver' && (
             <View style={styles.driverSection}>
               <View style={styles.card}>
-                <Text style={styles.sectionHeading}>ðŸ“… Personal Information</Text>
+                <Text style={styles.sectionHeading}>📅 Personal Information</Text>
 
                 <View style={styles.inputContainer}>
                   <Text style={styles.label}>Date of Birth *</Text>
@@ -795,7 +795,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
 
               {/* Vehicle Type Selection Row */}
               <View style={[styles.card, { marginTop: 16 }]}>
-                <Text style={styles.sectionHeading}>ðŸ›µ Vehicle Type Selection</Text>
+                <Text style={styles.sectionHeading}>🛵 Vehicle Type Selection</Text>
                 <View style={styles.vehicleTypeRow}>
                   <TouchableOpacity
                     style={[
@@ -811,7 +811,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                         vehicleType === 'bike' && styles.vehicleTypePillTextActive,
                       ]}
                     >
-                      ðŸ›µ Bike / Scooty
+                      🛵 Bike / Scooty
                     </Text>
                   </TouchableOpacity>
 
@@ -829,7 +829,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                         vehicleType === 'car' && styles.vehicleTypePillTextActive,
                       ]}
                     >
-                      ðŸš— Car
+                      🚗 Car
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -838,7 +838,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
               {/* Dynamic Vehicle Details Form */}
               <View style={[styles.card, { marginTop: 16 }]}>
                 <Text style={styles.sectionHeading}>
-                  {vehicleType === 'bike' ? 'ðŸ›µ Bike / Scooty Details' : 'ðŸš— Car Details'}
+                  {vehicleType === 'bike' ? '🛵 Bike / Scooty Details' : '🚗 Car Details'}
                 </Text>
 
                 {/* Car Category selection (Shown ONLY when Car is selected) */}
@@ -885,7 +885,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                           activeOpacity={0.8}
                         >
                           <Text style={[styles.vehicleTypePillText, acOption === 'ac' && styles.vehicleTypePillTextActive]}>
-                            â„ï¸ AC
+                            ❄️ AC
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -894,7 +894,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                           activeOpacity={0.8}
                         >
                           <Text style={[styles.vehicleTypePillText, acOption === 'non_ac' && styles.vehicleTypePillTextActive]}>
-                            ðŸƒ Non-AC
+                            🍃 Non-AC
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -903,7 +903,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                           activeOpacity={0.8}
                         >
                           <Text style={[styles.vehicleTypePillText, acOption === 'both' && styles.vehicleTypePillTextActive]}>
-                            â„ï¸ðŸƒ Both
+                            ❄️🍃 Both
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -963,7 +963,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                   <View style={[styles.inputContainer, { flex: 1 }]}>
                     <Text style={styles.label}>Plate Number *</Text>
                     <View style={styles.inputWrapper}>
-                      <Text style={styles.inputIcon}>{vehicleType === 'bike' ? 'ðŸ›µ' : 'ðŸš˜'}</Text>
+                      <Text style={styles.inputIcon}>{vehicleType === 'bike' ? '🛵' : 'ðŸš˜'}</Text>
                       <TextInput
                         style={styles.input}
                         placeholder={vehicleType === 'bike' ? 'e.g. KHI-1234' : 'e.g. LER-1234'}
@@ -1047,7 +1047,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                     disabled={isLoading}
                   >
                     <Text style={styles.uploadButtonText}>
-                      {registrationUri ? 'âœ… Registration' : 'Registration *'}
+                      {registrationUri ? '✅ Registration' : 'Registration *'}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -1056,7 +1056,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                     disabled={isLoading}
                   >
                     <Text style={styles.uploadButtonText}>
-                      {insuranceUri ? 'âœ… Insurance' : 'Insurance'}
+                      {insuranceUri ? '✅ Insurance' : 'Insurance'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1265,7 +1265,7 @@ export default function RegisterScreen({ navigation }: Props): React.JSX.Element
                   onPress={handlePreviewCrop}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.imgPreviewCropBtnText}>âœ‚ï¸ Crop</Text>
+                  <Text style={styles.imgPreviewCropBtnText}>âœ‚ Crop</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity

@@ -428,7 +428,7 @@ router.put('/:id/status', authenticateToken, async (req: AuthRequest, res: Respo
       if (recipientId) {
         sendPushNotification({
           userId: recipientId,
-          title: 'âœ… Ride Accepted',
+          title: '✅ Ride Accepted',
           body: userRole === 'passenger' ? 'Your counter-offer was accepted by the passenger!' : 'A driver has accepted your ride request.',
           data: { type: 'ride_accepted', rideId }
         }).catch(err => console.warn('[FCM] Accept Push error:', err));

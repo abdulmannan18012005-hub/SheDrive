@@ -427,7 +427,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         id: `stop_${idx}`,
         lat: s.latitude,
         lng: s.longitude,
-        emoji: s.completed ? 'âœ…' : 'ðŸŸ¡',
+        emoji: s.completed ? '✅' : 'ðŸŸ¡',
         title: `Stop #${idx + 1}: ${s.label} (${s.completed ? 'Completed' : 'Pending'})`,
         isCustomer: false,
       })),
@@ -443,7 +443,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         id: 'driver',
         lat: dLat,
         lng: dLng,
-        emoji: 'ðŸš—',
+        emoji: '🚗',
         title: `${ride.driverName || driver?.name || 'Driver'} (${ride.status === 'accepted' ? 'Approaching' : 'On Trip'})`,
         isDriver: true,
       });
@@ -482,7 +482,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
             {ride.status === 'scheduled' && `ðŸ•’ Scheduled Ride: Departure at ${ride.scheduledFor ? new Date(ride.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'set time'}`}
             {ride.status === 'pending' && `ðŸ” Searching for nearby verified drivers (${searchTimer}s)...`}
             {ride.status === 'negotiating' && 'ðŸ’¬ Negotiating fare...'}
-            {ride.status === 'accepted' && 'ðŸš— Driver arriving in ~3-5 mins (navigating to pickup)...'}
+            {ride.status === 'accepted' && '🚗 Driver arriving in ~3-5 mins (navigating to pickup)...'}
             {ride.status === 'arrived' && 'ðŸ“ Driver has arrived! Share PIN to board.'}
             {ride.status === 'boarded' && 'ðŸ”‘ Ride Verification PIN Confirmed!'}
             {ride.status === 'started' && 'ðŸŽï¸ Ride Started! Driving to destination...'}
@@ -503,7 +503,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
               </View>
               {ride.stops.map((s, idx) => (
                 <View key={s.id || `stop-${idx}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontSize: 14 }}>{s.completed ? 'âœ…' : 'ðŸŸ¡'}</Text>
+                  <Text style={{ fontSize: 14 }}>{s.completed ? '✅' : 'ðŸŸ¡'}</Text>
                   <Text style={{ fontSize: 13, fontWeight: '600', color: s.completed ? '#10B981' : Colors.light.text, flex: 1 }} numberOfLines={1}>
                     Stop #{idx + 1}: {s.label} ({s.completed ? 'Completed' : 'Next'})
                   </Text>
@@ -550,7 +550,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
         {ride.driverId && (
           <View style={{ marginHorizontal: 24, padding: 16, backgroundColor: Colors.light.surface, borderRadius: 20, borderWidth: 1, borderColor: Colors.light.border, marginBottom: 20, elevation: 2 }}>
             <Text style={{ fontSize: 13, fontWeight: '800', color: Colors.light.textSecondary, marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase' }}>
-              ðŸš— Assigned Driver Partner
+              🚗 Assigned Driver Partner
             </Text>
             <TouchableOpacity 
               style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
@@ -565,7 +565,7 @@ export default function RideTrackingScreen({ navigation, route }: Props): React.
                 {driver?.photoURL || driver?.selfieUrl ? (
                   <Image source={{ uri: driver?.photoURL || driver?.selfieUrl }} style={{ width: 60, height: 60, borderRadius: 30 }} />
                 ) : (
-                  <Text style={{ fontSize: 24 }}>ðŸ‘©</Text>
+                  <Text style={{ fontSize: 24 }}>👩</Text>
                 )}
               </View>
               <View style={{ flex: 1 }}>

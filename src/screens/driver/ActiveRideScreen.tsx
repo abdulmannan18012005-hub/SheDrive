@@ -331,7 +331,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         id: `stop_${idx}`,
         lat: s.latitude,
         lng: s.longitude,
-        emoji: s.completed ? 'âœ…' : 'ðŸŸ¡',
+        emoji: s.completed ? '✅' : 'ðŸŸ¡',
         title: `Stop #${idx + 1}: ${s.label} (${s.completed ? 'Completed' : 'Pending'})`,
         isCustomer: false,
       })),
@@ -343,7 +343,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         id: 'driver',
         lat: driverCoords.latitude,
         lng: driverCoords.longitude,
-        emoji: 'ðŸš—',
+        emoji: '🚗',
         title: 'My Position',
         isDriver: true,
       });
@@ -399,7 +399,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
         {/* Status Tracker */}
         <View style={styles.statusBanner}>
           <Text style={styles.statusLabel}>
-            {ride.status === 'accepted' && 'ðŸš— Driving to passenger pickup point'}
+            {ride.status === 'accepted' && '🚗 Driving to passenger pickup point'}
             {ride.status === 'arrived' && 'ðŸ“ Waiting for passenger to enter vehicle'}
             {ride.status === 'enroute' && 'ðŸŒŸ Driving to dropoff destination'}
           </Text>
@@ -415,7 +415,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
               {/* Intermediate Stops Display */}
               {ride.stops && ride.stops.length > 0 && ride.stops.map((s, idx) => (
                 <Text key={s.id || `stop-${idx}`} style={[styles.routeText, { color: s.completed ? '#10B981' : '#F59E0B' }]} numberOfLines={1}>
-                  {s.completed ? 'âœ…' : 'ðŸŸ¡'} Stop #{idx + 1}: {s.label}
+                  {s.completed ? '✅' : 'ðŸŸ¡'} Stop #{idx + 1}: {s.label}
                 </Text>
               ))}
 
@@ -473,7 +473,7 @@ export default function ActiveRideScreen({ navigation, route }: Props): React.JS
               activeOpacity={0.8}
             >
               <Text style={styles.actionButtonText}>
-                âœ… Complete Stop #{nextIncompleteStop.stopOrder}: {nextIncompleteStop.label}
+                ✅ Complete Stop #{nextIncompleteStop.stopOrder}: {nextIncompleteStop.label}
               </Text>
             </TouchableOpacity>
           )}
